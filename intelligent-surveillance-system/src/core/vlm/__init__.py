@@ -1,0 +1,1 @@
+"""Module Vision-Language Model avec capacités d'orchestration d'outils."""

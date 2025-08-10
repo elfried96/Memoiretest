@@ -1,0 +1,28 @@
+{
+  "ignorePatterns": [
+    {
+      "pattern": "^https://colab.research.google.com/"
+    },
+    {
+      "pattern": "^https://github.com/elfried-kinzoun/"
+    },
+    {
+      "pattern": "^mailto:"
+    },
+    {
+      "pattern": "^#"
+    }
+  ],
+  "replacementPatterns": [
+    {
+      "pattern": "^/",
+      "replacement": "https://elfried-kinzoun.github.io/intelligent-surveillance-system/"
+    }
+  ],
+  "httpStatusCodesToRetry": [429, 500, 502, 503, 504],
+  "retryOn429": true,
+  "retryCount": 3,
+  "fallbackHttpStatusCodes": [400, 401, 403, 404, 500, 502, 503, 504],
+  "aliveStatusCodes": [200, 206, 300, 301, 302, 303, 304, 307, 308],
+  "timeout": "20s"
+}

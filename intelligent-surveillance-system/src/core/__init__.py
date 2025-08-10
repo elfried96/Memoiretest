@@ -1,0 +1,1 @@
+"""Modules centraux du système de surveillance."""

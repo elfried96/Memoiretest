@@ -1,0 +1,1 @@
+"""Module de détection d'objets YOLO v8."""

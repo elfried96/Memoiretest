@@ -1,0 +1,1 @@
+"""Utilitaires communs du système de surveillance."""

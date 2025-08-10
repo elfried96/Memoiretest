@@ -1,0 +1,1 @@
+"""Modules de détection et suivi d'objets."""

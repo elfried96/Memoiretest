@@ -2,7 +2,7 @@
 
 Système de surveillance basé sur des modèles Vision-Language avec capacités d'orchestration d'outils pour la prévention du vol en grande distribution.
 
-## 🎯 Objectifs
+## Objectifs
 
 - **Taux de faux positifs** < 3%
 - **Précision de détection** > 90%

@@ -1,32 +1,57 @@
-# Système de Surveillance Intelligente Multimodale
+# 🎯 Système de Surveillance Intelligente Multi-VLM
 
-Système de surveillance basé sur des modèles Vision-Language avec capacités d'orchestration d'outils pour la prévention du vol en grande distribution.
+Système de surveillance avancé avec **support multi-modèles VLM** : **KIM**, **LLaVA** et **Qwen2-VL** + **8 outils avancés** intégrés.
 
-## Objectifs
+## ⭐ Fonctionnalités Principales
 
-- **Taux de faux positifs** < 3%
-- **Précision de détection** > 90%
-- **Traitement temps réel** < 1.5s
-- **Support multi-flux** > 10 caméras simultanées
+### 🧠 **Support Multi-VLM Dynamique**
+- **KIM** (Microsoft) - Modèle principal optimisé surveillance
+- **LLaVA-NeXT** - Modèle éprouvé et stable  
+- **Qwen2-VL** - Excellence en raisonnement visuel
+- **Switch à chaud** entre modèles sans redémarrage
 
-## 🏗️ Architecture
+### 🛠️ **8 Outils Avancés Intégrés**
+- `SAM2Segmentator` - Segmentation précise avec SAM2
+- `DinoV2FeatureExtractor` - Features visuelles robustes
+- `OpenPoseEstimator` - Analyse posturale et comportementale
+- `TrajectoryAnalyzer` - Patterns de mouvement sophistiqués  
+- `MultiModalFusion` - Fusion intelligente des données
+- `TemporalTransformer` - Analyse temporelle avancée
+- `AdversarialDetector` - Protection contre attaques
+- `DomainAdapter` - Adaptation multi-environnements
+
+### 🎮 **Orchestration Intelligente** 
+- **3 modes** : `FAST`, `BALANCED`, `THOROUGH`
+- **Tool-calling** natif optimisé par modèle
+- **Traitement batch** avec contrôle de concurrence
+- **Fallbacks** automatiques et robustes
+
+## 🏗️ Architecture Modernisée
 
 ```
-├── src/
-│   ├── core/              # Modules centraux
-│   │   ├── vlm/          # Vision-Language Model
-│   │   ├── orchestrator/ # Orchestration d'outils
-│   │   └── pipeline/     # Pipeline de traitement
-│   ├── detection/        # Détection et suivi
-│   │   ├── yolo/        # YOLO v8 détection
-│   │   └── tracking/    # DeepSORT/ByteTrack
-│   ├── validation/      # Anti-faux positifs
-│   ├── monitoring/      # Interface et alertes
-│   └── utils/          # Utilitaires communs
-├── config/             # Configurations
-├── data/              # Données et modèles
-├── tests/             # Tests unitaires
-└── docker/            # Conteneurisation
+src/
+├── core/
+│   ├── vlm/
+│   │   ├── dynamic_model.py      # VLM multi-modèles
+│   │   ├── model_registry.py     # Registre KIM/LLaVA/Qwen
+│   │   ├── prompt_builder.py     # Prompts optimisés
+│   │   ├── response_parser.py    # Parsing intelligent  
+│   │   └── tools_integration.py  # Gestionnaire 8 outils
+│   ├── orchestrator/
+│   │   └── vlm_orchestrator.py   # Orchestrateur moderne
+│   └── types.py                  # Types partagés
+├── advanced_tools/               # 8 outils avancés
+│   ├── sam2_segmentation.py
+│   ├── dino_features.py
+│   ├── pose_estimation.py
+│   ├── trajectory_analyzer.py
+│   ├── multimodal_fusion.py
+│   ├── temporal_transformer.py
+│   ├── adversarial_detector.py
+│   └── domain_adapter.py
+└── detection/                    # YOLO et tracking
+    ├── yolo/
+    └── tracking/
 ```
 
 ## 🚀 Installation

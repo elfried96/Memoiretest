@@ -17,7 +17,7 @@ class ModelConfig(BaseSettings):
     vlm_temperature: float = 0.1
     
     # YOLO Configuration
-    yolo_model_path: str = "yolov8n.pt"
+    yolo_model_path: str = "yolov11n.pt"
     yolo_confidence: float = 0.25
     yolo_iou_threshold: float = 0.45
     yolo_device: str = "cuda" if os.getenv("CUDA_VISIBLE_DEVICES") else "cpu"

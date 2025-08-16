@@ -18,7 +18,7 @@ class TestYOLODetector:
     def detector(self):
         """Fixture pour le détecteur YOLO."""
         return YOLODetector(
-            model_path="yolov8n.pt",
+            model_path="yolov11n.pt",
             device="cpu",  # Utiliser CPU pour les tests
             confidence_threshold=0.25
         )
@@ -42,13 +42,13 @@ class TestYOLODetector:
     def test_detector_initialization(self):
         """Test de l'initialisation du détecteur."""
         detector = YOLODetector(
-            model_path="yolov8n.pt",
+            model_path="yolov11n.pt",
             device="cpu",
             confidence_threshold=0.3,
             iou_threshold=0.5
         )
         
-        assert detector.model_path == "yolov8n.pt"
+        assert detector.model_path == "yolov11n.pt"
         assert detector.device == "cpu"
         assert detector.confidence_threshold == 0.3
         assert detector.iou_threshold == 0.5
@@ -253,7 +253,7 @@ class TestYOLODetectorIntegration:
     def test_real_model_loading(self):
         """Test de chargement d'un vrai modèle (test d'intégration)."""
         detector = YOLODetector(
-            model_path="yolov8n.pt",
+            model_path="yolov11n.pt",
             device="cpu"
         )
         

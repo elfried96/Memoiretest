@@ -17,7 +17,7 @@ Quand vous lancez `python main.py`, voici ce qui se passe :
 1. **Initialisation des composants** :
    ```python
    # 1. Détecteur YOLO
-   self.yolo_detector = YOLODetector(model_path="yolov8n.pt")
+   self.yolo_detector = YOLODetector(model_path="yolov11n.pt")
    
    # 2. Tracker multi-objets
    self.tracker = BYTETracker()
@@ -33,7 +33,7 @@ Quand vous lancez `python main.py`, voici ce qui se passe :
    ```
 
 2. **Chargement des modèles** :
-   - ✅ YOLO télécharge `yolov8n.pt` (6 MB)
+   - ✅ YOLO télécharge `yolov11n.pt` (6 MB)
    - ✅ Kimi-VL tente de se connecter à Moonshot AI
    - ✅ Si échec → Fallback automatique vers LLaVA
    - ✅ Initialisation des 8 outils avancés

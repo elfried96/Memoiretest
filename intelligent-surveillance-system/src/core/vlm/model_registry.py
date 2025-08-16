@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 class VLMModelType(Enum):
     """Types de modèles VLM supportés."""
     KIMI_VL = "kimi_vl"
-    LLAVA = "llava" 
+ 
     QWEN = "qwen"
 
 
@@ -83,47 +83,6 @@ class VLMModelRegistry:
             description="Kimi-VL A3B Thinking - Raisonnement CoT avancé (61.7 MMMU, 2.8B activés)"
         )
         
-        # === LLaVA Models ===
-        
-        # LLaVA-NeXT 7B (Mistral)
-        models["llava-v1.6-mistral-7b"] = ModelConfig(
-            model_name="llava-hf/llava-v1.6-mistral-7b-hf",
-            model_type=VLMModelType.LLAVA,
-            processor_class="LlavaNextProcessor",
-            model_class="LlavaNextForConditionalGeneration", 
-            default_params={
-                "torch_dtype": "float16",
-                "device_map": "auto",
-                "load_in_4bit": True,
-                "max_new_tokens": 512,
-                "temperature": 0.1,
-                "do_sample": True
-            },
-            supports_tool_calling=True,
-            supports_batch=True,
-            memory_efficient=True,
-            description="LLaVA-NeXT 7B - Modèle éprouvé pour vision-language"
-        )
-        
-        # LLaVA-NeXT 13B (Vicuna)
-        models["llava-v1.6-vicuna-13b"] = ModelConfig(
-            model_name="llava-hf/llava-v1.6-vicuna-13b-hf",
-            model_type=VLMModelType.LLAVA,
-            processor_class="LlavaNextProcessor", 
-            model_class="LlavaNextForConditionalGeneration",
-            default_params={
-                "torch_dtype": "float16",
-                "device_map": "auto",
-                "load_in_8bit": True,
-                "max_new_tokens": 768,
-                "temperature": 0.1,
-                "do_sample": True
-            },
-            supports_tool_calling=True,
-            supports_batch=True,
-            memory_efficient=False,
-            description="LLaVA-NeXT 13B - Version haute performance"
-        )
         
         # === Qwen2-VL Models (Alibaba) ===
         
@@ -193,7 +152,7 @@ class VLMModelRegistry:
             "surveillance": "kimi-vl-a3b-instruct",     # Kimi-VL Instruct pour surveillance
             "thinking": "kimi-vl-a3b-thinking",         # Kimi-VL Thinking pour raisonnement
             "high_performance": "kimi-vl-a3b-thinking", # Kimi-VL Thinking haute perf
-            "memory_efficient": "llava-v1.6-mistral-7b", # LLaVA léger
+            "memory_efficient": "qwen2-vl-7b-instruct", # Qwen léger
             "reasoning": "kimi-vl-a3b-thinking",         # Kimi-VL Thinking principal
             "flagship": "qwen2-vl-72b-instruct"         # Qwen flagship
         }
@@ -219,10 +178,6 @@ class VLMModelRegistry:
                 except ImportError:
                     return False, "Transformers>=4.48.2 requis pour Kimi-VL"
             
-            elif config.model_type == VLMModelType.LLAVA:
-                import transformers
-                from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
-                return True, "LLaVA disponible"
             
             elif config.model_type == VLMModelType.QWEN:
                 import transformers

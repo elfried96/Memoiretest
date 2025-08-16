@@ -9,8 +9,6 @@ import torch
 from transformers import (
     AutoProcessor, 
     AutoModelForVision2Seq,
-    LlavaNextProcessor, 
-    LlavaNextForConditionalGeneration,
     BlipProcessor,
     BlipForConditionalGeneration
 )
@@ -93,12 +91,7 @@ class VisionLanguageModel:
                 )
             
             # Chargement selon l'architecture
-            if "llava" in self.model_name.lower():
-                self.processor = LlavaNextProcessor.from_pretrained(self.model_name)
-                self.model = LlavaNextForConditionalGeneration.from_pretrained(
-                    self.model_name, **model_kwargs
-                )
-            elif "blip" in self.model_name.lower():
+            if "blip" in self.model_name.lower():
                 self.processor = BlipProcessor.from_pretrained(self.model_name)
                 self.model = BlipForConditionalGeneration.from_pretrained(
                     self.model_name, **model_kwargs

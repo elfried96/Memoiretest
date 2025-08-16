@@ -142,7 +142,7 @@ def __init__(self, video_source, vlm_model, orchestration_mode):
     self.video_source = video_source
     
     # 2. Composants de détection
-    self.yolo_detector = YOLODetector(model_path="yolov8n.pt")
+    self.yolo_detector = YOLODetector(model_path="yolov11n.pt")
     self.tracker = BYTETracker()
     
     # 3. VLM multi-modèles

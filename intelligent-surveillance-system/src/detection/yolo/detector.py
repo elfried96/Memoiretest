@@ -1,4 +1,4 @@
-"""Détecteur d'objets basé sur YOLO v8 optimisé pour la surveillance."""
+"""Détecteur d'objets basé sur YOLO11 optimisé pour la surveillance."""
 
 import time
 from typing import List, Dict, Optional, Tuple, Any
@@ -18,7 +18,7 @@ from ...utils.performance import measure_time
 
 class YOLODetector:
     """
-    Détecteur d'objets YOLO v8 optimisé pour la surveillance en grande distribution.
+    Détecteur d'objets YOLO11 optimisé pour la surveillance en grande distribution.
     
     Features:
     - Support multi-classes spécialisées
@@ -56,7 +56,7 @@ class YOLODetector:
     
     def __init__(
         self,
-        model_path: str = "yolov8n.pt",
+        model_path: str = "yolov11n.pt",
         device: str = "auto",
         confidence_threshold: float = 0.25,
         iou_threshold: float = 0.45,

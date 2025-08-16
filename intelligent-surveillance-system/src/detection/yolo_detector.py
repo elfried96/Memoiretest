@@ -15,7 +15,7 @@ class YOLODetector:
     
     def __init__(
         self,
-        model_path: str = "yolov8n.pt",
+        model_path: str = "yolov11n.pt",
         device: str = "auto",
         confidence_threshold: float = 0.5,
         iou_threshold: float = 0.45
@@ -161,5 +161,5 @@ class YOLODetector:
             "device": self.device,
             "confidence_threshold": self.confidence_threshold,
             "iou_threshold": self.iou_threshold,
-            "model_type": "YOLOv8"
+            "model_type": "YOLO11"
         }

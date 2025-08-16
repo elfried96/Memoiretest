@@ -145,8 +145,6 @@ class DynamicVisionLanguageModel:
             if config.model_type == VLMModelType.KIMI_VL:
                 success = await self._load_kimi_vl_model(config, model_kwargs)
             
-            elif config.model_type == VLMModelType.LLAVA:
-                success = await self._load_llava_model(config, model_kwargs)
             
             elif config.model_type == VLMModelType.QWEN:
                 success = await self._load_qwen_model(config, model_kwargs)
@@ -195,22 +193,6 @@ class DynamicVisionLanguageModel:
             logger.warning("💡 Vérifiez: transformers>=4.48.2 et trust_remote_code=True")
             return False
     
-    async def _load_llava_model(self, config, model_kwargs) -> bool:
-        """Chargement spécifique LLaVA."""
-        try:
-            from transformers import LlavaNextProcessor, LlavaNextForConditionalGeneration
-            
-            self.processor = LlavaNextProcessor.from_pretrained(config.model_name)
-            self.model = LlavaNextForConditionalGeneration.from_pretrained(
-                config.model_name, **model_kwargs
-            )
-            
-            logger.info("✅ LLaVA chargé avec succès")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Erreur chargement LLaVA: {e}")
-            return False
     
     async def _load_qwen_model(self, config, model_kwargs) -> bool:
         """Chargement spécifique Qwen2-VL."""
@@ -240,8 +222,8 @@ class DynamicVisionLanguageModel:
         
         # Ordre de priorité pour fallback
         fallback_models = [
-            "llava-v1.6-mistral-7b",   # LLaVA stable
-            "qwen2-vl-7b-instruct",    # Qwen alternatif
+            "qwen2-vl-7b-instruct",    # Qwen principal
+            "kimi-vl-a3b-instruct",    # Kimi alternatif
         ]
         
         for fallback_id in fallback_models:
@@ -366,9 +348,6 @@ class DynamicVisionLanguageModel:
             # Qwen2-VL excelle avec des instructions précises
             base_prompt += "\n\nSois précis et factuel dans ton analyse. Justifie chaque conclusion."
         
-        elif self.current_config and self.current_config.model_type == VLMModelType.LLAVA:
-            # LLaVA fonctionne bien avec des prompts conversationnels
-            base_prompt += "\n\nAnalyse cette image comme un expert en sécurité expérimenté."
         
         return base_prompt
     

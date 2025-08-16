@@ -46,7 +46,7 @@ class SurveillanceSystem:
         # Configuration par défaut
         self.default_config = {
             "vlm_model": "llava-hf/llava-v1.6-mistral-7b-hf",
-            "yolo_model": "yolov8n.pt",
+            "yolo_model": "yolov11n.pt",
             "tracker_type": "bytetrack",
             "device": "auto",
             "load_in_4bit": True,
@@ -245,7 +245,7 @@ Exemples d'utilisation:
     parser.add_argument(
         "--yolo-model", 
         type=str,
-        default="yolov8n.pt",
+        default="yolov11n.pt",
         help="Modèle YOLO à utiliser"
     )
     
@@ -299,7 +299,7 @@ async def demo_mode() -> None:
     # Configuration légère pour la démo
     demo_config = {
         "vlm_model": "microsoft/git-base-coco",  # Modèle plus léger
-        "yolo_model": "yolov8n.pt",
+        "yolo_model": "yolov11n.pt",
         "device": "auto",
         "load_in_4bit": True,
         "target_fp_rate": 0.05

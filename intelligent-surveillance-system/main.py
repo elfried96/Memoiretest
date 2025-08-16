@@ -158,7 +158,7 @@ class IntelligentSurveillanceSystem:
         
         # 1. Détection et tracking
         self.yolo_detector = YOLODetector(
-            model_path="yolov8n.pt",  # Modèle léger pour démo
+            model_path="yolov11n.pt",  # Modèle léger pour démo
             device="auto"
         )
         self.tracker = BYTETracker()

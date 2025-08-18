@@ -189,6 +189,19 @@ class VLMModelRegistry:
         
         return True, "Modèle disponible"
     
+    def get_model_recommendations(self) -> Dict[str, str]:
+        """Retourne les recommandations de modèles par cas d'usage."""
+        
+        return {
+            "surveillance": "kimi-vl-a3b-instruct", 
+            "thinking": "kimi-vl-a3b-thinking",
+            "high_performance": "kimi-vl-a3b-thinking",
+            "memory_efficient": "qwen2-vl-7b-instruct",
+            "reasoning": "kimi-vl-a3b-thinking", 
+            "flagship": "qwen2-vl-72b-instruct",
+            "default": "kimi-vl-a3b-thinking"
+        }
+    
     def get_model_comparison(self) -> Dict[str, Any]:
         """Comparaison des modèles disponibles."""
         

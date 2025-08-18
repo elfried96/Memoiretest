@@ -12,9 +12,9 @@ import numpy as np
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from core.vlm.dynamic_model import DynamicVisionLanguageModel
-from core.vlm.model_registry import VLMModelRegistry, VLMModelType
-from core.types import AnalysisRequest
+from src.core.vlm.dynamic_model import DynamicVisionLanguageModel
+from src.core.vlm.model_registry import VLMModelRegistry, VLMModelType
+from src.core.types import AnalysisRequest
 
 
 def create_test_image() -> str:

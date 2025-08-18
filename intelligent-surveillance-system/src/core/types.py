@@ -47,25 +47,49 @@ class ToolType(Enum):
 @dataclass
 class BoundingBox:
     """Boîte englobante pour détections."""
-    x: int
-    y: int
-    width: int
-    height: int
+    x1: float  # Coordonnée x du coin supérieur gauche
+    y1: float  # Coordonnée y du coin supérieur gauche  
+    x2: float  # Coordonnée x du coin inférieur droit
+    y2: float  # Coordonnée y du coin inférieur droit
     confidence: float = 0.0
     
     @property
-    def center(self) -> Tuple[int, int]:
-        """Centre de la boîte."""
-        return (self.x + self.width // 2, self.y + self.height // 2)
+    def x(self) -> int:
+        """Coordonnée x (pour compatibilité)."""
+        return int(self.x1)
+    
+    @property 
+    def y(self) -> int:
+        """Coordonnée y (pour compatibilité)."""
+        return int(self.y1)
+        
+    @property
+    def width(self) -> int:
+        """Largeur de la boîte."""
+        return int(self.x2 - self.x1)
     
     @property
-    def area(self) -> int:
+    def height(self) -> int:
+        """Hauteur de la boîte.""" 
+        return int(self.y2 - self.y1)
+    
+    @property
+    def center(self) -> Tuple[float, float]:
+        """Centre de la boîte."""
+        return ((self.x1 + self.x2) / 2, (self.y1 + self.y2) / 2)
+    
+    @property
+    def area(self) -> float:
         """Aire de la boîte."""
-        return self.width * self.height
+        return (self.x2 - self.x1) * (self.y2 - self.y1)
     
     def to_dict(self) -> Dict[str, Union[int, float]]:
         """Conversion en dictionnaire."""
         return {
+            "x1": self.x1,
+            "y1": self.y1,
+            "x2": self.x2,
+            "y2": self.y2,
             "x": self.x,
             "y": self.y,
             "width": self.width,
@@ -131,6 +155,10 @@ class AnalysisResponse(BaseModel):
     tools_used: List[str] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.now)
+
+
+# Alias pour compatibilité
+Detection = DetectedObject
 
 
 class SurveillanceEvent(BaseModel):

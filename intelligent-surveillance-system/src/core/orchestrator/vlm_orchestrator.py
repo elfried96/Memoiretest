@@ -9,7 +9,7 @@ import json
 import logging
 import numpy as np
 
-from ..types import Detection, AnalysisRequest, AnalysisResponse
+from ..types import Detection, AnalysisRequest, AnalysisResponse, ActionType, SuspicionLevel
 from ..vlm.dynamic_model import DynamicVisionLanguageModel
 from ...utils.exceptions import ProcessingError
 

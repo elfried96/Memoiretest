@@ -12,12 +12,12 @@ from io import BytesIO
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 
-from core.orchestrator.vlm_orchestrator import (
+from src.core.orchestrator.vlm_orchestrator import (
     ModernVLMOrchestrator, 
     OrchestrationConfig, 
     OrchestrationMode
 )
-from core.types import Detection, BoundingBox
+from src.core.types import Detection, BoundingBox
 
 
 def create_test_image() -> str:

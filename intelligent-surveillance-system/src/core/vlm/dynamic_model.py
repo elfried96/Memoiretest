@@ -72,6 +72,10 @@ class DynamicVisionLanguageModel:
     
     async def load_model(self, model_id: str = None) -> bool:
         """Chargement d'un modèle spécifique."""
+        return await self._load_model_direct(model_id, enable_fallback=True)
+    
+    async def _load_model_direct(self, model_id: str = None, enable_fallback: bool = False) -> bool:
+        """Chargement direct d'un modèle sans fallback automatique."""
         
         model_id = model_id or self.default_model
         
@@ -79,14 +83,17 @@ class DynamicVisionLanguageModel:
         is_available, message = self.model_registry.validate_model_availability(model_id)
         if not is_available:
             logger.error(f"Modèle {model_id} non disponible: {message}")
-            if self.enable_fallback:
-                return await self._load_fallback_model()
-            raise ModelError(f"Modèle {model_id} indisponible: {message}")
+            if enable_fallback and self.enable_fallback:
+                return await self._load_fallback_model(exclude_models=[model_id])
+            return False
         
         # Récupération config
         config = self.model_registry.get_model_config(model_id)
         if not config:
-            raise ModelError(f"Configuration manquante pour {model_id}")
+            logger.error(f"Configuration manquante pour {model_id}")
+            if enable_fallback and self.enable_fallback:
+                return await self._load_fallback_model(exclude_models=[model_id])
+            return False
         
         try:
             logger.info(f"Chargement {config.model_type.value.upper()} : {model_id}")
@@ -99,27 +106,33 @@ class DynamicVisionLanguageModel:
                 self.current_config = config
                 self.is_loaded = True
                 
-                logger.success(f"✅ {model_id} chargé avec succès")
+                logger.info(f"✅ {model_id} chargé avec succès")
                 return True
             else:
                 logger.error(f"❌ Échec chargement {model_id}")
-                if self.enable_fallback:
-                    return await self._load_fallback_model()
+                if enable_fallback and self.enable_fallback:
+                    return await self._load_fallback_model(exclude_models=[model_id])
                 return False
                 
         except Exception as e:
             logger.error(f"Erreur chargement {model_id}: {e}")
-            if self.enable_fallback:
-                return await self._load_fallback_model()
-            raise ModelError(f"Impossible de charger {model_id}: {e}")
+            if enable_fallback and self.enable_fallback:
+                return await self._load_fallback_model(exclude_models=[model_id])
+            return False
     
     async def _load_model_by_type(self, config) -> bool:
         """Chargement selon le type de modèle."""
         
         try:
-            # Configuration commune
+            # Configuration commune - FIX: torch.float16 au lieu de torch.auto
+            torch_dtype_str = config.default_params.get("torch_dtype", "float16")
+            if torch_dtype_str == "auto":
+                torch_dtype = torch.float16 if self.device.type == "cuda" else torch.float32
+            else:
+                torch_dtype = getattr(torch, torch_dtype_str, torch.float16)
+                
             model_kwargs = {
-                "torch_dtype": getattr(torch, config.default_params.get("torch_dtype", "float16")),
+                "torch_dtype": torch_dtype,
                 "device_map": config.default_params.get("device_map", "auto")
             }
             
@@ -216,20 +229,31 @@ class DynamicVisionLanguageModel:
             logger.error(f"Erreur chargement Qwen2-VL: {e}")
             return False
     
-    async def _load_fallback_model(self) -> bool:
+    async def _load_fallback_model(self, exclude_models: List[str] = None) -> bool:
         """Chargement d'un modèle de fallback."""
+        if exclude_models is None:
+            exclude_models = []
+            
         logger.warning("Tentative de chargement du modèle de fallback...")
         
-        # Ordre de priorité pour fallback
-        fallback_models = [
+        # Ordre de priorité pour fallback (excluant les modèles déjà tentés)
+        all_fallback_models = [
             "qwen2-vl-7b-instruct",    # Qwen principal
             "kimi-vl-a3b-instruct",    # Kimi alternatif
         ]
         
+        # Filtrer les modèles déjà tentés
+        fallback_models = [m for m in all_fallback_models if m not in exclude_models]
+        
+        if not fallback_models:
+            logger.error("❌ Aucun modèle de fallback disponible")
+            return False
+        
         for fallback_id in fallback_models:
             try:
                 logger.info(f"Tentative fallback: {fallback_id}")
-                success = await self.load_model(fallback_id)
+                # Appel direct sans fallback pour éviter la récursion
+                success = await self._load_model_direct(fallback_id)
                 if success:
                     logger.warning(f"✅ Fallback réussi avec {fallback_id}")
                     return True

@@ -14,22 +14,19 @@ requires-python = ">=3.9"
 dependencies = [
     # Core AI/ML
     "torch>=2.1.0",
-    "torchvision>=0.16.0", 
+    "torchvision>=0.16.0",
     "transformers>=4.35.0",
     "ultralytics>=8.3.0",
     "accelerate>=0.21.0",
-    
     # Computer Vision
     "opencv-python>=4.8.0",
     "pillow>=10.0.0",
     "numpy>=1.24.0",
-    
     # Data & ML
     "scikit-learn>=1.3.0",
     "pandas>=2.1.0",
     "matplotlib>=3.7.0",
     "seaborn>=0.12.0",
-    
     # Web Framework
     "fastapi>=0.104.0",
     "uvicorn>=0.24.0",
@@ -37,22 +34,22 @@ dependencies = [
     "websockets>=11.0.3",
     "aiofiles>=23.2.0",
     "jinja2>=3.1.2",
-    
     # Data Validation & Processing
     "pydantic>=2.5.0",
     "python-dotenv>=1.0.0",
-    
     # Utilities
     "loguru>=0.7.0",
     "rich>=13.0.0",
     "psutil>=5.9.0",
     "tqdm>=4.65.0",
-    
     # HuggingFace
     "huggingface-hub>=0.17.0",
     "tokenizers>=0.15.0",
     "safetensors>=0.4.0",
     "datasets>=2.14.0",
+    "kaggle>=1.7.4.5",
+    "tiktoken>=0.11.0",
+    "bitsandbytes>=0.47.0",
 ]
 
 [project.optional-dependencies]
@@ -153,3 +150,6 @@ exclude_lines = [
     "raise AssertionError",
     "raise NotImplementedError"
 ]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src"]

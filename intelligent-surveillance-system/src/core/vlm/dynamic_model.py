@@ -186,6 +186,10 @@ class DynamicVisionLanguageModel:
             
             logger.info(f"Chargement Kimi-VL : {config.model_name}")
             
+            # Forcer l'usage CPU pour éviter les problèmes SDPA
+            model_kwargs_fixed = model_kwargs.copy()
+            model_kwargs_fixed["attn_implementation"] = "eager"  # Évite SDPA
+            
             # Chargement du processor 
             self.processor = AutoProcessor.from_pretrained(
                 config.model_name, 
@@ -195,8 +199,12 @@ class DynamicVisionLanguageModel:
             # Chargement du modèle (AutoModelForCausalLM pour Kimi-VL)
             self.model = AutoModelForCausalLM.from_pretrained(
                 config.model_name, 
-                **model_kwargs
+                **model_kwargs_fixed
             )
+            
+            # Fix pour l'attribut _supports_sdpa manquant
+            if not hasattr(self.model, '_supports_sdpa'):
+                self.model._supports_sdpa = False
             
             logger.info("✅ Kimi-VL chargé avec succès")
             return True

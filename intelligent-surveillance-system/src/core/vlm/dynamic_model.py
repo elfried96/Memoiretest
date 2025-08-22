@@ -1,4 +1,4 @@
-"""VLM avec support dynamique de KIM, LLaVA et Qwen2-VL."""
+"""VLM avec architecture dual-VLM simplifiée: Kimi-VL-Thinking + Qwen2-VL fallback."""
 
 import asyncio
 from typing import Dict, List, Optional, Any
@@ -18,13 +18,13 @@ from .tools_integration import AdvancedToolsManager
 
 class DynamicVisionLanguageModel:
     """
-    VLM dynamique supportant KIM, LLaVA et Qwen2-VL avec switch à chaud.
+    VLM avec architecture dual-VLM simplifiée.
     
-    Fonctionnalités:
-    - Switch entre modèles sans redémarrer
-    - Configuration optimisée par modèle
-    - Fallbacks intelligents
-    - Monitoring de performance
+    Architecture:
+    - PRINCIPAL: Kimi-VL-A3B-Thinking pour tous les cas d'usage
+    - FALLBACK: Qwen2-VL-7B-Instruct si Kimi indisponible
+    - Switch dynamique et fallback automatique
+    - Monitoring de performance intégré
     """
     
     def __init__(
@@ -244,10 +244,9 @@ class DynamicVisionLanguageModel:
             
         logger.warning("Tentative de chargement du modèle de fallback...")
         
-        # Ordre de priorité pour fallback (excluant les modèles déjà tentés)
+        # Architecture simplifiée: Qwen2-VL UNIQUEMENT en fallback
         all_fallback_models = [
-            "qwen2-vl-7b-instruct",    # Qwen principal
-            "kimi-vl-a3b-instruct",    # Kimi alternatif
+            "qwen2-vl-7b-instruct",    # FALLBACK UNIQUE
         ]
         
         # Filtrer les modèles déjà tentés

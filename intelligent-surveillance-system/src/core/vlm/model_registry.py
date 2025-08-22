@@ -43,27 +43,7 @@ class VLMModelRegistry:
         
         # === Kimi-VL Models (Moonshot AI) ===
         
-        # Kimi-VL-A3B-Instruct (usage général, surveillance)
-        models["kimi-vl-a3b-instruct"] = ModelConfig(
-            model_name="moonshotai/Kimi-VL-A3B-Instruct",
-            model_type=VLMModelType.KIMI_VL,
-            processor_class="AutoProcessor", 
-            model_class="AutoModelForCausalLM",
-            default_params={
-                "torch_dtype": "auto",
-                "device_map": "auto",
-                "trust_remote_code": True,
-                "max_new_tokens": 512,
-                "temperature": 0.2,  # Recommandé pour Instruct
-                "do_sample": True
-            },
-            supports_tool_calling=True,
-            supports_batch=True,
-            memory_efficient=True,
-            description="Kimi-VL A3B Instruct - MoE VLM pour surveillance, OCR, agent (2.8B activés)"
-        )
-        
-        # Kimi-VL-A3B-Thinking (raisonnement avancé - VOTRE CHOIX)
+        # Kimi-VL-A3B-Thinking (PRINCIPAL - Pour TOUT)
         models["kimi-vl-a3b-thinking"] = ModelConfig(
             model_name="moonshotai/Kimi-VL-A3B-Thinking", 
             model_type=VLMModelType.KIMI_VL,
@@ -74,19 +54,19 @@ class VLMModelRegistry:
                 "device_map": "auto", 
                 "trust_remote_code": True,
                 "max_new_tokens": 768,
-                "temperature": 0.8,  # Recommandé pour Thinking
+                "temperature": 0.8,  # Optimal pour surveillance ET raisonnement
                 "do_sample": True
             },
             supports_tool_calling=True,
             supports_batch=True,
             memory_efficient=True,
-            description="Kimi-VL A3B Thinking - Raisonnement CoT avancé (61.7 MMMU, 2.8B activés)"
+            description="PRINCIPAL - Kimi-VL Thinking pour surveillance et analyse (61.7 MMMU, 2.8B activés)"
         )
         
         
         # === Qwen2-VL Models (Alibaba) ===
         
-        # Qwen2-VL-7B-Instruct
+        # Qwen2-VL-7B-Instruct (FALLBACK UNIQUEMENT)
         models["qwen2-vl-7b-instruct"] = ModelConfig(
             model_name="Qwen/Qwen2-VL-7B-Instruct",
             model_type=VLMModelType.QWEN,
@@ -104,29 +84,9 @@ class VLMModelRegistry:
             supports_tool_calling=True,
             supports_batch=True,
             memory_efficient=True,
-            description="Qwen2-VL 7B - Excellent pour raisonnement visuel"
+            description="FALLBACK - Qwen2-VL 7B robuste si Kimi indisponible"
         )
-        
-        # Qwen2-VL-72B-Instruct (version flagship)
-        models["qwen2-vl-72b-instruct"] = ModelConfig(
-            model_name="Qwen/Qwen2-VL-72B-Instruct",
-            model_type=VLMModelType.QWEN,
-            processor_class="Qwen2VLProcessor",
-            model_class="Qwen2VLForConditionalGeneration", 
-            default_params={
-                "torch_dtype": "bfloat16",
-                "device_map": "auto",
-                "load_in_8bit": True,
-                "trust_remote_code": True,
-                "max_new_tokens": 1024,
-                "temperature": 0.05,
-                "do_sample": True
-            },
-            supports_tool_calling=True,
-            supports_batch=False,  # Trop volumineux pour batch
-            memory_efficient=False,
-            description="Qwen2-VL 72B - Modèle flagship pour performance maximale"
-        )
+
         
         return models
     
@@ -146,18 +106,11 @@ class VLMModelRegistry:
         }
     
     def get_recommended_model(self, use_case: str = "surveillance") -> str:
-        """Récupère le modèle recommandé selon le cas d'usage."""
+        """Récupère le modèle recommandé - SIMPLIFIÉ: Kimi-VL-Thinking pour TOUT."""
         
-        recommendations = {
-            "surveillance": "kimi-vl-a3b-instruct",     # Kimi-VL Instruct pour surveillance
-            "thinking": "kimi-vl-a3b-thinking",         # Kimi-VL Thinking pour raisonnement
-            "high_performance": "kimi-vl-a3b-thinking", # Kimi-VL Thinking haute perf
-            "memory_efficient": "qwen2-vl-7b-instruct", # Qwen léger
-            "reasoning": "kimi-vl-a3b-thinking",         # Kimi-VL Thinking principal
-            "flagship": "qwen2-vl-72b-instruct"         # Qwen flagship
-        }
-        
-        return recommendations.get(use_case, "kimi-vl-a3b-thinking")
+        # Architecture simplifiée: Kimi-VL-Thinking pour tous les cas d'usage
+        # Fallback automatique vers Qwen2-VL si nécessaire
+        return "kimi-vl-a3b-thinking"
     
     def validate_model_availability(self, model_id: str) -> Tuple[bool, str]:
         """Valide la disponibilité d'un modèle."""
@@ -190,16 +143,15 @@ class VLMModelRegistry:
         return True, "Modèle disponible"
     
     def get_model_recommendations(self) -> Dict[str, str]:
-        """Retourne les recommandations de modèles par cas d'usage."""
+        """Retourne les recommandations - SIMPLIFIÉ: Architecture dual-VLM."""
         
         return {
-            "surveillance": "kimi-vl-a3b-instruct", 
-            "thinking": "kimi-vl-a3b-thinking",
-            "high_performance": "kimi-vl-a3b-thinking",
-            "memory_efficient": "qwen2-vl-7b-instruct",
-            "reasoning": "kimi-vl-a3b-thinking", 
-            "flagship": "qwen2-vl-72b-instruct",
-            "default": "kimi-vl-a3b-thinking"
+            "surveillance": "kimi-vl-a3b-thinking",    # Principal pour TOUT
+            "thinking": "kimi-vl-a3b-thinking",       # Principal pour TOUT
+            "high_performance": "kimi-vl-a3b-thinking", # Principal pour TOUT
+            "reasoning": "kimi-vl-a3b-thinking",      # Principal pour TOUT
+            "fallback": "qwen2-vl-7b-instruct",      # Fallback uniquement
+            "default": "kimi-vl-a3b-thinking"         # Principal par défaut
         }
     
     def get_model_comparison(self) -> Dict[str, Any]:

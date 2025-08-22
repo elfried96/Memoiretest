@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Script de comparaison entre Kimi-VL et Qwen2-VL."""
+"""Script de comparaison entre Kimi-VL-Thinking (principal) et Qwen2-VL (fallback)."""
 
 import os
 import json
@@ -275,18 +275,19 @@ class VLMComparison:
     def run_full_comparison(self):
         """Exécuter la comparaison complète."""
         
-        print("🚀 COMPARAISON KIMI-VL vs QWEN2-VL")
+        print("🚀 COMPARAISON ARCHITECTURE DUAL-VLM")
         print("=" * 60)
+        print("🎯 PRINCIPAL: Kimi-VL-Thinking vs FALLBACK: Qwen2-VL")
         print("⚠️  Cette comparaison peut prendre 30-60 minutes")
         print("🔄 Les modèles seront testés séquentiellement pour éviter les conflits")
         
         input("\nPress Enter pour continuer ou Ctrl+C pour annuler...")
         
-        # Test Kimi-VL
-        self.results["kimi_vl"] = self.run_benchmark("test_kimi_vl_only.py", "Kimi-VL")
+        # Test Kimi-VL-Thinking (PRINCIPAL)
+        self.results["kimi_vl"] = self.run_benchmark("test_kimi_vl_only.py", "Kimi-VL-Thinking")
         
-        # Test Qwen2-VL  
-        self.results["qwen2_vl"] = self.run_benchmark("test_qwen2_vl_only.py", "Qwen2-VL")
+        # Test Qwen2-VL (FALLBACK)  
+        self.results["qwen2_vl"] = self.run_benchmark("test_qwen2_vl_only.py", "Qwen2-VL-Fallback")
         
         # Analyse comparative
         self.generate_comparison()

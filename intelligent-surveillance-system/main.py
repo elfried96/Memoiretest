@@ -9,7 +9,7 @@ WORKFLOW COMPLET :
 Architecture :
 - Traitement temps réel des flux vidéo
 - Détection/tracking des objets et personnes
-- Analyse VLM avec Kimi-VL (principal) + fallbacks LLaVA/Qwen
+- Analyse VLM avec Kimi-VL-Thinking (principal) + fallback Qwen2-VL
 - Orchestration intelligente des 8 outils avancés
 - Prise de décisions automatisée
 """
@@ -533,7 +533,7 @@ Exemples d'utilisation:
     parser.add_argument(
         "--model", "-m",
         default="kimi-vl-a3b-thinking",
-        choices=["kimi-vl-a3b-thinking", "kimi-vl-a3b-instruct", "llava-v1.6-mistral-7b", "qwen2-vl-7b-instruct"],
+        choices=["kimi-vl-a3b-thinking", "qwen2-vl-7b-instruct"],
         help="Modèle VLM principal (défaut: kimi-vl-a3b-thinking)"
     )
     

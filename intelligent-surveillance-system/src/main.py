@@ -45,7 +45,7 @@ class SurveillanceSystem:
         
         # Configuration par défaut
         self.default_config = {
-            "vlm_model": "llava-hf/llava-v1.6-mistral-7b-hf",
+            "vlm_model": "kimi-vl-a3b-thinking",
             "yolo_model": "yolov11n.pt",
             "tracker_type": "bytetrack",
             "device": "auto",
@@ -212,7 +212,7 @@ Exemples d'utilisation:
   surveillance-system --demo                    # Démonstration rapide
   surveillance-system --status                  # Affichage du statut
   surveillance-system --benchmark              # Benchmark de performance
-  surveillance-system --vlm-model llava-7b     # Modèle VLM spécifique
+  surveillance-system --vlm-model kimi-vl-a3b-thinking  # Modèle VLM principal
   surveillance-system --device cuda            # Forcer GPU
         """
     )
@@ -238,7 +238,7 @@ Exemples d'utilisation:
     parser.add_argument(
         "--vlm-model",
         type=str,
-        default="llava-hf/llava-v1.6-mistral-7b-hf",
+        default="kimi-vl-a3b-thinking",
         help="Modèle VLM à utiliser"
     )
     

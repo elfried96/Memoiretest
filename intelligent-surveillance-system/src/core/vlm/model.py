@@ -36,7 +36,7 @@ class VisionLanguageModel:
     
     def __init__(
         self, 
-        model_name: str = "llava-hf/llava-v1.6-mistral-7b-hf",
+        model_name: str = "moonshotai/Kimi-VL-A3B-Thinking",
         device: str = "auto",
         load_in_4bit: bool = True,
         max_tokens: int = 512

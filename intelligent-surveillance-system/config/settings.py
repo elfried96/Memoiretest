@@ -1,17 +1,27 @@
-"""Configuration centrale du système de surveillance."""
+"""Configuration centrale du système de surveillance - DEPRECATED."""
 
 import os
+import warnings
 from pathlib import Path
 from typing import Dict, List, Optional
 
 from pydantic import BaseSettings, Field
 
+# Import de la nouvelle configuration
+from .app_config import get_config, load_config, SystemConfig as NewSystemConfig
+
+warnings.warn(
+    "config/settings.py est déprécié. Utilisez config/app_config.py à la place.",
+    DeprecationWarning,
+    stacklevel=2
+)
+
 
 class ModelConfig(BaseSettings):
-    """Configuration des modèles IA."""
+    """Configuration des modèles IA - DEPRECATED."""
     
-    # VLM Configuration
-    vlm_model_name: str = "microsoft/kosmos-2-patch14-224"
+    # VLM Configuration - Mise à jour vers Kimi-VL
+    vlm_model_name: str = "kimi-vl-a3b-thinking"
     vlm_device: str = "cuda" if os.getenv("CUDA_VISIBLE_DEVICES") else "cpu"
     vlm_max_tokens: int = 512
     vlm_temperature: float = 0.1

@@ -43,7 +43,7 @@ class ModernVLMOrchestrator:
     
     def __init__(
         self, 
-        vlm_model_name: str = "llava-hf/llava-v1.6-mistral-7b-hf",
+        vlm_model_name: str = "kimi-vl-a3b-thinking",
         config: OrchestrationConfig = None
     ):
         self.config = config or OrchestrationConfig()

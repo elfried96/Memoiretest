@@ -31,7 +31,7 @@ class DynamicVisionLanguageModel:
         self,
         default_model: str = "kimi-vl-a3b-thinking",
         device: str = "auto",
-        enable_fallback: bool = True
+        enable_fallback: bool = False  # Désactivé par défaut pour économiser la mémoire
     ):
         self.device = self._setup_device(device)
         self.enable_fallback = enable_fallback
@@ -51,8 +51,7 @@ class DynamicVisionLanguageModel:
         self.response_parser = ResponseParser()
         self.tools_manager = AdvancedToolsManager()
         
-        # Cache et performance
-        self._model_cache = {}
+        # Performance stats seulement (pas de cache par défaut pour économiser mémoire)
         self._performance_stats = {}
         
         # Chargement du modèle par défaut
@@ -300,19 +299,31 @@ class DynamicVisionLanguageModel:
             return False
     
     def _unload_current_model(self):
-        """Déchargement propre du modèle actuel."""
+        """Déchargement propre du modèle actuel avec nettoyage mémoire optimisé."""
         if self.model is not None:
+            # Libération de la mémoire
+            if hasattr(self.model, 'cpu'):
+                self.model.cpu()
             del self.model
+            
+        if self.processor is not None:
             del self.processor
             
-            if self.device.type == "cuda":
-                torch.cuda.empty_cache()
+        # Nettoyage mémoire avancé
+        import gc
+        gc.collect()  # Garbage collection Python
+            
+        if self.device.type == "cuda":
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         
         self.model = None
         self.processor = None
         self.is_loaded = False
         self.current_model_id = None
         self.current_config = None
+        
+        logger.info("✅ Modèle déchargé et mémoire libérée (optimisé)")
     
     async def analyze_with_tools(
         self, 

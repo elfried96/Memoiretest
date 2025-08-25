@@ -3,7 +3,7 @@
 import time
 import psutil
 import threading
-from typing import Dict, List, Optional, Any, Callable
+from typing import Dict, List, Optional, Any, Callable, Tuple
 from functools import wraps
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta

@@ -15,7 +15,6 @@ PROJECT_ROOT = Path(__file__).parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from config.app_config import get_config, load_config
-from src.main import main_async, create_argument_parser
 
 def main():
     """Point d'entrée principal avec nouvelle configuration."""
@@ -29,9 +28,12 @@ def main():
     print(f"🤖 VLM Principal: {config.vlm.primary_model}")
     print(f"🎯 Mode d'orchestration: {config.orchestration.mode.value}")
     
-    # Délégation au main principal
+    # Lancement du système principal
     try:
-        asyncio.run(main_async())
+        # Import dynamique pour éviter les problèmes de circular import
+        sys.path.insert(0, str(PROJECT_ROOT))
+        from main import main as main_function
+        main_function()
     except KeyboardInterrupt:
         print("\n👋 Au revoir !")
     except Exception as e:

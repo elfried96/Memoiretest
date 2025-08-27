@@ -8,6 +8,7 @@ from typing import List, Tuple, Optional
 from ultralytics import YOLO
 import cv2
 from loguru import logger
+from ..utils.model_manager import model_manager
 
 
 class YOLODetector:
@@ -33,11 +34,20 @@ class YOLODetector:
         else:
             self.device = device
         
-        # Chargement du modèle
+        # Chargement du modèle avec téléchargement automatique
         try:
-            self.model = YOLO(model_path)
+            # Utiliser le gestionnaire de modèles pour téléchargement auto
+            yolo_model = model_manager.initialize_yolo_with_auto_download()
+            
+            if yolo_model is not None:
+                self.model = yolo_model
+            else:
+                # Fallback vers le chemin fourni
+                logger.warning("🔄 Fallback vers chemin fourni...")
+                self.model = YOLO(model_path)
+            
             self.model.to(self.device)
-            logger.info(f"✅ YOLO chargé: {model_path} sur {self.device} - Mode: {environment}")
+            logger.info(f"✅ YOLO chargé sur {self.device} - Mode: {environment}")
         except Exception as e:
             logger.error(f"❌ Erreur chargement YOLO: {e}")
             raise

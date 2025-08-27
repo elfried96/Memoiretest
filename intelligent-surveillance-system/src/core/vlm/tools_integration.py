@@ -2,6 +2,7 @@
 
 from typing import Dict, List, Any, Optional
 import numpy as np
+import time
 from loguru import logger
 
 from ...advanced_tools import (
@@ -71,9 +72,11 @@ class AdvancedToolsManager:
             except Exception as e:
                 logger.error(f"Erreur exécution {tool_name}: {e}")
                 results[tool_name] = ToolResult(
+                    tool_type=tool_name,
                     success=False,
                     data={"error": str(e)},
-                    confidence=0.0
+                    confidence=0.0,
+                    execution_time_ms=0.0
                 )
         
         return results
@@ -86,6 +89,7 @@ class AdvancedToolsManager:
     ) -> ToolResult:
         """Exécution d'un outil spécifique."""
         
+        start_time = time.perf_counter()
         tool = self.tools[tool_name]
         context = context or {}
         
@@ -93,18 +97,21 @@ class AdvancedToolsManager:
             # Segmentation avec boîtes englobantes si disponibles
             boxes = context.get("detection_boxes", [])
             if boxes:
-                result = tool.segment_with_boxes(image, boxes)
+                result = tool.segment_objects(image, boxes)
             else:
                 result = tool.segment_everything(image)
             
+            execution_time = (time.perf_counter() - start_time) * 1000
             return ToolResult(
+                tool_type="sam2_segmentator",
                 success=True,
                 data={
                     "num_masks": len(result.masks),
-                    "mask_properties": result.mask_properties,
+                    "mask_properties": getattr(result, 'mask_properties', {}),
                     "processing_time": result.processing_time
                 },
-                confidence=result.confidence if hasattr(result, 'confidence') else 0.8
+                confidence=result.confidence if hasattr(result, 'confidence') else 0.8,
+                execution_time_ms=execution_time
             )
         
         elif tool_name == "dino_features":
@@ -117,14 +124,17 @@ class AdvancedToolsManager:
             if regions:
                 regional_features = tool.extract_regional_features(image, regions)
             
+            execution_time = (time.perf_counter() - start_time) * 1000
             return ToolResult(
+                tool_type="dino_features",
                 success=True,
                 data={
                     "global_features_shape": global_features.shape if global_features is not None else None,
                     "num_regional_features": len(regional_features),
                     "feature_similarity": tool.compute_similarity(global_features, global_features).item() if global_features is not None else 0.0
                 },
-                confidence=0.9
+                confidence=0.9,
+                execution_time_ms=execution_time
             )
         
         elif tool_name == "pose_estimator":
@@ -137,14 +147,17 @@ class AdvancedToolsManager:
             if poses:
                 behavior_analysis = tool.analyze_behavior(poses[0])  # Première personne
             
+            execution_time = (time.perf_counter() - start_time) * 1000
             return ToolResult(
+                tool_type="pose_estimator",
                 success=True,
                 data={
                     "num_poses": len(poses),
                     "behavior_score": behavior_analysis.get("suspicion_score", 0.0),
                     "behavior_indicators": behavior_analysis.get("indicators", [])
                 },
-                confidence=0.85
+                confidence=0.85,
+                execution_time_ms=execution_time
             )
         
         elif tool_name == "trajectory_analyzer":
@@ -156,14 +169,17 @@ class AdvancedToolsManager:
             
             analysis = tool.analyze_trajectory(trajectory_data)
             
+            execution_time = (time.perf_counter() - start_time) * 1000
             return ToolResult(
+                tool_type="trajectory_analyzer",
                 success=True,
                 data={
                     "pattern_classification": analysis.get("pattern", "unknown"),
                     "anomaly_score": analysis.get("anomaly_score", 0.0),
                     "movement_metrics": analysis.get("metrics", {})
                 },
-                confidence=0.8
+                confidence=0.8,
+                execution_time_ms=execution_time
             )
         
         elif tool_name == "multimodal_fusion":
@@ -178,14 +194,17 @@ class AdvancedToolsManager:
             
             fusion_result = tool.fuse_modalities(modalities)
             
+            execution_time = (time.perf_counter() - start_time) * 1000
             return ToolResult(
+                tool_type="multimodal_fusion",
                 success=True,
                 data={
                     "fused_prediction": fusion_result.get("prediction", 0.5),
                     "attention_weights": fusion_result.get("attention_weights", {}),
                     "confidence_scores": fusion_result.get("confidence_scores", {})
                 },
-                confidence=fusion_result.get("overall_confidence", 0.7)
+                confidence=fusion_result.get("overall_confidence", 0.7),
+                execution_time_ms=execution_time
             )
         
         elif tool_name == "temporal_transformer":
@@ -199,28 +218,34 @@ class AdvancedToolsManager:
             
             analysis = tool.analyze_sequence(sequence_data, sequence_type)
             
+            execution_time = (time.perf_counter() - start_time) * 1000
             return ToolResult(
+                tool_type="temporal_transformer",
                 success=True,
                 data={
                     "temporal_patterns": analysis.get("patterns", []),
                     "anomaly_score": analysis.get("anomaly_score", 0.0),
                     "consistency_score": analysis.get("consistency", 0.8)
                 },
-                confidence=0.85
+                confidence=0.85,
+                execution_time_ms=execution_time
             )
         
         elif tool_name == "adversarial_detector":
             # Détection d'attaques adversariales
             detection_result = tool.detect_adversarial(image)
             
+            execution_time = (time.perf_counter() - start_time) * 1000
             return ToolResult(
+                tool_type="adversarial_detector",
                 success=True,
                 data={
                     "is_adversarial": detection_result.get("is_adversarial", False),
                     "attack_type": detection_result.get("attack_type", "none"),
                     "robustness_score": detection_result.get("robustness_score", 0.9)
                 },
-                confidence=detection_result.get("confidence", 0.8)
+                confidence=detection_result.get("confidence", 0.8),
+                execution_time_ms=execution_time
             )
         
         elif tool_name == "domain_adapter":
@@ -231,7 +256,9 @@ class AdvancedToolsManager:
             if current_domain != "unknown":
                 adaptation = tool.adapt_to_domain(current_domain, target_domain)
                 
+                execution_time = (time.perf_counter() - start_time) * 1000
                 return ToolResult(
+                    tool_type="domain_adapter",
                     success=adaptation.adaptation_success,
                     data={
                         "domain_detected": current_domain,
@@ -239,26 +266,33 @@ class AdvancedToolsManager:
                         "confidence_improvement": adaptation.confidence_improvement,
                         "adapted_parameters": list(adaptation.adapted_parameters.keys())
                     },
-                    confidence=adaptation.confidence_improvement
+                    confidence=adaptation.confidence_improvement,
+                    execution_time_ms=execution_time
                 )
             else:
                 # Détection de domaine seulement
                 detected_domain = tool.detect_domain(image)
                 
+                execution_time = (time.perf_counter() - start_time) * 1000
                 return ToolResult(
+                    tool_type="domain_adapter",
                     success=True,
                     data={
                         "detected_domain": detected_domain,
                         "adaptation_needed": detected_domain != target_domain
                     },
-                    confidence=0.7
+                    confidence=0.7,
+                    execution_time_ms=execution_time
                 )
         
         # Fallback
+        execution_time = (time.perf_counter() - start_time) * 1000
         return ToolResult(
+            tool_type=tool_name,
             success=False,
             data={"error": f"Méthode d'exécution non implémentée pour {tool_name}"},
-            confidence=0.0
+            confidence=0.0,
+            execution_time_ms=execution_time
         )
     
     def get_available_tools(self) -> List[str]:

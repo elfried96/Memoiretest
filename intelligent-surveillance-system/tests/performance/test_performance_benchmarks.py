@@ -29,6 +29,7 @@ from src.core.vlm.model_registry import VLMModelRegistry
 from src.detection.yolo_detector import YOLODetector
 from src.core.orchestrator.adaptive_orchestrator import AdaptiveVLMOrchestrator
 from src.core.orchestrator.vlm_orchestrator import OrchestrationConfig, OrchestrationMode
+from config.app_config import load_config
 from src.core.types import AnalysisRequest, AnalysisResponse
 from src.utils.performance import get_current_performance
 
@@ -155,7 +156,8 @@ class TestPerformanceBenchmarks:
         print(f"✅ Benchmark VLM: {len(results)} modèles testés")
         self._print_vlm_comparison(comparison)
         
-        return results
+        assert results is not None
+        assert len(results) > 0
     
     def _analyze_vlm_comparison(self, results: Dict) -> Dict:
         """Analyse comparative des résultats VLM."""
@@ -253,7 +255,8 @@ class TestPerformanceBenchmarks:
         })
         
         print(f"✅ Benchmark YOLO: {len(results)} résolutions testées")
-        return results
+        assert results is not None
+        assert len(results) > 0
     
     def _analyze_yolo_scaling(self, results: Dict) -> Dict:
         """Analyse de la scalabilité YOLO."""
@@ -354,7 +357,8 @@ class TestPerformanceBenchmarks:
         })
         
         print(f"✅ Benchmark Orchestration: {len(results)} modes testés")
-        return results
+        assert results is not None
+        assert len(results) > 0
     
     def _analyze_orchestration_modes(self, results: Dict) -> Dict:
         """Analyse des modes d'orchestration."""
@@ -377,7 +381,9 @@ class TestPerformanceBenchmarks:
         for mode, data in results.items():
             time_score = 1.0 / data["avg_time"]  # Plus rapide = meilleur score
             accuracy_score = data["avg_confidence"]
-            efficiency = (time_score * accuracy_score) / data["avg_tools_used"]  # Score composite
+            # Éviter division par zéro
+            tools_used = max(data["avg_tools_used"], 0.1)  # Minimum 0.1 pour éviter division par 0
+            efficiency = (time_score * accuracy_score) / tools_used  # Score composite
             
             analysis["trade_offs"][mode] = {
                 "time_score": time_score,
@@ -491,7 +497,8 @@ class TestPerformanceBenchmarks:
         })
         
         print(f"✅ Benchmark Charge: {len(results)} configurations testées")
-        return results
+        assert results is not None
+        assert len(results) > 0
     
     def _analyze_load_scalability(self, results: Dict) -> Dict:
         """Analyse de la scalabilité sous charge."""

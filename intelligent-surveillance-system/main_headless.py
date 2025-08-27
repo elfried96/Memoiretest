@@ -158,7 +158,7 @@ class HeadlessSurveillanceSystem:
         
         logger.info("🎯 Système prêt pour surveillance headless!")
     
-    def create_detections_list(self, yolo_results) -> List[Detection]:
+    def create_detections_list(self, yolo_results) -> List[DetectedObject]:
         """Convertit les résultats YOLO en liste de Detection."""
         detections = []
         
@@ -193,7 +193,7 @@ class HeadlessSurveillanceSystem:
         frame_b64 = base64.b64encode(buffer).decode('utf-8')
         return frame_b64
     
-    def save_frame_with_detections(self, frame: np.ndarray, detections: List[Detection], frame_id: int):
+    def save_frame_with_detections(self, frame: np.ndarray, detections: List[DetectedObject], frame_id: int):
         """Sauvegarde un frame avec les détections dessinées."""
         if not self.save_frames:
             return

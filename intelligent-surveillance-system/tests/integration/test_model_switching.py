@@ -10,7 +10,7 @@ from io import BytesIO
 from PIL import Image
 import numpy as np
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from src.core.vlm.dynamic_model import DynamicVisionLanguageModel
 from src.core.vlm.model_registry import VLMModelRegistry, VLMModelType

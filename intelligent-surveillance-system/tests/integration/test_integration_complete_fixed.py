@@ -14,14 +14,14 @@ from io import BytesIO
 from PIL import Image
 
 # Ajout du chemin src pour les imports
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from core.vlm.dynamic_model import DynamicVisionLanguageModel
-from core.vlm.mock_models import MockModelRegistry, MockAdvancedToolsManager, MockResponseParser
-from core.orchestrator.vlm_orchestrator import ModernVLMOrchestrator, OrchestrationConfig, OrchestrationMode
-from core.types import Detection, BoundingBox, AnalysisRequest, SuspicionLevel, ActionType
-from detection.yolo_detector import YOLODetector
-from detection.tracking.byte_tracker import BYTETracker
+from src.core.vlm.dynamic_model import DynamicVisionLanguageModel
+from src.core.vlm.mock_models import MockModelRegistry, MockAdvancedToolsManager, MockResponseParser
+from src.core.orchestrator.vlm_orchestrator import ModernVLMOrchestrator, OrchestrationConfig, OrchestrationMode
+from src.core.types import Detection, BoundingBox, AnalysisRequest, SuspicionLevel, ActionType
+from src.detection.yolo_detector import YOLODetector
+from src.detection.tracking.byte_tracker import BYTETracker
 
 
 class TestSystemIntegration:

@@ -10,7 +10,7 @@ import numpy as np
 from PIL import Image
 from io import BytesIO
 
-sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
+sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from src.core.orchestrator.vlm_orchestrator import (
     ModernVLMOrchestrator, 

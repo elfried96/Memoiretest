@@ -37,7 +37,7 @@ from src.core.orchestrator.vlm_orchestrator import (
     OrchestrationConfig, 
     OrchestrationMode
 )
-from src.core.types import AnalysisRequest, AnalysisResponse, Detection, BoundingBox
+from src.core.types import AnalysisRequest, AnalysisResponse, DetectedObject, BoundingBox
 from src.detection.yolo_detector import YOLODetector
 from src.detection.tracking.byte_tracker import BYTETracker
 
@@ -175,10 +175,11 @@ class HeadlessSurveillanceSystem:
                     class_name = class_names.get(cls, f"class_{cls}")
                     
                     # Création de la détection
-                    detection = Detection(
+                    detection = DetectedObject(
+                        class_id=cls,
+                        class_name=class_name,
                         bbox=BoundingBox(x1=float(x1), y1=float(y1), x2=float(x2), y2=float(y2)),
                         confidence=float(conf),
-                        class_name=class_name,
                         track_id=None
                     )
                     detections.append(detection)

@@ -52,6 +52,11 @@ class AdvancedToolsManager:
     ) -> Dict[str, ToolResult]:
         """Exécution des outils demandés."""
         
+        # Vérification image vide
+        if image is None or (hasattr(image, 'size') and image.size == 0):
+            logger.warning("Image vide reçue pour traitement outils")
+            return {}
+        
         results = {}
         
         for tool_name in requested_tools:

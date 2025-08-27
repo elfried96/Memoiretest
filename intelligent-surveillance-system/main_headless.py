@@ -304,7 +304,7 @@ class HeadlessSurveillanceSystem:
             detections_count=len(detections),
             persons_detected=persons_count,
             alert_level=alert_level.value,
-            vlm_analysis=asdict(vlm_analysis) if vlm_analysis else None,
+            vlm_analysis=vlm_analysis.to_dict() if vlm_analysis and hasattr(vlm_analysis, 'to_dict') else (vlm_analysis.__dict__ if vlm_analysis else None),
             actions_taken=actions_taken,
             processing_time=processing_time
         )

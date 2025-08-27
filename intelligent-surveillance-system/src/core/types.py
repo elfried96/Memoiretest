@@ -42,6 +42,14 @@ class ToolType(Enum):
     BEHAVIOR_ANALYZER = "behavior_analyzer"
     CONTEXT_VALIDATOR = "context_validator"
     FALSE_POSITIVE_FILTER = "false_positive_filter"
+    SAM2_SEGMENTATOR = "sam2_segmentator"
+    DINO_FEATURES = "dino_features"
+    POSE_ESTIMATOR = "pose_estimator"
+    TRAJECTORY_ANALYZER = "trajectory_analyzer"
+    MULTIMODAL_FUSION = "multimodal_fusion"
+    ADVERSARIAL_DETECTOR = "adversarial_detector"
+    DOMAIN_ADAPTER = "domain_adapter"
+    TEMPORAL_TRANSFORMER = "temporal_transformer"
 
 
 @dataclass

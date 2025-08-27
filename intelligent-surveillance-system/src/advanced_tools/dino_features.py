@@ -9,6 +9,7 @@ from dataclasses import dataclass
 import time
 from PIL import Image
 import torchvision.transforms as transforms
+import cv2  # Ajout de l'import manquant
 
 logger = logging.getLogger(__name__)
 

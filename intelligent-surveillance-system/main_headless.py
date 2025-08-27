@@ -253,9 +253,11 @@ class HeadlessSurveillanceSystem:
         alert_level = AlertLevel.NORMAL
         actions_taken = []
         
-        # Analyse VLM si activé et personnes détectées
+        # Analyse VLM seulement si un modèle est vraiment chargé
         should_analyze = (
-            self.vlm_enabled and (
+            self.vlm_enabled and 
+            hasattr(self.vlm, 'model') and 
+            self.vlm.model is not None and (
                 persons_count > 0 or
                 self.frame_count % 30 == 0  # Analyse périodique
             )
@@ -317,13 +319,28 @@ class HeadlessSurveillanceSystem:
         # === CRÉATION DU RÉSULTAT ===
         processing_time = time.time() - start_time
         
+        # Sérialisation sécurisée de vlm_analysis
+        vlm_analysis_dict = None
+        if vlm_analysis:
+            try:
+                if hasattr(vlm_analysis, 'to_dict'):
+                    vlm_analysis_dict = vlm_analysis.to_dict()
+                elif hasattr(vlm_analysis, '__dict__'):
+                    vlm_analysis_dict = vlm_analysis.__dict__.copy()
+                    # Convertir les enums en strings
+                    for key, value in vlm_analysis_dict.items():
+                        if hasattr(value, 'value'):  # C'est un enum
+                            vlm_analysis_dict[key] = value.value
+            except Exception:
+                vlm_analysis_dict = None
+        
         result = SurveillanceResult(
             frame_id=self.frame_count,
             timestamp=time.time(),
             detections_count=len(detections),
             persons_detected=persons_count,
             alert_level=alert_level.value,
-            vlm_analysis=vlm_analysis.to_dict() if vlm_analysis and hasattr(vlm_analysis, 'to_dict') else (vlm_analysis.__dict__ if vlm_analysis else None),
+            vlm_analysis=vlm_analysis_dict,
             actions_taken=actions_taken,
             processing_time=processing_time
         )
@@ -400,14 +417,25 @@ class HeadlessSurveillanceSystem:
             self.print_final_statistics()
     
     def _serialize_result(self, result):
-        """Sérialise un résultat en évitant les erreurs JSON avec enums."""
+        """Sérialise un résultat en évitant les erreurs JSON avec enums et datetime."""
+        import datetime
+        
+        def serialize_value(value):
+            if hasattr(value, 'value'):  # C'est un enum
+                return value.value
+            elif isinstance(value, datetime.datetime):
+                return value.isoformat()
+            elif isinstance(value, dict):
+                return {k: serialize_value(v) for k, v in value.items()}
+            elif isinstance(value, list):
+                return [serialize_value(item) for item in value]
+            else:
+                return value
+        
         try:
             result_dict = asdict(result)
-            # Convertir les enums en valeurs string
-            for key, value in result_dict.items():
-                if hasattr(value, 'value'):  # C'est un enum
-                    result_dict[key] = value.value
-            return result_dict
+            # Convertir récursivement tous les types problématiques
+            return {key: serialize_value(value) for key, value in result_dict.items()}
         except Exception as e:
             # Fallback: conversion manuelle
             return {

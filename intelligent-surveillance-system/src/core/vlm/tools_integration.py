@@ -120,14 +120,16 @@ class AdvancedToolsManager:
             )
         
         elif tool_name == "dino_features":
-            # Extraction de features globales et régionales
-            global_features = tool.extract_global_features(image)
+            # Extraction de features avec la vraie méthode
+            global_result = tool.extract_features(image, regions=None)
+            global_features = global_result.features if global_result else None
             
             # Features régionales si détections disponibles
             regions = context.get("detection_regions", [])
             regional_features = []
             if regions:
-                regional_features = tool.extract_regional_features(image, regions)
+                regional_result = tool.extract_features(image, regions=regions)
+                regional_features = regional_result.features if regional_result else []
             
             execution_time = (time.perf_counter() - start_time) * 1000
             return ToolResult(
@@ -145,19 +147,21 @@ class AdvancedToolsManager:
         elif tool_name == "pose_estimator":
             # Estimation de poses avec analyse comportementale
             person_boxes = context.get("person_boxes", [])
-            poses = tool.estimate_poses(image, person_boxes)
+            poses_result = tool.estimate_poses(image, person_boxes)
             
             # Analyse comportementale
             behavior_analysis = {}
-            if poses:
-                behavior_analysis = tool.analyze_behavior(poses[0])  # Première personne
+            if poses_result and hasattr(poses_result, 'keypoints') and len(poses_result.keypoints) > 0:
+                # Prendre la première pose détectée
+                first_keypoints = poses_result.keypoints[0] if isinstance(poses_result.keypoints, list) else poses_result.keypoints
+                behavior_analysis = tool.analyze_pose_behavior(first_keypoints)
             
             execution_time = (time.perf_counter() - start_time) * 1000
             return ToolResult(
                 tool_type="pose_estimator",
                 success=True,
                 data={
-                    "num_poses": len(poses),
+                    "num_poses": len(poses_result.keypoints) if poses_result and hasattr(poses_result, 'keypoints') else 0,
                     "behavior_score": behavior_analysis.get("suspicion_score", 0.0),
                     "behavior_indicators": behavior_analysis.get("indicators", [])
                 },

@@ -37,7 +37,7 @@ from src.core.orchestrator.vlm_orchestrator import (
     OrchestrationConfig, 
     OrchestrationMode
 )
-from src.core.types import AnalysisRequest, AnalysisResponse, DetectedObject, BoundingBox
+from src.core.types import DetectedObject, BoundingBox
 from src.detection.yolo_detector import YOLODetector
 from src.detection.tracking.byte_tracker import BYTETracker
 
@@ -69,13 +69,13 @@ class HeadlessSurveillanceSystem:
     def __init__(
         self,
         video_source: str = 0,
-        vlm_model: str = "kimi-vl-a3b-thinking", 
+        vlm_model: str = "none", 
         orchestration_mode: OrchestrationMode = OrchestrationMode.BALANCED,
         save_results: bool = True,
         save_frames: bool = False
     ):
         self.video_source = video_source
-        self.vlm_model = vlm_model
+        self.vlm_model = "none"  # Forcé à none
         self.orchestration_mode = orchestration_mode
         self.save_results = save_results
         self.save_frames = save_frames
@@ -97,7 +97,7 @@ class HeadlessSurveillanceSystem:
         )
         self.tracker = BYTETracker()
         
-        # 2. VLM et orchestration
+        # 2. VLM et orchestration 
         self.vlm = DynamicVisionLanguageModel(
             default_model=vlm_model,
             enable_fallback=True
@@ -114,6 +114,8 @@ class HeadlessSurveillanceSystem:
             vlm_model_name=vlm_model,
             config=config
         )
+        self.vlm_enabled = True
+        logger.info(f"✅ VLM activé: {vlm_model}")
         
         # === ÉTAT DU SYSTÈME ===
         self.frame_count = 0
@@ -135,14 +137,15 @@ class HeadlessSurveillanceSystem:
         """Initialisation asynchrone des composants."""
         logger.info("🚀 Initialisation du système headless...")
         
-        # Chargement du VLM
-        logger.info(f"⏳ Chargement {self.vlm_model}...")
-        vlm_loaded = await self.vlm.load_model()
-        
-        if vlm_loaded:
-            logger.info(f"✅ {self.vlm_model} chargé avec succès")
-        else:
-            logger.warning("⚠️ VLM principal échec, fallback activé")
+        if self.vlm_enabled:
+            # Chargement du VLM
+            logger.info(f"⏳ Chargement {self.vlm_model}...")
+            vlm_loaded = await self.vlm.load_model()
+            
+            if vlm_loaded:
+                logger.info(f"✅ {self.vlm_model} chargé avec succès")
+            else:
+                logger.warning("⚠️ VLM principal échec, fallback activé")
         
         # Test des composants
         logger.info("🔍 Tests des composants...")
@@ -152,9 +155,10 @@ class HeadlessSurveillanceSystem:
         test_detections = self.yolo_detector.detect(test_frame)
         logger.info(f"✅ YOLO opérationnel - {len(test_detections)} détections test")
         
-        # Statut complet
-        status = await self.orchestrator.health_check()
-        logger.info(f"📊 Health check: {status}")
+        if self.vlm_enabled:
+            # Statut complet
+            status = await self.orchestrator.health_check()
+            logger.info(f"📊 Health check: {status}")
         
         logger.info("🎯 Système prêt pour surveillance headless!")
     
@@ -236,6 +240,9 @@ class HeadlessSurveillanceSystem:
         yolo_results = self.yolo_detector.detect(frame)
         detections = self.create_detections_list(yolo_results)
         
+        # === ÉTAPE 1.5: TRACKING ===
+        tracked_objects = self.tracker.update(detections)
+        
         persons_count = len([d for d in detections if d.class_name == "person"])
         
         self.processing_stats["detected_objects"] += len(detections)
@@ -246,10 +253,12 @@ class HeadlessSurveillanceSystem:
         alert_level = AlertLevel.NORMAL
         actions_taken = []
         
-        # Analyse VLM si personnes détectées ou tous les N frames
+        # Analyse VLM si activé et personnes détectées
         should_analyze = (
-            persons_count > 0 or
-            self.frame_count % 30 == 0  # Analyse périodique
+            self.vlm_enabled and (
+                persons_count > 0 or
+                self.frame_count % 30 == 0  # Analyse périodique
+            )
         )
         
         if should_analyze:
@@ -290,6 +299,16 @@ class HeadlessSurveillanceSystem:
                 
             except Exception as e:
                 logger.error(f"❌ Erreur analyse VLM frame {self.frame_count}: {e}")
+        
+        # Analyse simple si pas de VLM
+        if not self.vlm_enabled:
+            if persons_count > 3:
+                alert_level = AlertLevel.ALERTE
+                actions_taken = ["high_occupancy_detected"]
+                self.processing_stats["alerts_triggered"] += 1
+            elif persons_count > 1:
+                alert_level = AlertLevel.ATTENTION
+                actions_taken = ["multiple_persons_detected"]
         
         # === SAUVEGARDE FRAME SI DEMANDÉE ===
         if len(detections) > 0 or alert_level != AlertLevel.NORMAL:
@@ -380,6 +399,28 @@ class HeadlessSurveillanceSystem:
             # Statistiques finales
             self.print_final_statistics()
     
+    def _serialize_result(self, result):
+        """Sérialise un résultat en évitant les erreurs JSON avec enums."""
+        try:
+            result_dict = asdict(result)
+            # Convertir les enums en valeurs string
+            for key, value in result_dict.items():
+                if hasattr(value, 'value'):  # C'est un enum
+                    result_dict[key] = value.value
+            return result_dict
+        except Exception as e:
+            # Fallback: conversion manuelle
+            return {
+                "frame_id": getattr(result, 'frame_id', 0),
+                "timestamp": getattr(result, 'timestamp', 0),
+                "detections_count": getattr(result, 'detections_count', 0),
+                "persons_detected": getattr(result, 'persons_detected', 0),
+                "alert_level": getattr(result, 'alert_level', 'normal'),
+                "actions_taken": getattr(result, 'actions_taken', []),
+                "processing_time": getattr(result, 'processing_time', 0),
+                "vlm_analysis": None
+            }
+    
     def save_results_to_json(self):
         """Sauvegarde les résultats en JSON."""
         results_file = self.output_dir / f"surveillance_results_{int(time.time())}.json"
@@ -393,7 +434,7 @@ class HeadlessSurveillanceSystem:
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
             },
             "statistics": self.processing_stats,
-            "results": [asdict(result) for result in self.results_log]
+            "results": [self._serialize_result(result) for result in self.results_log]
         }
         
         with open(results_file, 'w', encoding='utf-8') as f:

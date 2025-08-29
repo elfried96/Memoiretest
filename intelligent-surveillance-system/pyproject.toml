@@ -52,6 +52,7 @@ dependencies = [
     "bitsandbytes>=0.47.0",
     "blobfile>=3.0.0",
     "scikit-image>=0.24.0",
+    "mediapipe>=0.10.21",
 ]
 
 [project.optional-dependencies]

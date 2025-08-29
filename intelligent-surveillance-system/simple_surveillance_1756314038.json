@@ -1,0 +1,368 @@
+{
+  "summary": {
+    "total_frames": 20,
+    "total_detections": 18,
+    "avg_processing_time": 0.15699830055236816,
+    "source": "videos/surveillance_test.mp4",
+    "timestamp": "2025-08-27 18:00:38"
+  },
+  "results": [
+    {
+      "frame_id": 1,
+      "timestamp": 1756314037.1268244,
+      "detections_count": 2,
+      "tracked_objects_count": 2,
+      "processing_time": 1.3473069667816162,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.8778113126754761,
+          "bbox": [
+            196.0816650390625,
+            147.57009887695312,
+            304.91497802734375,
+            405.2783508300781
+          ]
+        },
+        {
+          "class_name": "sports ball",
+          "confidence": 0.6648283004760742,
+          "bbox": [
+            370.68194580078125,
+            171.02627563476562,
+            431.32928466796875,
+            229.74118041992188
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 2,
+      "timestamp": 1756314037.2114189,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.08411908149719238,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.9059949517250061,
+          "bbox": [
+            196.713134765625,
+            148.79029846191406,
+            303.45501708984375,
+            404.1644287109375
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 3,
+      "timestamp": 1756314037.317524,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.10555434226989746,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.8659517765045166,
+          "bbox": [
+            195.43893432617188,
+            149.0159912109375,
+            302.3899230957031,
+            402.64013671875
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 4,
+      "timestamp": 1756314037.472733,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.15456819534301758,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.8744837045669556,
+          "bbox": [
+            196.22320556640625,
+            149.16419982910156,
+            303.28497314453125,
+            403.0609130859375
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 5,
+      "timestamp": 1756314037.6038883,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.13065814971923828,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.9258295297622681,
+          "bbox": [
+            197.05905151367188,
+            148.5889129638672,
+            304.1490783691406,
+            404.82147216796875
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 6,
+      "timestamp": 1756314037.7702055,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.1658334732055664,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.8778845071792603,
+          "bbox": [
+            197.17562866210938,
+            149.55905151367188,
+            303.0873718261719,
+            402.9892883300781
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 7,
+      "timestamp": 1756314037.8661978,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.09551143646240234,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.8800445795059204,
+          "bbox": [
+            196.202392578125,
+            148.3112030029297,
+            304.0455017089844,
+            405.44317626953125
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 8,
+      "timestamp": 1756314037.9455802,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.07884836196899414,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.8803643584251404,
+          "bbox": [
+            195.986572265625,
+            148.7515411376953,
+            304.4493408203125,
+            404.66302490234375
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 9,
+      "timestamp": 1756314038.0269754,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.07924032211303711,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.9127274751663208,
+          "bbox": [
+            195.8792724609375,
+            148.04302978515625,
+            304.33197021484375,
+            404.9271240234375
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 10,
+      "timestamp": 1756314038.1062365,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.0787973403930664,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.872767984867096,
+          "bbox": [
+            196.41839599609375,
+            148.40040588378906,
+            303.4539794921875,
+            404.0313720703125
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 11,
+      "timestamp": 1756314038.1955073,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.08864188194274902,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.7146971821784973,
+          "bbox": [
+            196.50140380859375,
+            147.73171997070312,
+            304.9093322753906,
+            403.5335998535156
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 12,
+      "timestamp": 1756314038.273936,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.07799053192138672,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.8280025124549866,
+          "bbox": [
+            195.58157348632812,
+            149.14208984375,
+            303.4747009277344,
+            404.28857421875
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 13,
+      "timestamp": 1756314038.3526785,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.07828617095947266,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.6630927920341492,
+          "bbox": [
+            195.67095947265625,
+            148.32260131835938,
+            304.1213684082031,
+            403.3400573730469
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 14,
+      "timestamp": 1756314038.4479256,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.09293985366821289,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.8311044573783875,
+          "bbox": [
+            195.04400634765625,
+            147.90966796875,
+            307.04522705078125,
+            403.09600830078125
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 15,
+      "timestamp": 1756314038.5255575,
+      "detections_count": 0,
+      "tracked_objects_count": 2,
+      "processing_time": 0.07717204093933105,
+      "detections": []
+    },
+    {
+      "frame_id": 16,
+      "timestamp": 1756314038.6049757,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.07897424697875977,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.6557137966156006,
+          "bbox": [
+            194.81903076171875,
+            148.65386962890625,
+            307.490478515625,
+            405.34747314453125
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 17,
+      "timestamp": 1756314038.6831954,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.07743668556213379,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.7472242712974548,
+          "bbox": [
+            194.34902954101562,
+            148.98211669921875,
+            307.6512145996094,
+            406.6822509765625
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 18,
+      "timestamp": 1756314038.7677712,
+      "detections_count": 1,
+      "tracked_objects_count": 2,
+      "processing_time": 0.0836794376373291,
+      "detections": [
+        {
+          "class_name": "refrigerator",
+          "confidence": 0.8810707926750183,
+          "bbox": [
+            195.2005615234375,
+            149.0186767578125,
+            308.9759521484375,
+            403.97119140625
+          ]
+        }
+      ]
+    },
+    {
+      "frame_id": 19,
+      "timestamp": 1756314038.8475368,
+      "detections_count": 0,
+      "tracked_objects_count": 2,
+      "processing_time": 0.07928729057312012,
+      "detections": []
+    },
+    {
+      "frame_id": 20,
+      "timestamp": 1756314038.9331088,
+      "detections_count": 0,
+      "tracked_objects_count": 2,
+      "processing_time": 0.08512020111083984,
+      "detections": []
+    }
+  ]
+}

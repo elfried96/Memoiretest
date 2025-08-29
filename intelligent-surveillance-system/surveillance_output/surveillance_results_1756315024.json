@@ -1,0 +1,70 @@
+{
+  "metadata": {
+    "video_source": "videos/surveillance_test.mp4",
+    "vlm_model": "none",
+    "orchestration_mode": "balanced",
+    "total_frames": 5,
+    "timestamp": "2025-08-27 18:17:04"
+  },
+  "statistics": {
+    "total_frames": 5,
+    "detected_objects": 6,
+    "persons_detected": 0,
+    "vlm_analyses": 0,
+    "alerts_triggered": 0,
+    "total_processing_time": 0.4213240146636963,
+    "average_fps": 11.86735107893395
+  },
+  "results": [
+    {
+      "frame_id": 1,
+      "timestamp": 1756315024.0733376,
+      "detections_count": 2,
+      "persons_detected": 0,
+      "alert_level": "normal",
+      "vlm_analysis": null,
+      "actions_taken": [],
+      "processing_time": 0.08716416358947754
+    },
+    {
+      "frame_id": 2,
+      "timestamp": 1756315024.150021,
+      "detections_count": 1,
+      "persons_detected": 0,
+      "alert_level": "normal",
+      "vlm_analysis": null,
+      "actions_taken": [],
+      "processing_time": 0.07620024681091309
+    },
+    {
+      "frame_id": 3,
+      "timestamp": 1756315024.2251537,
+      "detections_count": 1,
+      "persons_detected": 0,
+      "alert_level": "normal",
+      "vlm_analysis": null,
+      "actions_taken": [],
+      "processing_time": 0.07444238662719727
+    },
+    {
+      "frame_id": 4,
+      "timestamp": 1756315024.2990725,
+      "detections_count": 1,
+      "persons_detected": 0,
+      "alert_level": "normal",
+      "vlm_analysis": null,
+      "actions_taken": [],
+      "processing_time": 0.07342267036437988
+    },
+    {
+      "frame_id": 5,
+      "timestamp": 1756315024.4096494,
+      "detections_count": 1,
+      "persons_detected": 0,
+      "alert_level": "normal",
+      "vlm_analysis": null,
+      "actions_taken": [],
+      "processing_time": 0.11009454727172852
+    }
+  ]
+}

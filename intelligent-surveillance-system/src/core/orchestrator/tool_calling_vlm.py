@@ -35,7 +35,7 @@ class ToolCall:
     reasoning: str  # Raison de l'appel de cet outil
     priority: int = 1  # 1=haute, 2=moyenne, 3=basse
     expected_output_type: str = "dict"
-    timeout_seconds: float = 5.0
+    timeout_seconds: float = 3600.0  # 1 heure - pas de timeout réel
     
     
 @dataclass
@@ -89,7 +89,7 @@ class ToolCallingVLM(DynamicVisionLanguageModel):
         
         # Configuration du tool calling
         self.max_parallel_tools = 4
-        self.tool_call_timeout = 30.0
+        self.tool_call_timeout = 600.0  # 10 minutes
         self.confidence_threshold = 0.6
         
         # Initialisation des outils par défaut
@@ -537,18 +537,19 @@ class ToolCallingVLM(DynamicVisionLanguageModel):
         """Récupération du timeout pour un outil."""
         
         # Timeouts par défaut selon la complexité de l'outil
+        # Pas de timeout - les outils peuvent prendre le temps nécessaire
         default_timeouts = {
-            "object_detection": 2.0,
-            "context_analysis": 1.5,
-            "pose_analysis": 3.0,
-            "behavior_assessment": 4.0,
-            "risk_evaluation": 2.5,
-            "temporal_analysis": 3.5,
-            "spatial_analysis": 3.0,
-            "confidence_validation": 2.0
+            "object_detection": 300.0,
+            "context_analysis": 300.0,
+            "pose_analysis": 300.0,
+            "behavior_assessment": 300.0,
+            "risk_evaluation": 300.0,
+            "temporal_analysis": 300.0,
+            "spatial_analysis": 300.0,
+            "confidence_validation": 300.0
         }
         
-        return default_timeouts.get(tool_name, 3.0)
+        return default_timeouts.get(tool_name, 300.0)  # 5 minutes par défaut
     
     def _determine_execution_strategy(
         self,
@@ -654,11 +655,8 @@ class ToolCallingVLM(DynamicVisionLanguageModel):
             
             tool_function = self.tool_registry[tool_call.tool_name]
             
-            # Exécution avec timeout
-            result = await asyncio.wait_for(
-                tool_function(**tool_call.parameters),
-                timeout=tool_call.timeout_seconds
-            )
+            # Exécution sans timeout
+            result = await tool_function(**tool_call.parameters)
             
             execution_time = time.time() - start_time
             
@@ -678,16 +676,7 @@ class ToolCallingVLM(DynamicVisionLanguageModel):
                 confidence=confidence
             )
         
-        except asyncio.TimeoutError:
-            execution_time = time.time() - start_time
-            logger.warning(f"Timeout pour {tool_call.tool_name} après {tool_call.timeout_seconds}s")
-            
-            return ToolCallResult(
-                tool_call=tool_call,
-                success=False,
-                error_message=f"Timeout après {tool_call.timeout_seconds}s",
-                execution_time=execution_time
-            )
+        # Plus de gestion de timeout - supprimée
         
         except Exception as e:
             execution_time = time.time() - start_time

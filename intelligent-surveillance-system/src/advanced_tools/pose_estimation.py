@@ -20,15 +20,22 @@ class PoseKeypoints:
     processing_time: float
 
 class OpenPoseEstimator:
-    """Pose estimation using MediaPipe or OpenPose alternatives."""
+    """Pose estimation using MediaPipe (33 keypoints) ou MoveNet (17 keypoints)."""
     
-    def __init__(self, model_type: str = "mediapipe", device: str = "auto"):
+    def __init__(self, model_type: str = "mediapipe", device: str = "auto", lazy_loading: bool = False):
         self.device = self._select_device(device)
-        self.model_type = model_type
+        # Deux modèles possibles : MediaPipe OU MoveNet (pas de duplication)
+        self.model_type = model_type  # "mediapipe" ou "movenet"
         self.pose_detector = None
+        self.mp_pose = None
         self.keypoint_names = []
         self.skeleton_connections = []
-        self._load_model()
+        self.lazy_loading = lazy_loading
+        self._model_loaded = False
+        
+        # Chargement immédiat ou lazy
+        if not lazy_loading:
+            self._load_model()
     
     def _select_device(self, device: str) -> torch.device:
         """Select optimal device."""
@@ -36,8 +43,16 @@ class OpenPoseEstimator:
             return torch.device("cuda" if torch.cuda.is_available() else "cpu")
         return torch.device(device)
     
+    def _ensure_model_loaded(self):
+        """Ensure model is loaded (lazy loading)."""
+        if not self._model_loaded:
+            self._load_model()
+    
     def _load_model(self):
-        """Load pose estimation model."""
+        """Load pose estimation model (MediaPipe OU MoveNet)."""
+        if self._model_loaded:
+            return
+            
         if self.model_type == "mediapipe":
             self._load_mediapipe()
         elif self.model_type == "movenet":
@@ -51,14 +66,17 @@ class OpenPoseEstimator:
         try:
             import mediapipe as mp
             
+            logger.info("Loading MediaPipe Pose model (modèle physique)...")
+            
             self.mp_pose = mp.solutions.pose
+            # Configuration selon documentation officielle
             self.pose_detector = self.mp_pose.Pose(
-                static_image_mode=False,
-                model_complexity=1,  # 0, 1, 2
-                enable_segmentation=False,
-                min_detection_confidence=0.5,
-                min_tracking_confidence=0.5
+                min_detection_confidence=0.7,  # Plus strict selon doc
+                min_tracking_confidence=0.7    # Plus strict selon doc
             )
+            
+            # Pour drawing (selon doc officielle)
+            self.mp_drawing = mp.solutions.drawing_utils
             
             # Define keypoint names (MediaPipe format)
             self.keypoint_names = [
@@ -80,24 +98,28 @@ class OpenPoseEstimator:
                 (25, 27), (26, 28), (27, 29), (28, 30), (29, 31), (30, 32)
             ]
             
-            logger.info("MediaPipe pose model loaded successfully")
+            self._model_loaded = True
+            logger.info("MediaPipe pose model loaded successfully (33 keypoints)")
             
-        except ImportError:
-            logger.warning("MediaPipe not available, pose estimation disabled")
+        except ImportError as e:
+            logger.error(f"MediaPipe not available: {e}")
             self.pose_detector = None
+            self._model_loaded = False
     
     def _load_movenet(self):
-        """Load MoveNet model."""
+        """Load MoveNet model (17 keypoints)."""
         try:
             import tensorflow as tf
             
-            # Load MoveNet model
+            logger.info("Loading MoveNet model (modèle physique)...")
+            
+            # Load MoveNet model - téléchargé et sauvegardé localement
             self.pose_detector = tf.keras.utils.get_file(
                 'movenet_thunder.tflite',
                 'https://tfhub.dev/google/lite-model/movenet/singlepose/thunder/tflite/int8/4?lite-format=tflite'
             )
             
-            # MoveNet keypoint names
+            # MoveNet keypoint names (17 keypoints)
             self.keypoint_names = [
                 "nose", "left_eye", "right_eye", "left_ear", "right_ear",
                 "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",
@@ -113,15 +135,20 @@ class OpenPoseEstimator:
                 (12, 14), (14, 16)
             ]
             
-            logger.info("MoveNet model loaded successfully")
+            self._model_loaded = True
+            logger.info("MoveNet model loaded successfully (17 keypoints)")
             
         except Exception as e:
-            logger.warning(f"Could not load MoveNet: {e}")
+            logger.error(f"Could not load MoveNet: {e}")
             self.pose_detector = None
+            self._model_loaded = False
     
     def estimate_poses(self, frame: np.ndarray, person_boxes: Optional[List[Tuple[int, int, int, int]]] = None) -> PoseKeypoints:
-        """Estimate poses in frame."""
+        """Estimate poses in frame using MediaPipe OU MoveNet."""
         start_time = time.perf_counter()
+        
+        # Ensure model is loaded
+        self._ensure_model_loaded()
         
         if self.pose_detector is None:
             return self._fallback_pose_estimation(frame, person_boxes, start_time)
@@ -132,7 +159,7 @@ class OpenPoseEstimator:
             elif self.model_type == "movenet":
                 return self._estimate_movenet_poses(frame, person_boxes, start_time)
         except Exception as e:
-            logger.error(f"Pose estimation failed: {e}")
+            logger.error(f"Pose estimation ({self.model_type}) failed: {e}")
             return self._fallback_pose_estimation(frame, person_boxes, start_time)
     
     def _estimate_mediapipe_poses(self, frame: np.ndarray, person_boxes: Optional[List[Tuple[int, int, int, int]]],
@@ -205,6 +232,14 @@ class OpenPoseEstimator:
             ]
         
         return keypoints
+    
+    def _estimate_movenet_poses(self, frame: np.ndarray, person_boxes: Optional[List[Tuple[int, int, int, int]]],
+                              start_time: float) -> PoseKeypoints:
+        """Estimate poses using MoveNet (simplified implementation)."""
+        # Note: MoveNet est plus complexe à implémenter avec TensorFlow Lite
+        # Pour cette version, on utilise le fallback
+        logger.info("MoveNet estimation - using fallback for now")
+        return self._fallback_pose_estimation(frame, person_boxes, start_time)
     
     def _fallback_pose_estimation(self, frame: np.ndarray, person_boxes: Optional[List[Tuple[int, int, int, int]]],
                                 start_time: float) -> PoseKeypoints:
@@ -387,4 +422,62 @@ class OpenPoseEstimator:
         return {
             "movement_indicators": indicators,
             "movement_score": movement_score
+        }
+    
+    def draw_pose_landmarks(self, image: np.ndarray, keypoints: np.ndarray) -> np.ndarray:
+        """Draw pose landmarks on image (selon documentation officielle MediaPipe)."""
+        if not self._model_loaded or self.pose_detector is None:
+            return image.copy()
+        
+        # Convert keypoints to MediaPipe format for drawing
+        if len(keypoints) == 0:
+            return image.copy()
+        
+        try:
+            # Créer un objet landmarks MediaPipe pour drawing
+            from mediapipe.python.solutions import pose as mp_pose_module
+            
+            # Simuler un résultat MediaPipe pour le drawing
+            image_copy = image.copy()
+            
+            # Dessiner manuellement si nécessaire  
+            for person_keypoints in keypoints:
+                if len(person_keypoints) >= 33:  # 33 keypoints MediaPipe
+                    # Dessiner les points
+                    for i, (x, y, confidence) in enumerate(person_keypoints):
+                        if confidence > 0.5:  # Seuil de confiance
+                            cv2.circle(image_copy, (int(x), int(y)), 4, (255, 0, 0), -1)
+                    
+                    # Dessiner les connexions
+                    for connection in self.skeleton_connections:
+                        start_idx, end_idx = connection
+                        if (start_idx < len(person_keypoints) and 
+                            end_idx < len(person_keypoints) and
+                            person_keypoints[start_idx][2] > 0.5 and 
+                            person_keypoints[end_idx][2] > 0.5):
+                            
+                            start_point = (int(person_keypoints[start_idx][0]), 
+                                         int(person_keypoints[start_idx][1]))
+                            end_point = (int(person_keypoints[end_idx][0]), 
+                                       int(person_keypoints[end_idx][1]))
+                            cv2.line(image_copy, start_point, end_point, (255, 0, 0), 6)
+            
+            return image_copy
+            
+        except Exception as e:
+            logger.warning(f"Could not draw pose landmarks: {e}")
+            return image.copy()
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get information about loaded pose model."""
+        keypoints_count = 33 if self.model_type == "mediapipe" else 17
+        
+        return {
+            "model_type": self.model_type,
+            "keypoints_count": keypoints_count,
+            "model_loaded": self._model_loaded,
+            "lazy_loading": self.lazy_loading,
+            "detection_confidence": 0.7 if self.model_type == "mediapipe" else "N/A",
+            "tracking_confidence": 0.7 if self.model_type == "mediapipe" else "N/A",
+            "model_available": self.pose_detector is not None
         }

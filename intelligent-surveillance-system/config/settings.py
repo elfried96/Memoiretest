@@ -71,7 +71,7 @@ class WebConfig(BaseSettings):
     workers: int = 1
     
     # WebSocket
-    websocket_timeout: int = 30
+    websocket_timeout: int = 3600  # 1 heure - pas de timeout réel
     max_connections: int = 100
     
     # CORS

@@ -28,7 +28,7 @@ class OrchestrationConfig:
     """Configuration pour l'orchestrateur."""
     mode: OrchestrationMode = OrchestrationMode.BALANCED
     max_concurrent_tools: int = 4
-    timeout_seconds: int = 30
+    timeout_seconds: int = 600  # 10 minutes
     confidence_threshold: float = 0.7
     enable_advanced_tools: bool = True
 

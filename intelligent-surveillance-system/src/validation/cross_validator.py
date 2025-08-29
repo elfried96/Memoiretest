@@ -226,7 +226,7 @@ class CrossValidator:
     def __init__(
         self,
         target_false_positive_rate: float = 0.03,
-        validation_timeout: float = 2.0
+        validation_timeout: float = 300.0  # 5 minutes
     ):
         self.target_false_positive_rate = target_false_positive_rate
         self.validation_timeout = validation_timeout

@@ -1,0 +1,40 @@
+{
+  "metadata": {
+    "video_source": "videos/surveillance_test.mp4",
+    "vlm_model": "none",
+    "orchestration_mode": "balanced",
+    "total_frames": 2,
+    "timestamp": "2025-08-27 18:27:56"
+  },
+  "statistics": {
+    "total_frames": 2,
+    "detected_objects": 3,
+    "persons_detected": 0,
+    "vlm_analyses": 0,
+    "alerts_triggered": 0,
+    "total_processing_time": 0.13852834701538086,
+    "average_fps": 14.437478271345714
+  },
+  "results": [
+    {
+      "frame_id": 1,
+      "timestamp": 1756315676.0816813,
+      "detections_count": 2,
+      "persons_detected": 0,
+      "alert_level": "normal",
+      "vlm_analysis": null,
+      "actions_taken": [],
+      "processing_time": 0.07470250129699707
+    },
+    {
+      "frame_id": 2,
+      "timestamp": 1756315676.1461525,
+      "detections_count": 1,
+      "persons_detected": 0,
+      "alert_level": "normal",
+      "vlm_analysis": null,
+      "actions_taken": [],
+      "processing_time": 0.06382584571838379
+    }
+  ]
+}

@@ -71,7 +71,7 @@ class OrchestrationConfig:
     """Configuration pour l'orchestration."""
     mode: OrchestrationMode = OrchestrationMode.BALANCED
     max_concurrent_tools: int = 4
-    timeout_seconds: int = 30
+    timeout_seconds: int = 3600  # 1 heure - pas de timeout réel
     confidence_threshold: float = 0.7
     enable_advanced_tools: bool = True
 
@@ -262,7 +262,7 @@ CONFIGS = {
         orchestration=OrchestrationConfig(
             mode=OrchestrationMode.FAST,
             max_concurrent_tools=1,
-            timeout_seconds=10
+            timeout_seconds=3600
         ),
         performance=PerformanceConfig(
             enable_monitoring=False
@@ -281,7 +281,7 @@ CONFIGS = {
         orchestration=OrchestrationConfig(
             mode=OrchestrationMode.FAST,
             max_concurrent_tools=1,
-            timeout_seconds=15
+            timeout_seconds=3600
         ),
         performance=PerformanceConfig(
             enable_monitoring=False
@@ -300,7 +300,7 @@ CONFIGS = {
         orchestration=OrchestrationConfig(
             mode=OrchestrationMode.FAST,
             max_concurrent_tools=1,
-            timeout_seconds=15
+            timeout_seconds=3600
         ),
         performance=PerformanceConfig(
             enable_monitoring=False

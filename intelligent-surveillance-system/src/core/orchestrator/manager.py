@@ -39,7 +39,7 @@ class ToolConfig:
     """Configuration d'un outil."""
     tool_type: ToolType
     enabled: bool = True
-    timeout_seconds: float = 5.0
+    timeout_seconds: float = 300.0  # 5 minutes au lieu de 5 secondes
     retry_count: int = 2
     required_confidence: float = 0.0
     depends_on: List[ToolType] = field(default_factory=list)
@@ -72,31 +72,31 @@ class ToolRegistry:
         default_configs = {
             ToolType.OBJECT_DETECTOR: ToolConfig(
                 tool_type=ToolType.OBJECT_DETECTOR,
-                timeout_seconds=2.0,
+                timeout_seconds=60.0,
                 required_confidence=0.25,
                 parameters={"filter_classes": ["person", "handbag", "backpack"]}
             ),
             ToolType.TRACKER: ToolConfig(
                 tool_type=ToolType.TRACKER,
-                timeout_seconds=1.0,
+                timeout_seconds=60.0,
                 depends_on=[ToolType.OBJECT_DETECTOR],
                 parameters={"tracker_type": "bytetrack"}
             ),
             ToolType.BEHAVIOR_ANALYZER: ToolConfig(
                 tool_type=ToolType.BEHAVIOR_ANALYZER,
-                timeout_seconds=3.0,
+                timeout_seconds=120.0,
                 depends_on=[ToolType.TRACKER],
                 required_confidence=0.5,
                 parameters={"analysis_window": 30}
             ),
             ToolType.CONTEXT_VALIDATOR: ToolConfig(
                 tool_type=ToolType.CONTEXT_VALIDATOR,
-                timeout_seconds=2.0,
+                timeout_seconds=60.0,
                 parameters={"validation_rules": ["time_consistency", "spatial_consistency"]}
             ),
             ToolType.FALSE_POSITIVE_FILTER: ToolConfig(
                 tool_type=ToolType.FALSE_POSITIVE_FILTER,
-                timeout_seconds=1.5,
+                timeout_seconds=60.0,
                 depends_on=[ToolType.BEHAVIOR_ANALYZER, ToolType.CONTEXT_VALIDATOR],
                 parameters={"threshold": 0.03}
             )
@@ -512,11 +512,8 @@ class ToolOrchestrator:
                 **config.parameters
             }
             
-            # Exécution avec timeout
-            result_data = await asyncio.wait_for(
-                tool_function(**tool_params),
-                timeout=config.timeout_seconds
-            )
+            # Exécution sans timeout
+            result_data = await tool_function(**tool_params)
             
             execution_time = (time.time() - start_time) * 1000
             
@@ -527,16 +524,7 @@ class ToolOrchestrator:
                 execution_time_ms=execution_time
             )
             
-        except asyncio.TimeoutError:
-            execution_time = (time.time() - start_time) * 1000
-            logger.error(f"Timeout outil {tool_type.value} après {config.timeout_seconds}s")
-            
-            return ToolResult(
-                tool_type=tool_type,
-                success=False,
-                execution_time_ms=execution_time,
-                error_message=f"Timeout après {config.timeout_seconds}s"
-            )
+        # Plus de gestion de timeout - supprimée
             
         except Exception as e:
             execution_time = (time.time() - start_time) * 1000

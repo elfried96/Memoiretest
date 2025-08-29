@@ -3,7 +3,7 @@
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import List, Dict, Any
-from .app_config import SystemConfig, VLMConfig, OrchestrationConfig, OrchestrationMode, DeviceType
+from .app_config import SystemConfig, VLMConfig, OrchestrationConfig, OrchestrationMode, DeviceType, PerformanceConfig
 
 # Chemins pour les tests vidéo
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -57,7 +57,7 @@ VIDEO_TEST_SYSTEM_CONFIG = SystemConfig(
     orchestration=OrchestrationConfig(
         mode=OrchestrationMode.BALANCED,  # Bon compromis vitesse/qualité
         max_concurrent_tools=3,  # Limité pour éviter surcharge
-        timeout_seconds=15,  # Plus court pour vidéo
+        timeout_seconds=3600,  # Pas de timeout réel
         confidence_threshold=0.6,
         enable_advanced_tools=True
     ),

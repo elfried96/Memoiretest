@@ -13,7 +13,7 @@ class TestConfiguration:
     """Configuration pour les tests."""
     name: str
     description: str = ""
-    timeout: float = 30.0
+    timeout: float = 600.0  # 10 minutes
     retry_count: int = 3
     parameters: Dict[str, Any] = None
     

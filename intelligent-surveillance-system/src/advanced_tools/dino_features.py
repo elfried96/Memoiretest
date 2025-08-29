@@ -10,8 +10,11 @@ import time
 from PIL import Image
 import torchvision.transforms as transforms
 import cv2  # Ajout de l'import manquant
+from enum import Enum
 
 logger = logging.getLogger(__name__)
+
+# Un seul modèle : VITB14_REG (86M paramètres, 768 dimensions, avec registers)
 
 @dataclass
 class DinoFeatures:
@@ -24,12 +27,21 @@ class DinoFeatures:
 class DinoV2FeatureExtractor:
     """DINO v2 feature extractor for robust visual representations."""
     
-    def __init__(self, model_name: str = "dinov2_vitb14", device: str = "auto"):
+    def __init__(self, device: str = "auto", lazy_loading: bool = False):
         self.device = self._select_device(device)
-        self.model_name = model_name
+        # Un seul modèle fixe : VITB14_REG
+        self.model_name = "dinov2_vitb14_reg" 
+        self.feature_dim = 768  # Dimension fixe pour VITB14
         self.model = None
         self.transform = None
-        self._load_model()
+        self.lazy_loading = lazy_loading
+        self._model_loaded = False
+        
+        # Chargement immédiat ou lazy selon paramètre
+        # LAZY = False : Modèle chargé MAINTENANT (dans __init__)  
+        # LAZY = True  : Modèle chargé PLUS TARD (au premier usage)
+        if not lazy_loading:
+            self._load_model()  # Chargement immédiat
     
     def _select_device(self, device: str) -> torch.device:
         """Select optimal device."""
@@ -37,31 +49,56 @@ class DinoV2FeatureExtractor:
             return torch.device("cuda" if torch.cuda.is_available() else "cpu")
         return torch.device(device)
     
+    def _ensure_model_loaded(self):
+        """Ensure model is loaded (lazy loading)."""
+        if not self._model_loaded:
+            self._load_model()
+    
     def _load_model(self):
-        """Load DINO v2 model."""
+        """Load DINO v2 model selon documentation officielle."""
+        if self._model_loaded:
+            return
+            
         try:
-            # Try loading from torch hub
-            self.model = torch.hub.load('facebookresearch/dinov2', self.model_name)
+            logger.info(f"Loading DINOv2 model {self.model_name} (modèle physique)...")
+            
+            # Chargement du modèle physique (téléchargé localement)
+            # torch.hub télécharge et sauvegarde automatiquement dans ~/.cache/torch/hub/
+            self.model = torch.hub.load('facebookresearch/dinov2', self.model_name, trust_repo=True)
             self.model = self.model.to(self.device).eval()
             
-            # Setup transforms
+            # Le modèle est maintenant stocké physiquement sur le disque
+            # Localisation: ~/.cache/torch/hub/facebookresearch_dinov2_main/
+            
+            # Setup transforms selon les standards DINOv2
+            # Note: DINOv2 utilise résolution 224x224 par défaut
             self.transform = transforms.Compose([
-                transforms.Resize((224, 224)),
+                transforms.Resize((224, 224), interpolation=transforms.InterpolationMode.BICUBIC),
                 transforms.ToTensor(),
                 transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
             ])
             
-            logger.info(f"DINO v2 model {self.model_name} loaded on {self.device}")
+            # Dimension fixe pour VITB14_REG
+            self.feature_dim = 768
+            self._model_loaded = True
+            
+            logger.info(f"DINOv2 model {self.model_name} loaded on {self.device} (feature_dim: {self.feature_dim})")
             
         except Exception as e:
-            logger.warning(f"Could not load DINO v2: {e}, using fallback")
+            logger.error(f"Could not load DINOv2: {e}, using fallback")
             self.model = None
+            self._model_loaded = False
+    
+    # Plus besoin de cette méthode - dimension fixe à 768 pour VITB14_REG
     
     @torch.inference_mode()
     def extract_features(self, frame: np.ndarray, regions: Optional[List[Tuple[int, int, int, int]]] = None,
                         extract_attention: bool = False) -> DinoFeatures:
-        """Extract DINO v2 features from frame or regions."""
+        """Extract DINOv2 features from frame or regions."""
         start_time = time.perf_counter()
+        
+        # Ensure model is loaded
+        self._ensure_model_loaded()
         
         if self.model is None:
             return self._fallback_features(frame, start_time)
@@ -75,7 +112,7 @@ class DinoV2FeatureExtractor:
                 return self._extract_regional_features(frame, regions, start_time, extract_attention)
                 
         except Exception as e:
-            logger.error(f"DINO feature extraction failed: {e}")
+            logger.error(f"DINOv2 feature extraction failed: {e}")
             return self._fallback_features(frame, start_time)
     
     def _extract_global_features(self, frame: np.ndarray, start_time: float,
@@ -88,28 +125,25 @@ class DinoV2FeatureExtractor:
         # Transform
         input_tensor = self.transform(pil_image).unsqueeze(0).to(self.device)
         
-        # Extract features
+        # Extract features selon API DINOv2 officielle
         with torch.cuda.amp.autocast(enabled=self.device.type == "cuda"):
+            # API DINOv2: Direct forward pass pour CLS token
+            cls_features = self.model(input_tensor)  # Shape: [1, feature_dim]
+            
             if extract_attention:
-                # Get features with attention
-                features = self.model.forward_features(input_tensor)
-                cls_token = features['x_norm_clstoken']
-                patch_tokens = features['x_norm_patchtokens']
-                
-                # Get attention maps
-                attention_maps = self._get_attention_maps(input_tensor)
+                # Pour attention et patch tokens, utiliser les hooks internes
+                patch_features, attention_maps = self._extract_advanced_features(input_tensor)
                 
                 return DinoFeatures(
-                    features=cls_token.cpu().numpy().squeeze(),
-                    patch_features=patch_tokens.cpu().numpy().squeeze(),
+                    features=cls_features.cpu().numpy().squeeze(),
+                    patch_features=patch_features,
                     attention_maps=attention_maps,
                     processing_time=time.perf_counter() - start_time
                 )
             else:
-                # Just CLS token
-                features = self.model(input_tensor)
+                # Mode standard: seulement CLS token
                 return DinoFeatures(
-                    features=features.cpu().numpy().squeeze(),
+                    features=cls_features.cpu().numpy().squeeze(),
                     patch_features=None,
                     attention_maps=None,
                     processing_time=time.perf_counter() - start_time
@@ -146,6 +180,63 @@ class DinoV2FeatureExtractor:
             attention_maps=None,
             processing_time=time.perf_counter() - start_time
         )
+    
+    def _extract_advanced_features(self, input_tensor: torch.Tensor) -> Tuple[Optional[np.ndarray], Optional[np.ndarray]]:
+        """Extract patch features and attention maps via hooks."""
+        try:
+            # Variables pour capturer les features intermédiaires
+            patch_features_captured = []
+            attention_maps_captured = []
+            
+            def patch_hook(module, input, output):
+                """Hook pour capturer les patch embeddings."""
+                if hasattr(output, 'shape') and len(output.shape) == 3:
+                    # Format: [batch, num_patches, embed_dim]
+                    patch_features_captured.append(output.detach())
+            
+            def attention_hook(module, input, output):
+                """Hook pour capturer les attention maps.""" 
+                if isinstance(output, tuple) and len(output) > 1:
+                    attn_weights = output[1]  # Attention weights
+                    if attn_weights is not None:
+                        attention_maps_captured.append(attn_weights.detach())
+            
+            # Enregistrer les hooks sur les couches appropriées
+            hooks = []
+            
+            # Hook sur les blocs transformer pour patch features
+            for name, module in self.model.named_modules():
+                if 'blocks' in name and hasattr(module, 'norm1'):
+                    hooks.append(module.register_forward_hook(patch_hook))
+                elif 'attn' in name and hasattr(module, 'qkv'):
+                    hooks.append(module.register_forward_hook(attention_hook))
+            
+            # Forward pass pour déclencher les hooks
+            _ = self.model(input_tensor)
+            
+            # Nettoyer les hooks
+            for hook in hooks:
+                hook.remove()
+            
+            # Traitement des patch features capturées
+            patch_features = None
+            if patch_features_captured:
+                # Prendre la dernière couche
+                last_patches = patch_features_captured[-1]
+                patch_features = last_patches.cpu().numpy().squeeze()
+            
+            # Traitement des attention maps capturées
+            attention_maps = None
+            if attention_maps_captured:
+                # Moyenner sur les têtes d'attention
+                last_attention = attention_maps_captured[-1]
+                attention_maps = last_attention.mean(dim=1).cpu().numpy().squeeze()
+            
+            return patch_features, attention_maps
+            
+        except Exception as e:
+            logger.warning(f"Could not extract advanced features: {e}")
+            return None, None
     
     def _get_attention_maps(self, input_tensor: torch.Tensor) -> np.ndarray:
         """Extract attention maps from DINO v2."""
@@ -246,4 +337,16 @@ class DinoV2FeatureExtractor:
             "labels": labels.tolist(),
             "centers": kmeans.cluster_centers_.tolist(),
             "inertia": float(kmeans.inertia_)
+        }
+    
+    def get_model_info(self) -> Dict[str, Any]:
+        """Get information about loaded DINOv2 model."""
+        return {
+            "model_name": self.model_name,
+            "device": str(self.device),
+            "feature_dimension": self.feature_dim,
+            "model_loaded": self._model_loaded,
+            "lazy_loading": self.lazy_loading,
+            "model_available": self.model is not None,
+            "parameters": "86M"  # Fixe pour VITB14_REG
         }

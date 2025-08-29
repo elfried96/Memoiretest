@@ -126,7 +126,7 @@ class DinoV2FeatureExtractor:
         input_tensor = self.transform(pil_image).unsqueeze(0).to(self.device)
         
         # Extract features selon API DINOv2 officielle
-        with torch.cuda.amp.autocast(enabled=self.device.type == "cuda"):
+        with torch.amp.autocast('cuda', enabled=self.device.type == "cuda"):
             # API DINOv2: Direct forward pass pour CLS token
             cls_features = self.model(input_tensor)  # Shape: [1, feature_dim]
             
@@ -167,7 +167,7 @@ class DinoV2FeatureExtractor:
             input_tensor = self.transform(pil_roi).unsqueeze(0).to(self.device)
             
             # Extract features
-            with torch.cuda.amp.autocast(enabled=self.device.type == "cuda"):
+            with torch.amp.autocast('cuda', enabled=self.device.type == "cuda"):
                 features = self.model(input_tensor)
                 regional_features.append(features.cpu().numpy().squeeze())
         

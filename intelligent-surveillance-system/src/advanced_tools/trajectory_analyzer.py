@@ -169,7 +169,9 @@ class TrajectoryAnalyzer:
     def _calculate_average_velocity(self, trajectory: List[TrajectoryPoint]) -> float:
         """Calculate average velocity."""
         velocities = [point.velocity for point in trajectory if point.velocity is not None]
-        return np.mean(velocities) if velocities else 0.0
+        if not velocities:
+            return 0.0
+        return float(np.mean(velocities))
     
     def _count_direction_changes(self, trajectory: List[TrajectoryPoint], 
                                angle_threshold: float = np.pi/4) -> int:

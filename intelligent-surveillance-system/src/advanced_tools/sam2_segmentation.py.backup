@@ -206,42 +206,195 @@ class SAM2Segmentator:
         )
         return self.segment_with_prompt(frame, prompt, confidence_threshold)
     
-    def _fallback_segmentation(self, frame: np.ndarray, bounding_boxes: List[List[float]], 
-                              start_time: float) -> SegmentationResult:
-        """Fallback segmentation using basic CV techniques."""
-        logger.info("Using fallback segmentation")
+    @torch.inference_mode()  
+    def segment_objects_old(self, frame: np.ndarray, bounding_boxes: List[List[float]], 
+                       confidence_threshold: float = 0.8) -> SegmentationResult:
+        """Legacy method - kept for backward compatibility."""
+        start_time = time.perf_counter()
         
-        # Create simple masks from bounding boxes
-        if bounding_boxes:
-            masks = []
-            scores = []
+        self._ensure_model_loaded()
+        
+        if self.model is None:
+            # Fallback to simple mask generation
+            return self._fallback_segmentation(frame, bounding_boxes, start_time)
+        
+        try:
+            # Format bounding boxes selon le standard HF : [[[x1, y1, x2, y2], ...]]
+            formatted_boxes = [[bounding_boxes]]  # Wrap en 3 dimensions
             
-            for bbox in bounding_boxes:
-                x1, y1, x2, y2 = map(int, bbox)
-                mask = np.zeros((frame.shape[0], frame.shape[1]), dtype=bool)
-                mask[y1:y2, x1:x2] = True
-                masks.append(mask)
-                scores.append(0.5)  # Default confidence
-                
+            # Prepare inputs selon documentation HF
+            inputs = self.processor(
+                images=frame,
+                input_boxes=formatted_boxes,
+                return_tensors="pt"
+            ).to(self.device)
+            
+            # Forward pass avec torch.inference_mode (déjà appliqué via décorateur)
+            with torch.autocast(self.device.type, dtype=torch.bfloat16):
+                outputs = self.model(**inputs)
+            
+            # Post-processing selon documentation HF
+            masks = self.processor.post_process_masks(
+                outputs.pred_masks.cpu(), 
+                inputs["original_sizes"]
+            )[0]
+            
+            # Extraction des scores IoU
+            scores = outputs.iou_scores.cpu().numpy().squeeze()
+            
+            # Filter by confidence (si plusieurs masques générés)
+            if len(scores.shape) > 0 and scores.shape[0] > 1:
+                # Prendre le meilleur masque par défaut ou filtrer
+                best_mask_idx = torch.argmax(outputs.iou_scores.squeeze())
+                masks = masks[best_mask_idx:best_mask_idx+1]  # Garder dimension batch
+                scores = np.array([scores[best_mask_idx]])
+            else:
+                scores = np.array([scores.item()] if scores.ndim == 0 else scores)
+            
+            # Convertir masks en numpy si tensor
+            if isinstance(masks, torch.Tensor):
+                masks = masks.numpy()
+            
+            processing_time = time.perf_counter() - start_time
+            
             return SegmentationResult(
-                masks=np.array(masks),
-                scores=np.array(scores),
+                masks=masks,
+                scores=scores,
                 boxes=np.array(bounding_boxes),
-                processing_time=time.perf_counter() - start_time,
-                prompt_type=PromptType.BOUNDING_BOX
+                processing_time=processing_time
             )
-        else:
-            # Single mask covering entire frame
-            mask = np.ones((frame.shape[0], frame.shape[1]), dtype=bool)
-            return SegmentationResult(
-                masks=np.array([mask]),
-                scores=np.array([0.5]),
-                boxes=np.array([[0, 0, frame.shape[1], frame.shape[0]]]),
-                processing_time=time.perf_counter() - start_time,
-                prompt_type=PromptType.BOUNDING_BOX
-            )
+            
+        except Exception as e:
+            logger.error(f"SAM2 segmentation failed: {e}")
+            return self._fallback_segmentation(frame, bounding_boxes, start_time)
     
-    # Méthodes utilitaires
+    @torch.inference_mode()
+    def segment_objects_with_points(self, frame: np.ndarray, 
+                                   input_points: List[List[List[float]]], 
+                                   input_labels: List[List[int]],
+                                   confidence_threshold: float = 0.8) -> SegmentationResult:
+        """Segment objects using SAM2 with point prompts (following HF documentation)."""
+        start_time = time.perf_counter()
+        
+        if self.model is None:
+            return self._fallback_segmentation(frame, [], start_time)
+        
+        try:
+            # Format selon documentation HF: input_points = [[[[500, 375]]]]
+            formatted_points = [input_points]  # Wrap pour batch dimension
+            formatted_labels = [input_labels]  # Wrap pour batch dimension
+            
+            # Prepare inputs selon documentation HF
+            inputs = self.processor(
+                images=frame,
+                input_points=formatted_points,
+                input_labels=formatted_labels,
+                return_tensors="pt"
+            ).to(self.device)
+            
+            # Forward pass
+            with torch.autocast(self.device.type, dtype=torch.bfloat16):
+                outputs = self.model(**inputs)
+            
+            # Post-processing selon documentation HF
+            masks = self.processor.post_process_masks(
+                outputs.pred_masks.cpu(), 
+                inputs["original_sizes"]
+            )[0]
+            
+            # Extraction des scores IoU
+            scores = outputs.iou_scores.cpu().numpy().squeeze()
+            
+            # Prendre le meilleur masque
+            if len(scores.shape) > 0 and scores.shape[0] > 1:
+                best_mask_idx = torch.argmax(outputs.iou_scores.squeeze())
+                masks = masks[best_mask_idx:best_mask_idx+1]
+                scores = np.array([scores[best_mask_idx]])
+            else:
+                scores = np.array([scores.item()] if scores.ndim == 0 else scores)
+            
+            if isinstance(masks, torch.Tensor):
+                masks = masks.numpy()
+            
+            processing_time = time.perf_counter() - start_time
+            
+            return SegmentationResult(
+                masks=masks,
+                scores=scores,
+                boxes=np.array([]),  # Pas de boxes avec points
+                processing_time=processing_time
+            )
+            
+        except Exception as e:
+            logger.error(f"SAM2 point segmentation failed: {e}")
+            return self._fallback_segmentation(frame, [], start_time)
+    
+    def _fallback_segmentation(self, frame: np.ndarray, bounding_boxes: List[List[float]], 
+                             start_time: float) -> SegmentationResult:
+        """Fallback segmentation using traditional CV methods."""
+        masks = []
+        scores = []
+        
+        for box in bounding_boxes:
+            x1, y1, x2, y2 = map(int, box)
+            roi = frame[y1:y2, x1:x2]
+            
+            # Simple edge-based segmentation
+            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            edges = cv2.Canny(gray, 50, 150)
+            
+            # Create mask
+            mask = np.zeros_like(gray)
+            contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            
+            if contours:
+                largest_contour = max(contours, key=cv2.contourArea)
+                cv2.fillPoly(mask, [largest_contour], 255)
+            
+            # Resize mask to full frame
+            full_mask = np.zeros(frame.shape[:2], dtype=np.uint8)
+            full_mask[y1:y2, x1:x2] = mask
+            
+            masks.append(full_mask)
+            scores.append(0.5)  # Default confidence
+        
+        processing_time = time.perf_counter() - start_time
+        
+        return SegmentationResult(
+            masks=np.array(masks),
+            scores=np.array(scores),
+            boxes=np.array(bounding_boxes),
+            processing_time=processing_time,
+            prompt_type=PromptType.BOUNDING_BOX
+        )
+    
+    def get_mask_properties(self, mask: np.ndarray) -> Dict[str, Any]:
+        """Extract properties from segmentation mask."""
+        area = np.sum(mask > 0)
+        contours, _ = cv2.findContours(mask.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        
+        if not contours:
+            return {"area": 0, "perimeter": 0, "compactness": 0, "solidity": 0}
+        
+        largest_contour = max(contours, key=cv2.contourArea)
+        perimeter = cv2.arcLength(largest_contour, True)
+        
+        # Compactness (4π * area / perimeter²)
+        compactness = (4 * np.pi * area) / (perimeter * perimeter) if perimeter > 0 else 0
+        
+        # Solidity (area / convex hull area)
+        hull = cv2.convexHull(largest_contour)
+        hull_area = cv2.contourArea(hull)
+        solidity = area / hull_area if hull_area > 0 else 0
+        
+        return {
+            "area": float(area),
+            "perimeter": float(perimeter),
+            "compactness": float(compactness),
+            "solidity": float(solidity)
+        }
+    
+    # Helper methods pour créer des prompts facilement
     @staticmethod
     def create_bbox_prompt(bounding_boxes: List[List[float]]) -> SegmentationPrompt:
         """Create bounding box prompt."""
@@ -267,6 +420,20 @@ class SAM2Segmentator:
             input_masks=input_mask
         )
     
+    @staticmethod
+    def create_combined_prompt(bounding_boxes: Optional[List[List[float]]] = None,
+                              points: Optional[List[List[List[float]]]] = None,
+                              point_labels: Optional[List[List[int]]] = None,
+                              input_masks: Optional[np.ndarray] = None) -> SegmentationPrompt:
+        """Create combined prompt with multiple input types."""
+        return SegmentationPrompt(
+            prompt_type=PromptType.COMBINED,
+            bounding_boxes=bounding_boxes,
+            points=points,
+            point_labels=point_labels,
+            input_masks=input_masks
+        )
+    
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about loaded model."""
         return {
@@ -274,5 +441,6 @@ class SAM2Segmentator:
             "device": str(self.device),
             "model_loaded": self._model_loaded,
             "lazy_loading": self.lazy_loading,
+            "processor_available": self.processor is not None,
             "model_available": self.model is not None
         }

@@ -125,10 +125,17 @@ class HeadlessSurveillanceSystem:
             "detected_objects": 0,
             "persons_detected": 0,
             "vlm_analyses": 0,
+            "vlm_triggered": 0,  # Nouveau: combien de fois le VLM a été déclenché
             "alerts_triggered": 0,
             "total_processing_time": 0.0,
             "average_fps": 0.0
         }
+        
+        # === SYSTÈME DE DÉCLENCHEMENT INTELLIGENT ===
+        self.last_vlm_trigger_time = 0
+        self.vlm_cooldown_seconds = 5  # Délai minimum entre deux analyses VLM
+        self.person_count_history = []  # Historique du nombre de personnes
+        self.alert_history = []  # Historique des alertes
         
         logger.info(f"🎯 Système headless initialisé - VLM: {vlm_model}, Mode: {orchestration_mode.value}")
         logger.info(f"📁 Résultats sauvés dans: {self.output_dir}")
@@ -189,6 +196,61 @@ class HeadlessSurveillanceSystem:
                     detections.append(detection)
         
         return detections
+    
+    def _should_trigger_vlm_analysis(self, detections: List[DetectedObject], persons_count: int, context: Dict[str, Any]) -> bool:
+        """
+        Détermine si le VLM doit être déclenché en fonction de conditions intelligentes.
+        
+        Critères de déclenchement:
+        1. Nombre de personnes anormal (> 2)
+        2. Changement soudain dans le nombre de personnes
+        3. Détection d'objets suspects (sacs, armes potentielles)
+        4. Comportements potentiellement suspects
+        5. Délai de cooldown respecté
+        """
+        current_time = time.time()
+        
+        # 1. Vérifier le cooldown (éviter de déclencher trop souvent)
+        if current_time - self.last_vlm_trigger_time < self.vlm_cooldown_seconds:
+            return False
+        
+        # 2. Toujours déclencher si beaucoup de personnes (situation anormale)
+        if persons_count >= 3:
+            logger.info(f"🚨 VLM déclenché: {persons_count} personnes détectées")
+            return True
+        
+        # 3. Maintenir historique du nombre de personnes (dernières 10 frames)
+        self.person_count_history.append(persons_count)
+        if len(self.person_count_history) > 10:
+            self.person_count_history.pop(0)
+        
+        # 4. Détecter changement soudain de population
+        if len(self.person_count_history) >= 5:
+            recent_avg = sum(self.person_count_history[-5:]) / 5
+            if persons_count > recent_avg + 1:  # Augmentation significative
+                logger.info(f"📈 VLM déclenché: augmentation population {recent_avg:.1f} → {persons_count}")
+                return True
+        
+        # 5. Objets suspects détectés
+        suspicious_objects = ["backpack", "handbag", "suitcase", "umbrella", "sports ball", "bag"]
+        for detection in detections:
+            if detection.class_name in suspicious_objects:
+                logger.info(f"👜 VLM déclenché: objet suspect '{detection.class_name}' détecté")
+                return True
+        
+        # 6. Personne seule qui reste longtemps (potentiel comportement suspect)
+        if persons_count == 1 and len(self.person_count_history) >= 8:
+            if all(count == 1 for count in self.person_count_history[-8:]):  # Seul depuis 8 frames
+                logger.info("🕐 VLM déclenché: personne seule depuis longtemps")
+                return True
+        
+        # 7. Déclenchement périodique (sauf en mode test)
+        if not context.get("test_mode", False):
+            if (current_time - self.last_vlm_trigger_time > 60 and persons_count > 0):  # 60 secondes avec personnes
+                logger.info("⏰ VLM déclenché: contrôle périodique de sécurité")
+                return True
+        
+        return False
     
     def encode_frame_to_base64(self, frame: np.ndarray) -> str:
         """Encode un frame OpenCV en base64 pour le VLM."""
@@ -253,17 +315,14 @@ class HeadlessSurveillanceSystem:
         alert_level = AlertLevel.NORMAL
         actions_taken = []
         
-        # Analyse VLM seulement si un modèle est vraiment chargé
-        should_analyze = (
+        # Vérifier que le VLM est chargé avant de continuer
+        vlm_ready = (
             self.vlm_enabled and 
             hasattr(self.vlm, 'model') and 
-            self.vlm.model is not None and (
-                persons_count > 0 or
-                self.frame_count % 30 == 0  # Analyse périodique
-            )
+            self.vlm.model is not None
         )
         
-        if should_analyze:
+        if vlm_ready:
             logger.debug(f"🧠 Frame {self.frame_count} - Analyse VLM...")
             
             # Encodage pour VLM
@@ -280,24 +339,44 @@ class HeadlessSurveillanceSystem:
                 "time_of_day": time.strftime("%H:%M:%S")
             }
             
+            # DÉCLENCHEMENT INTELLIGENT DU VLM
+            should_trigger_vlm = self._should_trigger_vlm_analysis(detections, persons_count, context)
+            
             try:
-                # Analyse orchestrée
-                vlm_analysis = await self.orchestrator.analyze_surveillance_frame(
-                    frame_data=frame_b64,
-                    detections=detections,
-                    context=context
-                )
-                
-                self.processing_stats["vlm_analyses"] += 1
+                if should_trigger_vlm:
+                    # Marquer le déclenchement
+                    self.last_vlm_trigger_time = time.time()
+                    self.processing_stats["vlm_triggered"] += 1
+                    
+                    # Analyse orchestrée seulement si conditions remplies
+                    vlm_analysis = await self.orchestrator.analyze_surveillance_frame(
+                        frame_data=frame_b64,
+                        detections=detections,
+                        context=context
+                    )
+                    
+                    self.processing_stats["vlm_analyses"] += 1
+                else:
+                    # Pas de déclenchement VLM - analyse légère seulement
+                    vlm_analysis = None
                 
                 # Décisions basées sur l'analyse
-                if vlm_analysis.suspicion_level.value in ["HIGH", "CRITICAL"]:
-                    alert_level = AlertLevel.ALERTE
-                    actions_taken = ["alert_triggered", "recording_started"]
-                    self.processing_stats["alerts_triggered"] += 1
-                elif vlm_analysis.suspicion_level.value == "MEDIUM":
-                    alert_level = AlertLevel.ATTENTION
-                    actions_taken = ["increased_monitoring"]
+                if vlm_analysis is not None:
+                    if vlm_analysis.suspicion_level.value in ["HIGH", "CRITICAL"]:
+                        alert_level = AlertLevel.ALERTE
+                        actions_taken = ["alert_triggered", "recording_started"]
+                        self.processing_stats["alerts_triggered"] += 1
+                    elif vlm_analysis.suspicion_level.value == "MEDIUM":
+                        alert_level = AlertLevel.ATTENTION
+                        actions_taken = ["increased_monitoring"]
+                else:
+                    # Analyse de base sans VLM (surveillance continue rapide)
+                    if persons_count >= 3:
+                        alert_level = AlertLevel.ATTENTION
+                        actions_taken = ["high_occupancy_basic"]
+                    elif len(detections) > 5:  # Beaucoup d'objets détectés
+                        alert_level = AlertLevel.ATTENTION
+                        actions_taken = ["many_objects_detected"]
                 
             except Exception as e:
                 logger.error(f"❌ Erreur analyse VLM frame {self.frame_count}: {e}")
@@ -361,9 +440,13 @@ class HeadlessSurveillanceSystem:
                        f"Actions: {actions_taken}, "
                        f"Temps: {processing_time:.2f}s")
         elif self.frame_count % 60 == 0:
+            # Calcul du taux de déclenchement intelligent
+            trigger_rate = (self.processing_stats['vlm_triggered'] / self.processing_stats['total_frames'] * 100) if self.processing_stats['total_frames'] > 0 else 0
+            
             logger.info(f"📈 Frame {self.frame_count}: "
                        f"FPS: {self.processing_stats['average_fps']:.1f}, "
                        f"Total objets: {self.processing_stats['detected_objects']}, "
+                       f"VLM déclenché: {self.processing_stats['vlm_triggered']}/{self.processing_stats['total_frames']} ({trigger_rate:.1f}%), "
                        f"Analyses VLM: {self.processing_stats['vlm_analyses']}")
         
         return result
@@ -372,24 +455,54 @@ class HeadlessSurveillanceSystem:
         """Lance la surveillance en mode headless."""
         logger.info("🎬 Démarrage surveillance headless...")
         
-        # Ouverture de la source vidéo
+        # Ouverture de la source vidéo avec optimisations
         cap = cv2.VideoCapture(self.video_source)
         
         if not cap.isOpened():
             logger.error(f"❌ Impossible d'ouvrir source vidéo: {self.video_source}")
             return
         
-        logger.info(f"📹 Source vidéo ouverte: {self.video_source}")
+        # 🎯 OPTIMISATIONS EXTRACTION FRAMES
+        # Backend optimisé selon la plateforme
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Réduire buffer pour temps réel
+        
+        # Qualité maximale (sans compression)
+        cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))  # MJPEG pour moins de compression
+        
+        # Informations vidéo
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        
+        logger.info(f"📹 Source vidéo: {self.video_source}")
+        logger.info(f"📏 Résolution: {width}x{height} | FPS: {fps:.2f} | Frames: {total_frames}")
         
         try:
             frame_processed = 0
             
             while True:
-                # Lecture du frame
+                # Lecture optimisée du frame
                 ret, frame = cap.read()
                 if not ret:
                     logger.warning("📹 Fin de vidéo ou erreur lecture")
                     break
+                
+                # 🎯 VALIDATION ET AMÉLIORATION DE LA QUALITÉ DU FRAME
+                if frame is None or frame.size == 0:
+                    logger.warning("⚠️ Frame vide détecté")
+                    continue
+                
+                # Amélioration de la qualité (optionnel)
+                # frame = cv2.convertScaleAbs(frame, alpha=1.1, beta=10)  # Augmenter contraste/luminosité
+                
+                # Débruitage léger si nécessaire
+                # frame = cv2.fastNlMeansDenoisingColored(frame, None, 3, 3, 7, 21)
+                
+                # Vérification des dimensions
+                if frame.shape[0] < 100 or frame.shape[1] < 100:
+                    logger.warning(f"⚠️ Frame trop petit: {frame.shape}")
+                    continue
                 
                 # Traitement complet du frame
                 result = await self.process_frame(frame)
@@ -476,11 +589,40 @@ class HeadlessSurveillanceSystem:
         logger.info("📈 STATISTIQUES FINALES DE SURVEILLANCE")
         logger.info("=" * 60)
         
+        # Statistiques générales
         for key, value in self.processing_stats.items():
             if isinstance(value, float):
                 logger.info(f"  • {key}: {value:.2f}")
             else:
                 logger.info(f"  • {key}: {value}")
+        
+        # 🚀 STATISTIQUES D'EFFICACITÉ DU DÉCLENCHEMENT INTELLIGENT
+        logger.info("")
+        logger.info("🧠 EFFICACITÉ DU SYSTÈME DE DÉCLENCHEMENT INTELLIGENT:")
+        logger.info("-" * 60)
+        
+        total_frames = self.processing_stats.get("total_frames", 1)
+        vlm_triggered = self.processing_stats.get("vlm_triggered", 0)
+        vlm_analyses = self.processing_stats.get("vlm_analyses", 0)
+        
+        # Calcul du taux de déclenchement intelligent
+        trigger_rate = (vlm_triggered / total_frames * 100) if total_frames > 0 else 0
+        success_rate = (vlm_analyses / vlm_triggered * 100) if vlm_triggered > 0 else 0
+        frames_saved = total_frames - vlm_triggered
+        
+        logger.info(f"  🎯 Frames total traités: {total_frames}")
+        logger.info(f"  ⚡ VLM déclenché seulement: {vlm_triggered} fois ({trigger_rate:.1f}%)")
+        logger.info(f"  ✅ Analyses VLM réussies: {vlm_analyses} ({success_rate:.1f}%)")
+        logger.info(f"  🚀 Frames économisés (traitement rapide): {frames_saved}")
+        logger.info(f"  💡 Économie de traitement: {(100 - trigger_rate):.1f}%")
+        
+        # Performance comparative
+        if trigger_rate < 50:
+            logger.info("  ⭐ EXCELLENT: Système de déclenchement très efficace!")
+        elif trigger_rate < 80:
+            logger.info("  ✅ BON: Système de déclenchement efficace")
+        else:
+            logger.info("  ⚠️ À AMÉLIORER: Déclenchements fréquents détectés")
         
         # Analyse des alertes
         alerts = [r for r in self.results_log if r.alert_level != "normal"]

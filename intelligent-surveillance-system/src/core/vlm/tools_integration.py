@@ -203,11 +203,11 @@ class AdvancedToolsManager:
             # Créer FusionInput avec des données d'exemple
             try:
                 fusion_input = FusionInput(
-                    visual_features=context.get("visual_features", np.random.rand(512).astype(np.float32)),
+                    visual_features=context.get("visual_features", np.random.rand(768).astype(np.float32)),
                     detection_features=context.get("detection_features", np.random.rand(256).astype(np.float32)),
-                    pose_features=context.get("pose_features", np.random.rand(128).astype(np.float32)),
+                    pose_features=context.get("pose_features", np.random.rand(132).astype(np.float32)),
                     motion_features=context.get("motion_features", np.random.rand(64).astype(np.float32)),
-                    temporal_features=context.get("temporal_features", np.random.rand(32).astype(np.float32))
+                    temporal_features=context.get("temporal_features", np.random.rand(128).astype(np.float32))
                 )
                 
                 fusion_result_obj = tool.fuse_features(fusion_input)

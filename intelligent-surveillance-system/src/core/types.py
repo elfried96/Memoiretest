@@ -152,6 +152,7 @@ class AnalysisRequest(BaseModel):
     tools_available: List[str] = Field(default_factory=list)
     max_tokens: int = Field(512, description="Nombre max de tokens")
     temperature: float = Field(0.1, description="Température pour génération")
+    preferred_model: Optional[str] = Field(None, description="Modèle préféré pour l'analyse")
 
 
 class AnalysisResponse(BaseModel):

@@ -267,6 +267,73 @@ class SAM2Segmentator:
             input_masks=input_mask
         )
     
+    @torch.inference_mode()
+    def segment_everything(self, frame: np.ndarray, confidence_threshold: float = 0.8) -> SegmentationResult:
+        """Segment all objects in the frame using automatic point grid."""
+        start_time = time.perf_counter()
+        
+        self._ensure_model_loaded()
+        
+        if self.model is None:
+            return self._fallback_segmentation(frame, [], start_time)
+        
+        try:
+            # Set image for SAM2
+            self.model.set_image(frame)
+            
+            # Generate automatic grid of points
+            h, w = frame.shape[:2]
+            grid_points = []
+            grid_labels = []
+            
+            # Create a 3x3 grid of points
+            for i in range(3):
+                for j in range(3):
+                    x = int(w * (j + 1) / 4)
+                    y = int(h * (i + 1) / 4)
+                    grid_points.append([x, y])
+                    grid_labels.append(1)  # All positive points
+            
+            point_coords = np.array([grid_points])
+            point_labels = np.array([grid_labels])
+            
+            # Predict with grid points
+            masks, scores, logits = self.model.predict(
+                point_coords=point_coords,
+                point_labels=point_labels,
+                box=None,
+                multimask_output=True,
+            )
+            
+            # Filter by confidence
+            if confidence_threshold > 0:
+                valid_mask = scores >= confidence_threshold
+                masks = masks[valid_mask]
+                scores = scores[valid_mask]
+            
+            # Generate boxes from masks
+            boxes = []
+            for mask in masks:
+                y_indices, x_indices = np.where(mask)
+                if len(y_indices) > 0:
+                    x1, x2 = x_indices.min(), x_indices.max()
+                    y1, y2 = y_indices.min(), y_indices.max()
+                    boxes.append([x1, y1, x2, y2])
+                else:
+                    boxes.append([0, 0, w, h])
+            
+            return SegmentationResult(
+                masks=masks,
+                scores=scores,
+                boxes=np.array(boxes),
+                processing_time=time.perf_counter() - start_time,
+                prompt_type=PromptType.POINTS
+            )
+            
+        except Exception as e:
+            logger.error(f"SAM2 segment_everything failed: {e}")
+            return self._fallback_segmentation(frame, [], start_time)
+
     def get_model_info(self) -> Dict[str, Any]:
         """Get information about loaded model."""
         return {

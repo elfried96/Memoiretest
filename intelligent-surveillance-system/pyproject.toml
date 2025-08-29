@@ -54,6 +54,7 @@ dependencies = [
     "scikit-image>=0.24.0",
     "mediapipe>=0.10.21",
     "sam-2",
+    "plotly>=6.3.0",
 ]
 
 [project.optional-dependencies]

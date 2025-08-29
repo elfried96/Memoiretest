@@ -332,10 +332,14 @@ class DynamicVisionLanguageModel:
     ) -> AnalysisResponse:
         """Analyse avec le modèle actuellement chargé."""
         
-        if not self.is_loaded:
-            success = await self.load_model()
+        # Vérification plus robuste du modèle chargé
+        if not self.is_loaded or self.model is None or self.current_model_id != (request.preferred_model or self.default_model):
+            logger.info(f"Rechargement nécessaire: loaded={self.is_loaded}, model={self.model is not None}, current={self.current_model_id}")
+            success = await self.load_model(request.preferred_model or self.default_model)
             if not success:
                 raise ModelError("Aucun modèle VLM disponible")
+        else:
+            logger.info(f"✅ Modèle {self.current_model_id} déjà chargé - réutilisation du cache")
         
         try:
             # Préparation de l'image
@@ -363,6 +367,9 @@ class DynamicVisionLanguageModel:
             
             # Ajout d'informations sur le modèle utilisé
             analysis_result.description += f" | Modèle: {self.current_model_id}"
+            
+            # Affichage détaillé des décisions VLM
+            self._log_vlm_decision(response_text, analysis_result)
             
             logger.success(f"Analyse {self.current_model_id}: {analysis_result.suspicion_level.value}")
             return analysis_result
@@ -517,6 +524,58 @@ class DynamicVisionLanguageModel:
             "flagship": self.model_registry.get_recommended_model("flagship")
         }
     
+    def _log_vlm_decision(self, response_text: str, analysis_result) -> None:
+        """Affichage détaillé de la décision VLM."""
+        print("\n" + "="*80)
+        print("🧠 ANALYSE VLM DÉTAILLÉE")
+        print("="*80)
+        
+        # Essayer d'extraire le thinking du JSON
+        try:
+            import json
+            # Chercher le JSON dans la réponse
+            if "thinking" in response_text.lower():
+                start = response_text.find("{")
+                end = response_text.rfind("}")
+                if start != -1 and end != -1:
+                    json_str = response_text[start:end+1]
+                    parsed = json.loads(json_str)
+                    
+                    if "thinking" in parsed:
+                        print("🤔 THINKING PROCESSUS:")
+                        print(parsed["thinking"])
+                        print()
+                    
+                    if "observations" in parsed:
+                        print("👁️ OBSERVATIONS:")
+                        obs = parsed["observations"]
+                        if isinstance(obs, dict):
+                            for key, value in obs.items():
+                                print(f"  • {key}: {value}")
+                        else:
+                            print(f"  {obs}")
+                        print()
+                    
+                    if "decision_final" in parsed:
+                        print("⚖️ DÉCISION FINALE:")
+                        print(parsed["decision_final"])
+                        print()
+                        
+        except Exception:
+            # Si parsing JSON échoue, afficher la réponse brute
+            print("📄 RÉPONSE COMPLÈTE VLM:")
+            print(response_text[:1000] + "..." if len(response_text) > 1000 else response_text)
+            print()
+        
+        # Toujours afficher le résumé structuré
+        print("📊 RÉSUMÉ DE DÉCISION:")
+        print(f"  🚨 Suspicion: {analysis_result.suspicion_level.value}")
+        print(f"  🎯 Action: {analysis_result.action_type}")
+        print(f"  📈 Confiance: {analysis_result.confidence:.2f}")
+        print(f"  💭 Raisonnement: {analysis_result.reasoning}")
+        print(f"  📋 Recommandations: {', '.join(analysis_result.recommendations)}")
+        print("="*80 + "\n")
+
     async def shutdown(self):
         """Arrêt propre."""
         logger.info("Arrêt du VLM dynamique...")

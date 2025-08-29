@@ -40,6 +40,7 @@ from src.core.orchestrator.vlm_orchestrator import (
 from src.core.types import DetectedObject, BoundingBox
 from src.detection.yolo_detector import YOLODetector
 from src.detection.tracking.byte_tracker import BYTETracker
+from src.core.vlm.memory_system import vlm_memory
 
 
 class AlertLevel(Enum):
@@ -328,7 +329,9 @@ class HeadlessSurveillanceSystem:
             # Encodage pour VLM
             frame_b64 = self.encode_frame_to_base64(frame)
             
-            # Contexte enrichi
+            # Contexte enrichi avec mémoire historique
+            memory_context = vlm_memory.get_context_for_vlm()
+            
             context = {
                 "frame_id": self.frame_count,
                 "timestamp": time.time(),
@@ -336,7 +339,8 @@ class HeadlessSurveillanceSystem:
                 "camera": "CAM_01",
                 "person_count": persons_count,
                 "total_objects": len(detections),
-                "time_of_day": time.strftime("%H:%M:%S")
+                "time_of_day": time.strftime("%H:%M:%S"),
+                **memory_context  # Ajouter le contexte de mémoire
             }
             
             # DÉCLENCHEMENT INTELLIGENT DU VLM
@@ -432,22 +436,40 @@ class HeadlessSurveillanceSystem:
             avg_time = self.processing_stats["total_processing_time"] / self.processing_stats["total_frames"]
             self.processing_stats["average_fps"] = 1.0 / avg_time if avg_time > 0 else 0
         
+        # === ENREGISTREMENT EN MÉMOIRE ===
+        vlm_triggered_for_memory = (vlm_analysis is not None)
+        vlm_memory.add_frame(
+            frame_id=self.frame_count,
+            detections=detections,
+            vlm_triggered=vlm_triggered_for_memory,
+            vlm_analysis=vlm_analysis,
+            alert_level=alert_level.value,
+            actions_taken=actions_taken
+        )
+        
         # === LOGGING DÉTAILLÉ ===
         if persons_count > 0 or alert_level != AlertLevel.NORMAL:
+            # Ajouter les stats de mémoire aux logs importants
+            memory_stats = vlm_memory.get_memory_stats()
+            
             logger.info(f"📊 Frame {self.frame_count}: "
                        f"{len(detections)} objs, {persons_count} personnes, "
                        f"Alert: {alert_level.value}, "
                        f"Actions: {actions_taken}, "
-                       f"Temps: {processing_time:.2f}s")
+                       f"Temps: {processing_time:.2f}s, "
+                       f"Mémoire: {memory_stats['current_frames_in_memory']} frames, "
+                       f"{memory_stats['active_persons']} personnes actives")
         elif self.frame_count % 60 == 0:
-            # Calcul du taux de déclenchement intelligent
+            # Calcul du taux de déclenchement intelligent + stats mémoire
             trigger_rate = (self.processing_stats['vlm_triggered'] / self.processing_stats['total_frames'] * 100) if self.processing_stats['total_frames'] > 0 else 0
+            memory_stats = vlm_memory.get_memory_stats()
             
             logger.info(f"📈 Frame {self.frame_count}: "
                        f"FPS: {self.processing_stats['average_fps']:.1f}, "
                        f"Total objets: {self.processing_stats['detected_objects']}, "
                        f"VLM déclenché: {self.processing_stats['vlm_triggered']}/{self.processing_stats['total_frames']} ({trigger_rate:.1f}%), "
-                       f"Analyses VLM: {self.processing_stats['vlm_analyses']}")
+                       f"Analyses VLM: {self.processing_stats['vlm_analyses']}, "
+                       f"Patterns détectés: {memory_stats['patterns_detected']}")
         
         return result
     
@@ -623,6 +645,23 @@ class HeadlessSurveillanceSystem:
             logger.info("  ✅ BON: Système de déclenchement efficace")
         else:
             logger.info("  ⚠️ À AMÉLIORER: Déclenchements fréquents détectés")
+        
+        # 🧠 STATISTIQUES DU SYSTÈME DE MÉMOIRE
+        logger.info("")
+        logger.info("🧠 SYSTÈME DE MÉMOIRE CONTEXTUELLE:")
+        logger.info("-" * 60)
+        
+        memory_stats = vlm_memory.get_memory_stats()
+        logger.info(f"  💾 Frames en mémoire: {memory_stats['current_frames_in_memory']}")
+        logger.info(f"  👥 Personnes actives trackées: {memory_stats['active_persons']}")
+        logger.info(f"  🔍 Patterns suspects détectés: {memory_stats['patterns_detected']}")
+        logger.info(f"  📊 Analyses VLM stockées: {memory_stats['vlm_analyses_stored']}")
+        logger.info(f"  🧮 Taille mémoire: {memory_stats['memory_size_mb']:.2f} MB")
+        
+        if memory_stats['patterns_detected'] > 0:
+            logger.info("  ⚠️ Des patterns suspects ont été détectés durant la session")
+        else:
+            logger.info("  ✅ Aucun pattern suspect majeur détecté")
         
         # Analyse des alertes
         alerts = [r for r in self.results_log if r.alert_level != "normal"]

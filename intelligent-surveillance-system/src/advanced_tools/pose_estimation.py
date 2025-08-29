@@ -194,6 +194,8 @@ class OpenPoseEstimator:
             
             for box in person_boxes:
                 x1, y1, x2, y2 = box
+                # Convert to integers to avoid slice index issues
+                x1, y1, x2, y2 = int(x1), int(y1), int(x2), int(y2)
                 roi = frame_rgb[y1:y2, x1:x2]
                 
                 if roi.size == 0:

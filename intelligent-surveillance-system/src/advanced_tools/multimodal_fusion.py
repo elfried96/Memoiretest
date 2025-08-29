@@ -340,8 +340,19 @@ class MultiModalFusion:
         confidence_scores = {}
         
         if fusion_input.visual_features is not None:
-            features_dict["visual"] = torch.FloatTensor(fusion_input.visual_features).unsqueeze(0).to(self.device)
-            confidence_scores["visual"] = np.mean(fusion_input.visual_features)
+            # Handle dimension mismatch by padding or truncating
+            visual_features = fusion_input.visual_features
+            expected_dim = self.feature_dims["visual"]
+            
+            if len(visual_features) < expected_dim:
+                # Pad with zeros if too small
+                visual_features = np.pad(visual_features, (0, expected_dim - len(visual_features)))
+            elif len(visual_features) > expected_dim:
+                # Truncate if too large
+                visual_features = visual_features[:expected_dim]
+            
+            features_dict["visual"] = torch.FloatTensor(visual_features).unsqueeze(0).to(self.device)
+            confidence_scores["visual"] = np.mean(visual_features)
         
         if fusion_input.detection_features is not None:
             features_dict["detection"] = torch.FloatTensor(fusion_input.detection_features).unsqueeze(0).to(self.device)

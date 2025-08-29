@@ -313,9 +313,9 @@ FORMAT RÉPONSE JSON:
         
         section = "\nRÉSULTATS DES OUTILS EXÉCUTÉS:\n"
         for tool_name, result in tools_results.items():
-            status = "✓" if result.get("success", False) else "✗"
-            confidence = result.get("confidence", 0.0)
-            section += f"{status} {tool_name} (confiance: {confidence:.2f}): {json.dumps(result.get('data', {}), indent=2)}\n"
+            status = "✓" if result.success else "✗"
+            confidence = result.confidence if result.confidence is not None else 0.0
+            section += f"{status} {tool_name} (confiance: {confidence:.2f}): {json.dumps(result.data, indent=2)}\n"
         
         return section
     

@@ -212,8 +212,8 @@ class AdvancedToolsManager:
                 
                 fusion_result_obj = tool.fuse_features(fusion_input)
                 fusion_result = {
-                    "prediction": float(fusion_result_obj.fused_prediction),
-                    "confidence": float(fusion_result_obj.confidence_score),
+                    "prediction": float(fusion_result_obj.final_prediction),
+                    "confidence": float(sum(fusion_result_obj.confidence_scores.values()) / len(fusion_result_obj.confidence_scores) if fusion_result_obj.confidence_scores else 0.5),
                     "attention_weights": fusion_result_obj.attention_weights
                 }
             except Exception as e:

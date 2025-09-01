@@ -36,9 +36,9 @@ class BYTETracker:
     
     def __init__(
         self,
-        track_thresh: float = 0.5,
-        track_buffer: int = 30,
-        match_thresh: float = 0.8,
+        track_thresh: float = 0.3,  # Plus permissif pour détecter
+        track_buffer: int = 60,     # Plus de frames avant de perdre un track
+        match_thresh: float = 0.6,  # Seuil de correspondance plus permissif
         frame_rate: int = 30
     ):
         self.track_thresh = track_thresh

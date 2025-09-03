@@ -373,6 +373,18 @@ class HeadlessSurveillanceSystem:
                 else:
                     description_text = str(cumulative_analysis)
                 
+                # Convertir AnalysisResponse en dictionnaire pour JSON
+                analysis_dict = None
+                if hasattr(cumulative_analysis, 'model_dump'):
+                    analysis_dict = cumulative_analysis.model_dump()
+                    # Convertir datetime en string pour JSON
+                    if 'timestamp' in analysis_dict:
+                        analysis_dict['timestamp'] = analysis_dict['timestamp'].isoformat()
+                elif isinstance(cumulative_analysis, dict):
+                    analysis_dict = cumulative_analysis
+                else:
+                    analysis_dict = {"raw": str(cumulative_analysis)}
+                
                 summary_data = {
                     "period_number": period_number,
                     "period_range": f"{cumulative_context['period_start']}-{cumulative_context['period_end']}",
@@ -380,7 +392,7 @@ class HeadlessSurveillanceSystem:
                     "frame_id": current_context.get('frame_id', 0),
                     "description": description_text,
                     "total_elapsed": elapsed_total,
-                    "analysis_details": cumulative_analysis
+                    "analysis_details": analysis_dict
                 }
                 
                 # Ajouter à l'historique cumulatif
@@ -713,7 +725,10 @@ class HeadlessSurveillanceSystem:
         import datetime
         
         def serialize_value(value):
-            if hasattr(value, 'value'):  # C'est un enum
+            if hasattr(value, 'model_dump'):  # C'est un modèle Pydantic (AnalysisResponse)
+                pydantic_dict = value.model_dump()
+                return {k: serialize_value(v) for k, v in pydantic_dict.items()}
+            elif hasattr(value, 'value'):  # C'est un enum
                 return value.value
             elif isinstance(value, datetime.datetime):
                 return value.isoformat()
@@ -745,24 +760,68 @@ class HeadlessSurveillanceSystem:
         """Sauvegarde les résultats en JSON."""
         results_file = self.output_dir / f"surveillance_results_{int(time.time())}.json"
         
+        # Format de sortie amélioré et plus clair
         output_data = {
-            "metadata": {
-                "video_source": str(self.video_source),
-                "vlm_model": self.vlm_model,
-                "model_type": "kimi-vl-headless",
-                "orchestration_mode": self.orchestration_mode.value,
-                "vlm_analysis_mode": self.vlm_analysis_mode,
-                "summary_interval_seconds": self.summary_interval_seconds,
-                "total_frames": len(self.results_log),
-                "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
+            "📋 INFORMATIONS_GENERALES": {
+                "📹 source_video": str(self.video_source),
+                "🤖 modele_vlm_utilise": self.vlm_model,
+                "⚙️ mode_orchestration": self.orchestration_mode.value,
+                "📄 mode_analyse_vlm": self.vlm_analysis_mode,
+                "🕒 intervalle_resumés_secondes": self.summary_interval_seconds,
+                "📊 total_frames_traitées": len(self.results_log),
+                "📅 date_analyse": time.strftime("%Y-%m-%d %H:%M:%S"),
+                "💻 systeme": "Surveillance Intelligente Headless"
             },
-            "statistics": self.processing_stats,
-            "cumulative_video_summary": {
-                "total_periods": len(self.cumulative_descriptions),
-                "periods_descriptions": self.cumulative_descriptions,
-                "interval_seconds": self.summary_interval_seconds
+            
+            "📈 STATISTIQUES_PERFORMANCE": {
+                "⚡ frames_par_seconde": round(self.processing_stats.get("total_frames", 0) / max(self.processing_stats.get("total_processing_time", 1), 1), 2),
+                "🎯 vlm_déclenchements": self.processing_stats.get("vlm_triggered", 0),
+                "🧠 analyses_vlm_réussies": self.processing_stats.get("vlm_analyses", 0),
+                "👥 personnes_détectées_total": self.processing_stats.get("persons_detected", 0),
+                "📦 objets_détectés_total": self.processing_stats.get("detected_objects", 0),
+                "⏱️ temps_traitement_total_sec": round(self.processing_stats.get("total_processing_time", 0), 2),
+                "🚨 alertes_déclenchées": self.processing_stats.get("alerts_triggered", 0)
             },
-            "results": [self._serialize_result(result) for result in self.results_log]
+            
+            "📝 DESCRIPTIONS_CUMULATIVES": {
+                "📊 nombre_périodes_analysées": len(self.cumulative_descriptions),
+                "📄 descriptions_par_période": [
+                    {
+                        "période": i + 1,
+                        "temps": f"{i * self.summary_interval_seconds}-{(i + 1) * self.summary_interval_seconds}s",
+                        "description": desc
+                    }
+                    for i, desc in enumerate(self.cumulative_descriptions)
+                ],
+                "🕒 intervalle_entre_résumés": f"{self.summary_interval_seconds}s"
+            },
+            
+            "🔍 TRACKING_ET_DÉTECTIONS": {
+                "👥 personnes_trackées": [
+                    {
+                        "track_id": track_id,
+                        "frames_vues": len(track_data.get("frames", [])),
+                        "première_apparition": track_data.get("first_seen", "N/A"),
+                        "dernière_vue": track_data.get("last_seen", "N/A"),
+                        "statut": track_data.get("status", "actif")
+                    }
+                    for track_id, track_data in getattr(self, '_tracking_data', {}).items()
+                ]
+            },
+            
+            "🎬 DÉTAIL_FRAMES": [
+                {
+                    "frame": i + 1,
+                    "timestamp": result.get("timestamp", 0),
+                    "objets_détectés": result.get("detections_count", 0),
+                    "personnes": result.get("persons_detected", 0),
+                    "niveau_alerte": result.get("alert_level", "normal"),
+                    "actions_prises": result.get("actions_taken", []),
+                    "temps_traitement_ms": round(result.get("processing_time", 0) * 1000, 2),
+                    "vlm_analysé": result.get("vlm_analysis") is not None
+                }
+                for i, result in enumerate([self._serialize_result(r) for r in self.results_log][:10])  # Limite à 10 premiers frames
+            ] if len(self.results_log) <= 50 else f"⚠️ Trop de frames ({len(self.results_log)}), détails limités. Voir log complet si nécessaire."
         }
         
         with open(results_file, 'w', encoding='utf-8') as f:

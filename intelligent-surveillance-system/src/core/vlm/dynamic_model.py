@@ -387,6 +387,45 @@ class DynamicVisionLanguageModel:
             logger.error(f"Erreur analyse {self.current_model_id}: {e}")
             return self._create_error_response(str(e))
     
+    async def analyze_with_custom_prompt(
+        self, 
+        frame_data: str,
+        custom_prompt: str,
+        context: Dict[str, Any] = None
+    ) -> AnalysisResponse:
+        """Analyse avec prompt personnalisé pour résumés cumulatifs."""
+        
+        # Créer une requête simplifiée
+        request = AnalysisRequest(
+            frame_data=frame_data,
+            context=context or {},
+            tools_available=[],  # Pas d'outils pour les résumés
+            preferred_model=self.current_model_id
+        )
+        
+        try:
+            # Vérifier que le modèle est chargé
+            if not self.is_loaded:
+                success = await self.load_model(request.preferred_model or self.default_model)
+                if not success:
+                    raise ModelError("Aucun modèle VLM disponible")
+            
+            # Préparation de l'image
+            image = self._prepare_image(request.frame_data)
+            
+            # Génération avec prompt personnalisé
+            response_text = await self._generate_response(image, custom_prompt)
+            
+            # Parse de la réponse (simple car pas d'outils)
+            analysis_result = self.response_parser.parse_vlm_response(response_text)
+            
+            logger.success(f"Analyse custom {self.current_model_id}: {analysis_result.suspicion_level.value}")
+            return analysis_result
+            
+        except Exception as e:
+            logger.error(f"Erreur analyse custom {self.current_model_id}: {e}")
+            return self._create_error_response(str(e))
+    
     def _build_model_specific_prompt(self, request: AnalysisRequest, tools_results: Dict) -> str:
         """Construction de prompt optimisé selon le modèle."""
         
@@ -413,13 +452,17 @@ class DynamicVisionLanguageModel:
         """Génération optimisée selon le modèle."""
         
         try:
+            logger.debug(f"Début génération {self.current_model_id}")
+            
             # Préparation des inputs
+            logger.debug("Préparation des inputs...")
             inputs = self.processor(
                 text=prompt,
                 images=image,
                 return_tensors="pt",
                 padding=True
             ).to(self.device)
+            logger.debug(f"Inputs préparés, device: {self.device}")
             
             # Paramètres de génération du modèle actuel
             gen_params = {
@@ -428,13 +471,30 @@ class DynamicVisionLanguageModel:
                 "do_sample": self.current_config.default_params.get("do_sample", True),
                 "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None
             }
+            logger.debug(f"Paramètres de génération: {gen_params}")
             
-            # Génération
+            # Génération avec gestion d'erreurs améliorée
+            logger.debug("Début génération du modèle...")
             with torch.no_grad():
-                generated_ids = self.model.generate(**inputs, **gen_params)
+                try:
+                    generated_ids = self.model.generate(**inputs, **gen_params)
+                except Exception as gen_error:
+                    # Réessayer avec des paramètres plus sûrs
+                    logger.warning(f"Erreur génération, réessai avec paramètres basiques: {gen_error}")
+                    safe_params = {
+                        "max_new_tokens": 256,
+                        "do_sample": False,  # Désactiver sampling
+                        "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None
+                    }
+                    # Nettoyer les paramètres None
+                    safe_params = {k: v for k, v in safe_params.items() if v is not None}
+                    generated_ids = self.model.generate(**inputs, **safe_params)
+            logger.debug("Génération terminée")
             
             # Décodage
+            logger.debug("Début décodage...")
             generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
+            logger.debug(f"Décodage terminé, longueur: {len(generated_text)}")
             
             # Extraction de la réponse
             if prompt in generated_text:

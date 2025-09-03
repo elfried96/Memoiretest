@@ -215,25 +215,34 @@ class DynamicVisionLanguageModel:
     
     
     async def _load_qwen_model(self, config, model_kwargs) -> bool:
-        """Chargement spécifique Qwen2-VL."""
+        """Chargement spécifique Qwen2-VL et Qwen2.5-VL."""
         try:
-            # Qwen2-VL utilise transformers mais avec trust_remote_code
-            from transformers import AutoProcessor, AutoModelForVision2Seq
+            from transformers import AutoProcessor
+            
+            # Support Qwen2.5-VL et Qwen2-VL
+            if "qwen2.5-vl" in config.model_name.lower():
+                from transformers import Qwen2_5_VLForConditionalGeneration
+                model_class = Qwen2_5_VLForConditionalGeneration
+                logger.info(f"Chargement Qwen2.5-VL : {config.model_name}")
+            else:
+                from transformers import AutoModelForVision2Seq
+                model_class = AutoModelForVision2Seq
+                logger.info(f"Chargement Qwen2-VL : {config.model_name}")
             
             self.processor = AutoProcessor.from_pretrained(
                 config.model_name, 
                 trust_remote_code=True
             )
-            self.model = AutoModelForVision2Seq.from_pretrained(
+            self.model = model_class.from_pretrained(
                 config.model_name, 
                 **model_kwargs
             )
             
-            logger.info("✅ Qwen2-VL chargé avec succès")
+            logger.info("✅ Qwen VL chargé avec succès")
             return True
             
         except Exception as e:
-            logger.error(f"Erreur chargement Qwen2-VL: {e}")
+            logger.error(f"Erreur chargement Qwen VL: {e}")
             return False
     
     async def _load_fallback_model(self, exclude_models: List[str] = None) -> bool:

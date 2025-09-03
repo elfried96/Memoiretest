@@ -86,6 +86,27 @@ class VLMModelRegistry:
             memory_efficient=True,
             description="FALLBACK - Qwen2-VL 7B robuste si Kimi indisponible"
         )
+        
+        # Qwen2.5-VL-32B-Instruct (NOUVELLE VERSION PUISSANTE)
+        models["qwen2.5-vl-32b-instruct"] = ModelConfig(
+            model_name="Qwen/Qwen2.5-VL-32B-Instruct",
+            model_type=VLMModelType.QWEN,
+            processor_class="AutoProcessor",
+            model_class="Qwen2_5_VLForConditionalGeneration",
+            default_params={
+                "torch_dtype": "auto",
+                "device_map": "auto",
+                "trust_remote_code": True,
+                "max_new_tokens": 1024,
+                "temperature": 0.6,
+                "top_p": 0.95,
+                "do_sample": True
+            },
+            supports_tool_calling=True,
+            supports_batch=True,
+            memory_efficient=True,
+            description="Qwen2.5-VL 32B - Excellent pour surveillance et analyse comportementale"
+        )
 
         
         return models

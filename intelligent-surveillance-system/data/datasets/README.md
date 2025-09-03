@@ -6,7 +6,7 @@ Ce document définit les formats de données standardisés pour l'entraînement 
 
 ```
 data/datasets/
-├── surveillance_detection/     # Dataset détection YOLO
+├── surveillance_detection/     
 │   ├── images/
 │   │   ├── train/
 │   │   ├── val/
@@ -16,7 +16,7 @@ data/datasets/
 │   │   ├── val/
 │   │   └── test/
 │   └── dataset.yaml
-├── vlm_surveillance/          # Dataset Vision-Language
+├── vlm_surveillance/          
 │   ├── images/
 │   ├── conversations.json
 │   └── metadata.json

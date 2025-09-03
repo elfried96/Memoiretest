@@ -286,10 +286,6 @@ class HeadlessSurveillanceSystem:
                     return True
             
             return False
-                logger.info("⏰ VLM déclenché: contrôle périodique de sécurité")
-                return True
-        
-        return False
     
     def encode_frame_to_base64(self, frame: np.ndarray) -> str:
         """Encode un frame OpenCV en base64 pour le VLM."""

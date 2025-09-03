@@ -366,9 +366,12 @@ class HeadlessSurveillanceSystem:
             
             if cumulative_analysis:
                 # Extraire la description
-                description_text = cumulative_analysis.get('description', '')
-                if not description_text and hasattr(cumulative_analysis, 'description'):
+                if hasattr(cumulative_analysis, 'description'):
                     description_text = cumulative_analysis.description
+                elif isinstance(cumulative_analysis, dict):
+                    description_text = cumulative_analysis.get('description', '')
+                else:
+                    description_text = str(cumulative_analysis)
                 
                 summary_data = {
                     "period_number": period_number,

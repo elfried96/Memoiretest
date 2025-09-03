@@ -62,6 +62,7 @@ class SurveillanceResult:
     vlm_analysis: Optional[Dict] = None
     actions_taken: List[str] = None
     processing_time: float = 0.0
+    cumulative_summary: Optional[Dict] = None  # Résumé cumulatif toutes les 30s
 
 
 class HeadlessSurveillanceSystem:
@@ -70,16 +71,20 @@ class HeadlessSurveillanceSystem:
     def __init__(
         self,
         video_source: str = 0,
-        vlm_model: str = "none", 
+        vlm_model: str = "kimi-vl-a3b-thinking",  # Kimi-VL par défaut
         orchestration_mode: OrchestrationMode = OrchestrationMode.BALANCED,
         save_results: bool = True,
-        save_frames: bool = False
+        save_frames: bool = False,
+        frame_skip: int = 1,
+        vlm_analysis_mode: str = "continuous"
     ):
         self.video_source = video_source
         self.vlm_model = vlm_model  # Utilise le modèle spécifié
         self.orchestration_mode = orchestration_mode
         self.save_results = save_results
         self.save_frames = save_frames
+        self.frame_skip = frame_skip
+        self.vlm_analysis_mode = vlm_analysis_mode
         
         # Dossiers de sortie
         self.output_dir = Path("surveillance_output")
@@ -134,9 +139,16 @@ class HeadlessSurveillanceSystem:
         
         # === SYSTÈME DE DÉCLENCHEMENT INTELLIGENT ===
         self.last_vlm_trigger_time = 0
-        self.vlm_cooldown_seconds = 5  # Délai minimum entre deux analyses VLM
+        self.vlm_cooldown_seconds = 2 if vlm_analysis_mode == "continuous" else 5
         self.person_count_history = []  # Historique du nombre de personnes
         self.alert_history = []  # Historique des alertes
+        
+        # === DESCRIPTIONS CUMULATIVES ===
+        self.cumulative_descriptions = []  # Historique des descriptions
+        self.last_summary_time = 0
+        self.summary_interval_seconds = 30  # Résumé toutes les 30s
+        self.video_start_time = time.time()
+        self.current_period_descriptions = []  # Descriptions de la période courante
         
         logger.info(f"🎯 Système headless initialisé - VLM: {vlm_model}, Mode: {orchestration_mode.value}")
         logger.info(f"📁 Résultats sauvés dans: {self.output_dir}")
@@ -200,54 +212,80 @@ class HeadlessSurveillanceSystem:
     
     def _should_trigger_vlm_analysis(self, detections: List[DetectedObject], persons_count: int, context: Dict[str, Any]) -> bool:
         """
-        Détermine si le VLM doit être déclenché en fonction de conditions intelligentes.
-        
-        Critères de déclenchement:
-        1. Nombre de personnes anormal (> 2)
-        2. Changement soudain dans le nombre de personnes
-        3. Détection d'objets suspects (sacs, armes potentielles)
-        4. Comportements potentiellement suspects
-        5. Délai de cooldown respecté
+        Détermine si le VLM doit être déclenché.
+        Mode 'continuous': Analyse très fréquente pour descriptions complètes
+        Mode 'smart': Analyse intelligente économique
         """
         current_time = time.time()
         
-        # 1. Vérifier le cooldown (éviter de déclencher trop souvent)
-        if current_time - self.last_vlm_trigger_time < self.vlm_cooldown_seconds:
+        # MODE CONTINUOUS - Analyse beaucoup plus fréquente
+        if self.vlm_analysis_mode == "continuous":
+            # 1. Vérifier le cooldown court
+            if current_time - self.last_vlm_trigger_time < self.vlm_cooldown_seconds:
+                return False
+            
+            # 2. TOUJOURS analyser s'il y a des personnes
+            if persons_count > 0:
+                logger.info(f"📄 VLM CONTINU déclenché: {persons_count} personne(s) présente(s)")
+                return True
+            
+            # 3. TOUJOURS analyser s'il y a des objets suspects
+            suspicious_objects = ["backpack", "handbag", "suitcase", "umbrella", "sports ball", "bag", "bottle", "cup"]
+            for detection in detections:
+                if detection.class_name in suspicious_objects:
+                    logger.info(f"📄 VLM CONTINU déclenché: objet '{detection.class_name}' détecté")
+                    return True
+            
+            # 4. Analyse périodique même sans personnes (pour capture environnement)
+            if current_time - self.last_vlm_trigger_time > 10:  # Toutes les 10s minimum
+                logger.info("📄 VLM CONTINU déclenché: analyse périodique environnement")
+                return True
+            
             return False
         
-        # 2. Toujours déclencher si beaucoup de personnes (situation anormale)
-        if persons_count >= 3:
-            logger.info(f"🚨 VLM déclenché: {persons_count} personnes détectées")
-            return True
-        
-        # 3. Maintenir historique du nombre de personnes (dernières 10 frames)
-        self.person_count_history.append(persons_count)
-        if len(self.person_count_history) > 10:
-            self.person_count_history.pop(0)
-        
-        # 4. Détecter changement soudain de population
-        if len(self.person_count_history) >= 5:
-            recent_avg = sum(self.person_count_history[-5:]) / 5
-            if persons_count > recent_avg + 1:  # Augmentation significative
-                logger.info(f"📈 VLM déclenché: augmentation population {recent_avg:.1f} → {persons_count}")
+        # MODE SMART - Analyse intelligente économique (ancien comportement)
+        else:
+            # 1. Vérifier le cooldown
+            if current_time - self.last_vlm_trigger_time < self.vlm_cooldown_seconds:
+                return False
+            
+            # 2. Toujours déclencher si beaucoup de personnes
+            if persons_count >= 3:
+                logger.info(f"🚨 VLM déclenché: {persons_count} personnes détectées")
                 return True
-        
-        # 5. Objets suspects détectés
-        suspicious_objects = ["backpack", "handbag", "suitcase", "umbrella", "sports ball", "bag"]
-        for detection in detections:
-            if detection.class_name in suspicious_objects:
-                logger.info(f"👜 VLM déclenché: objet suspect '{detection.class_name}' détecté")
-                return True
-        
-        # 6. Personne seule qui reste longtemps (potentiel comportement suspect)
-        if persons_count == 1 and len(self.person_count_history) >= 8:
-            if all(count == 1 for count in self.person_count_history[-8:]):  # Seul depuis 8 frames
-                logger.info("🕐 VLM déclenché: personne seule depuis longtemps")
-                return True
-        
-        # 7. Déclenchement périodique (sauf en mode test)
-        if not context.get("test_mode", False):
-            if (current_time - self.last_vlm_trigger_time > 60 and persons_count > 0):  # 60 secondes avec personnes
+            
+            # 3. Maintenir historique du nombre de personnes
+            self.person_count_history.append(persons_count)
+            if len(self.person_count_history) > 10:
+                self.person_count_history.pop(0)
+            
+            # 4. Détecter changement soudain de population
+            if len(self.person_count_history) >= 5:
+                recent_avg = sum(self.person_count_history[-5:]) / 5
+                if persons_count > recent_avg + 1:
+                    logger.info(f"📈 VLM déclenché: augmentation population {recent_avg:.1f} → {persons_count}")
+                    return True
+            
+            # 5. Objets suspects détectés
+            suspicious_objects = ["backpack", "handbag", "suitcase", "umbrella", "sports ball", "bag"]
+            for detection in detections:
+                if detection.class_name in suspicious_objects:
+                    logger.info(f"👜 VLM déclenché: objet suspect '{detection.class_name}' détecté")
+                    return True
+            
+            # 6. Personne seule qui reste longtemps
+            if persons_count == 1 and len(self.person_count_history) >= 8:
+                if all(count == 1 for count in self.person_count_history[-8:]):
+                    logger.info("🕐 VLM déclenché: personne seule depuis longtemps")
+                    return True
+            
+            # 7. Déclenchement périodique
+            if not context.get("test_mode", False):
+                if (current_time - self.last_vlm_trigger_time > 60 and persons_count > 0):
+                    logger.info("⏰ VLM déclenché: contrôle périodique de sécurité")
+                    return True
+            
+            return False
                 logger.info("⏰ VLM déclenché: contrôle périodique de sécurité")
                 return True
         
@@ -259,6 +297,109 @@ class HeadlessSurveillanceSystem:
         _, buffer = cv2.imencode('.jpg', frame_rgb, [cv2.IMWRITE_JPEG_QUALITY, 85])
         frame_b64 = base64.b64encode(buffer).decode('utf-8')
         return frame_b64
+    
+    def should_generate_cumulative_summary(self) -> bool:
+        """Vérifie si il faut générer un résumé cumulatif."""
+        current_time = time.time()
+        elapsed_since_last_summary = current_time - self.last_summary_time
+        return elapsed_since_last_summary >= self.summary_interval_seconds
+    
+    async def generate_cumulative_summary(self, frame_b64: str, current_context: Dict[str, Any]) -> Optional[Dict]:
+        """Génère un résumé cumulatif des 30 dernières secondes."""
+        try:
+            current_time = time.time()
+            elapsed_total = current_time - self.video_start_time
+            period_number = int(elapsed_total // self.summary_interval_seconds) + 1
+            
+            # Construire le contexte cumulatif
+            cumulative_context = current_context.copy()
+            cumulative_context.update({
+                "summary_type": "cumulative_video_analysis",
+                "period_number": period_number,
+                "total_elapsed_seconds": elapsed_total,
+                "period_start": f"{(period_number-1) * 30}s",
+                "period_end": f"{period_number * 30}s",
+                "previous_descriptions": self.cumulative_descriptions[-5:] if self.cumulative_descriptions else [],
+                "current_period_descriptions": self.current_period_descriptions
+            })
+            
+            # Prompt spécial pour description cumulative
+            cumulative_prompt = f"""
+            ANALYSE CUMULATIVE KIMI-VL - PÉRIODE {period_number} [HEADLESS]
+            ============================================================
+            
+            📊 CONTEXTE:
+            - Période: {cumulative_context['period_start']} à {cumulative_context['period_end']}
+            - Temps total écoulé: {elapsed_total:.0f} secondes
+            - Frame actuel: {current_context.get('frame_id', 0)}
+            - Mode: Headless (sans interface graphique)
+            
+            📋 DESCRIPTIONS PRÉCÉDENTES:
+            {chr(10).join([f"- Période {i+1}: {desc}" for i, desc in enumerate(self.cumulative_descriptions[-3:])]) if self.cumulative_descriptions else "Aucune description précédente"}
+            
+            🔍 OBSERVATIONS ACTUELLES ({len(self.current_period_descriptions)} descriptions):
+            {chr(10).join([f"- {desc}" for desc in self.current_period_descriptions[-10:]]) if self.current_period_descriptions else "Aucune observation dans cette période"}
+            
+            🎥 TÂCHE KIMI-VL:
+            Analysez l'image et générez une DESCRIPTION CUMULATIVE de cette période de 30s.
+            
+            Votre réponse doit inclure:
+            1. 📝 RÉSUMÉ PÉRIODE: Activités principales de ces 30 secondes
+            2. 👥 PERSONNES: Nombre, actions, comportements observés
+            3. 🎨 ÉVÉNEMENTS: Actions significatives et changements
+            4. 📋 CONTINUITÉ: Lien avec les périodes précédentes
+            5. ⚠️ POINTS NOTABLES: Éléments d'intérêt ou alertes
+            
+            Soyez DÉTAILLÉ, PRÉCIS et FACTUEL pour une surveillance efficace.
+            """
+            
+            # Utiliser l'orchestrateur avec prompt personnalisé
+            if hasattr(self.orchestrator.vlm, 'analyze_with_custom_prompt'):
+                cumulative_analysis = await self.orchestrator.vlm.analyze_with_custom_prompt(
+                    frame_data=frame_b64,
+                    custom_prompt=cumulative_prompt,
+                    context=cumulative_context
+                )
+            else:
+                # Fallback: utiliser l'analyse normale
+                cumulative_analysis = await self.orchestrator.analyze_surveillance_frame(
+                    frame_data=frame_b64,
+                    detections=[],
+                    context=cumulative_context
+                )
+            
+            if cumulative_analysis:
+                # Extraire la description
+                description_text = cumulative_analysis.get('description', '')
+                if not description_text and hasattr(cumulative_analysis, 'description'):
+                    description_text = cumulative_analysis.description
+                
+                summary_data = {
+                    "period_number": period_number,
+                    "period_range": f"{cumulative_context['period_start']}-{cumulative_context['period_end']}",
+                    "timestamp": current_time,
+                    "frame_id": current_context.get('frame_id', 0),
+                    "description": description_text,
+                    "total_elapsed": elapsed_total,
+                    "analysis_details": cumulative_analysis
+                }
+                
+                # Ajouter à l'historique cumulatif
+                self.cumulative_descriptions.append(description_text)
+                
+                # Réinitialiser pour la prochaine période
+                self.current_period_descriptions.clear()
+                self.last_summary_time = current_time
+                
+                logger.info(f"📋 [KIMI-VL HEADLESS] Résumé Période {period_number} généré ({elapsed_total:.0f}s total)")
+                logger.info(f"📝 Description: {description_text[:200]}...") 
+                
+                return summary_data
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur génération résumé cumulatif KIMI-VL: {e}")
+        
+        return None
     
     def save_frame_with_detections(self, frame: np.ndarray, detections: List[DetectedObject], frame_id: int):
         """Sauvegarde un frame avec les détections dessinées."""
@@ -343,6 +484,11 @@ class HeadlessSurveillanceSystem:
                 **memory_context  # Ajouter le contexte de mémoire
             }
             
+            # Vérifier si il faut générer un résumé cumulatif (toutes les 30s)
+            cumulative_summary = None
+            if self.should_generate_cumulative_summary():
+                cumulative_summary = await self.generate_cumulative_summary(frame_b64, context)
+            
             # DÉCLENCHEMENT INTELLIGENT DU VLM
             should_trigger_vlm = self._should_trigger_vlm_analysis(detections, persons_count, context)
             
@@ -358,6 +504,10 @@ class HeadlessSurveillanceSystem:
                         detections=detections,
                         context=context
                     )
+                    
+                    # Ajouter cette analyse à la période courante pour le cumul
+                    if vlm_analysis and hasattr(vlm_analysis, 'description'):
+                        self.current_period_descriptions.append(vlm_analysis.description)
                     
                     self.processing_stats["vlm_analyses"] += 1
                 else:
@@ -425,7 +575,8 @@ class HeadlessSurveillanceSystem:
             alert_level=alert_level.value,
             vlm_analysis=vlm_analysis_dict,
             actions_taken=actions_taken,
-            processing_time=processing_time
+            processing_time=processing_time,
+            cumulative_summary=cumulative_summary
         )
         
         # === MISE À JOUR DES STATISTIQUES ===
@@ -502,13 +653,20 @@ class HeadlessSurveillanceSystem:
         
         try:
             frame_processed = 0
+            frame_read_count = 0  # Compteur pour frame_skip
             
             while True:
                 # Lecture optimisée du frame
                 ret, frame = cap.read()
+                frame_read_count += 1
+                
                 if not ret:
                     logger.warning("📹 Fin de vidéo ou erreur lecture")
                     break
+                
+                # Application du frame_skip
+                if frame_read_count % self.frame_skip != 0:
+                    continue  # Skip ce frame
                 
                 # 🎯 VALIDATION ET AMÉLIORATION DE LA QUALITÉ DU FRAME
                 if frame is None or frame.size == 0:
@@ -592,11 +750,19 @@ class HeadlessSurveillanceSystem:
             "metadata": {
                 "video_source": str(self.video_source),
                 "vlm_model": self.vlm_model,
+                "model_type": "kimi-vl-headless",
                 "orchestration_mode": self.orchestration_mode.value,
+                "vlm_analysis_mode": self.vlm_analysis_mode,
+                "summary_interval_seconds": self.summary_interval_seconds,
                 "total_frames": len(self.results_log),
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
             },
             "statistics": self.processing_stats,
+            "cumulative_video_summary": {
+                "total_periods": len(self.cumulative_descriptions),
+                "periods_descriptions": self.cumulative_descriptions,
+                "interval_seconds": self.summary_interval_seconds
+            },
             "results": [self._serialize_result(result) for result in self.results_log]
         }
         
@@ -670,6 +836,27 @@ class HeadlessSurveillanceSystem:
             for alert in alerts[-5:]:  # 5 dernières alertes
                 logger.info(f"   Frame {alert.frame_id}: {alert.alert_level} - {alert.actions_taken}")
         
+        # Statistiques descriptions cumulatives
+        logger.info("")
+        logger.info("📋 DESCRIPTIONS CUMULATIVES KIMI-VL:")
+        logger.info("-" * 60)
+        logger.info(f"  📄 Mode VLM: {self.vlm_analysis_mode}")
+        logger.info(f"  🕒 Intervalle résumés: {self.summary_interval_seconds}s")
+        logger.info(f"  📝 Résumés générés: {len(self.cumulative_descriptions)}")
+        logger.info(f"  📊 Descriptions courantes: {len(self.current_period_descriptions)}")
+        
+        # Afficher les résumés cumulatifs
+        if self.cumulative_descriptions:
+            logger.info("")
+            logger.info("📜 RÉSUMÉS DE LA VIDÉO KIMI-VL:")
+            logger.info("=" * 60)
+            for i, description in enumerate(self.cumulative_descriptions):
+                period_start = i * self.summary_interval_seconds
+                period_end = (i + 1) * self.summary_interval_seconds
+                logger.info(f"  🕰️ Période {i+1} ({period_start}s-{period_end}s):")
+                logger.info(f"    {description[:300]}{'...' if len(description) > 300 else ''}")
+                logger.info("")
+        
         # Analyse des personnes
         frames_with_persons = [r for r in self.results_log if r.persons_detected > 0]
         if frames_with_persons:
@@ -698,6 +885,13 @@ def parse_arguments():
                        help="Sauvegarder frames avec détections")
     parser.add_argument("--no-save", action="store_true",
                        help="Ne pas sauvegarder les résultats")
+    parser.add_argument("--frame-skip", type=int, default=1,
+                       help="Traiter 1 frame sur N (ex: 2 = une frame sur deux)")
+    parser.add_argument("--vlm-mode", default="continuous",
+                       choices=["continuous", "smart"],
+                       help="Mode analyse VLM: continuous (fréquent) ou smart (économique)")
+    parser.add_argument("--summary-interval", type=int, default=30,
+                       help="Intervalle en secondes pour résumés cumulatifs")
     
     return parser.parse_args()
 
@@ -712,11 +906,14 @@ async def main():
 
 Configuration:
 📹 Source vidéo  : {args.video}
-🤖 Modèle VLM    : {args.model}
+🤖 Modèle VLM    : {args.model} (KIMI-VL par défaut)
 ⚙️ Mode          : {args.mode}
 💾 Sauvegarde    : {'Activée' if not args.no_save else 'Désactivée'}
 🖼️ Frames        : {'Sauvées' if args.save_frames else 'Non sauvées'}
 📊 Max frames    : {args.max_frames or 'Illimité'}
+🔢 Frame skip    : {args.frame_skip} (traite 1 frame sur {args.frame_skip})
+📄 Mode VLM      : {args.vlm_mode} ({'Analyse continue' if args.vlm_mode == 'continuous' else 'Analyse économique'})
+📋 Résumés       : Toutes les {args.summary_interval}s
 
 WORKFLOW HEADLESS:
 1. 📹 Capture vidéo → logs détaillés
@@ -745,8 +942,13 @@ WORKFLOW HEADLESS:
         vlm_model=args.model,
         orchestration_mode=mode_mapping[args.mode],
         save_results=not args.no_save,
-        save_frames=args.save_frames
+        save_frames=args.save_frames,
+        frame_skip=args.frame_skip,
+        vlm_analysis_mode=args.vlm_mode
     )
+    
+    # Configurer l'intervalle de résumé
+    system.summary_interval_seconds = args.summary_interval
     
     try:
         # Initialisation et démarrage

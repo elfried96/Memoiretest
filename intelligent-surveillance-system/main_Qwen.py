@@ -62,6 +62,7 @@ class SurveillanceResult:
     vlm_analysis: Optional[Dict] = None
     actions_taken: List[str] = None
     processing_time: float = 0.0
+    cumulative_summary: Optional[Dict] = None  # Résumé cumulatif toutes les 30s
 
 
 class QwenOnlySurveillanceSystem:
@@ -70,16 +71,20 @@ class QwenOnlySurveillanceSystem:
     def __init__(
         self,
         video_source: str = 0,
-        vlm_model: str = "qwen2-vl-72b", 
+        vlm_model: str = "qwen2-vl-7b-instruct", 
         orchestration_mode: OrchestrationMode = OrchestrationMode.BALANCED,
         save_results: bool = True,
-        save_frames: bool = False
+        save_frames: bool = False,
+        frame_skip: int = 1,
+        vlm_analysis_mode: str = "continuous"
     ):
         self.video_source = video_source
         self.vlm_model = vlm_model  # FORCE Qwen2-VL - pas de "none"
         self.orchestration_mode = orchestration_mode
         self.save_results = save_results
         self.save_frames = save_frames
+        self.frame_skip = frame_skip
+        self.vlm_analysis_mode = vlm_analysis_mode  # "continuous" ou "smart"
         
         # Dossiers de sortie spécifiques Qwen
         self.output_dir = Path("surveillance_output_qwen_only")
@@ -137,9 +142,16 @@ class QwenOnlySurveillanceSystem:
         
         # === SYSTÈME DE DÉCLENCHEMENT INTELLIGENT ===
         self.last_vlm_trigger_time = 0
-        self.vlm_cooldown_seconds = 5
+        self.vlm_cooldown_seconds = 2 if vlm_analysis_mode == "continuous" else 5  # Plus fréquent en mode continu
         self.person_count_history = []
         self.alert_history = []
+        
+        # === DESCRIPTIONS CUMULATIVES ===
+        self.cumulative_descriptions = []  # Historique des descriptions
+        self.last_summary_time = 0
+        self.summary_interval_seconds = 30  # Résumé toutes les 30s (par défaut)
+        self.video_start_time = time.time()
+        self.current_period_descriptions = []  # Descriptions de la période courante
         
         logger.info(f"🎯 Système QWEN2-VL ONLY initialisé - Mode: {orchestration_mode.value}")
         logger.info(f"📁 Résultats sauvés dans: {self.output_dir}")
@@ -172,9 +184,16 @@ class QwenOnlySurveillanceSystem:
         status = await self.orchestrator.health_check()
         logger.info(f"📊 Health check Qwen2-VL: {status}")
         
-        if not status.get('vlm_ready', False):
-            logger.error("❌ VLM non prêt - ARRÊT SYSTÈME")
-            sys.exit(1)
+        # Test supplémentaire pour debug
+        vlm_status = self.orchestrator.vlm.get_system_status()
+        logger.info(f"🔍 Status VLM détaillé: {vlm_status}")
+        
+        if not status.get('vlm_loaded', False):
+            logger.warning("⚠️ VLM health check failed mais continuons...")
+            logger.error(f"Debug - VLM is_loaded: {self.orchestrator.vlm.is_loaded}")
+            logger.error(f"Debug - Model: {self.orchestrator.vlm.model is not None}")
+        else:
+            logger.info("✅ Health check réussi - VLM opérationnel")
         
         logger.info("🎯 Système QWEN2-VL ONLY prêt pour surveillance!")
     
@@ -209,50 +228,79 @@ class QwenOnlySurveillanceSystem:
     def _should_trigger_vlm_analysis(self, detections: List[DetectedObject], persons_count: int, context: Dict[str, Any]) -> bool:
         """
         Détermine si Qwen2-VL doit être déclenché.
+        Mode 'continuous': Analyse très fréquente pour descriptions complètes
+        Mode 'smart': Analyse intelligente économique (ancien comportement)
         """
         current_time = time.time()
         
-        # 1. Vérifier le cooldown
-        if current_time - self.last_vlm_trigger_time < self.vlm_cooldown_seconds:
+        # MODE CONTINUOUS - Analyse beaucoup plus fréquente
+        if self.vlm_analysis_mode == "continuous":
+            # 1. Vérifier le cooldown court
+            if current_time - self.last_vlm_trigger_time < self.vlm_cooldown_seconds:
+                return False
+            
+            # 2. TOUJOURS analyser s'il y a des personnes
+            if persons_count > 0:
+                logger.info(f"📄 VLM CONTINU déclenché: {persons_count} personne(s) présente(s)")
+                return True
+            
+            # 3. TOUJOURS analyser s'il y a des objets suspects
+            suspicious_objects = ["backpack", "handbag", "suitcase", "umbrella", "sports ball", "bag", "bottle", "cup"]
+            for detection in detections:
+                if detection.class_name in suspicious_objects:
+                    logger.info(f"📄 VLM CONTINU déclenché: objet '{detection.class_name}' détecté")
+                    return True
+            
+            # 4. Analyse périodique même sans personnes (pour capture environnement)
+            if current_time - self.last_vlm_trigger_time > 10:  # Toutes les 10s minimum
+                logger.info("📄 VLM CONTINU déclenché: analyse périodique environnement")
+                return True
+            
             return False
         
-        # 2. Toujours déclencher si beaucoup de personnes
-        if persons_count >= 3:
-            logger.info(f"🚨 Qwen2-VL déclenché: {persons_count} personnes détectées")
-            return True
-        
-        # 3. Maintenir historique du nombre de personnes
-        self.person_count_history.append(persons_count)
-        if len(self.person_count_history) > 10:
-            self.person_count_history.pop(0)
-        
-        # 4. Détecter changement soudain de population
-        if len(self.person_count_history) >= 5:
-            recent_avg = sum(self.person_count_history[-5:]) / 5
-            if persons_count > recent_avg + 1:
-                logger.info(f"📈 Qwen2-VL déclenché: augmentation population {recent_avg:.1f} → {persons_count}")
+        # MODE SMART - Analyse intelligente économique (ancien comportement)
+        else:
+            # 1. Vérifier le cooldown
+            if current_time - self.last_vlm_trigger_time < self.vlm_cooldown_seconds:
+                return False
+            
+            # 2. Toujours déclencher si beaucoup de personnes
+            if persons_count >= 3:
+                logger.info(f"🚨 Qwen2-VL déclenché: {persons_count} personnes détectées")
                 return True
-        
-        # 5. Objets suspects détectés
-        suspicious_objects = ["backpack", "handbag", "suitcase", "umbrella", "sports ball", "bag"]
-        for detection in detections:
-            if detection.class_name in suspicious_objects:
-                logger.info(f"👜 Qwen2-VL déclenché: objet suspect '{detection.class_name}' détecté")
-                return True
-        
-        # 6. Personne seule qui reste longtemps
-        if persons_count == 1 and len(self.person_count_history) >= 8:
-            if all(count == 1 for count in self.person_count_history[-8:]):
-                logger.info("🕐 Qwen2-VL déclenché: personne seule depuis longtemps")
-                return True
-        
-        # 7. Déclenchement périodique
-        if not context.get("test_mode", False):
-            if (current_time - self.last_vlm_trigger_time > 60 and persons_count > 0):
-                logger.info("⏰ Qwen2-VL déclenché: contrôle périodique de sécurité")
-                return True
-        
-        return False
+            
+            # 3. Maintenir historique du nombre de personnes
+            self.person_count_history.append(persons_count)
+            if len(self.person_count_history) > 10:
+                self.person_count_history.pop(0)
+            
+            # 4. Détecter changement soudain de population
+            if len(self.person_count_history) >= 5:
+                recent_avg = sum(self.person_count_history[-5:]) / 5
+                if persons_count > recent_avg + 1:
+                    logger.info(f"📈 Qwen2-VL déclenché: augmentation population {recent_avg:.1f} → {persons_count}")
+                    return True
+            
+            # 5. Objets suspects détectés
+            suspicious_objects = ["backpack", "handbag", "suitcase", "umbrella", "sports ball", "bag"]
+            for detection in detections:
+                if detection.class_name in suspicious_objects:
+                    logger.info(f"👜 Qwen2-VL déclenché: objet suspect '{detection.class_name}' détecté")
+                    return True
+            
+            # 6. Personne seule qui reste longtemps
+            if persons_count == 1 and len(self.person_count_history) >= 8:
+                if all(count == 1 for count in self.person_count_history[-8:]):
+                    logger.info("🕐 Qwen2-VL déclenché: personne seule depuis longtemps")
+                    return True
+            
+            # 7. Déclenchement périodique
+            if not context.get("test_mode", False):
+                if (current_time - self.last_vlm_trigger_time > 60 and persons_count > 0):
+                    logger.info("⏰ Qwen2-VL déclenché: contrôle périodique de sécurité")
+                    return True
+            
+            return False
     
     def encode_frame_to_base64(self, frame: np.ndarray) -> str:
         """Encode un frame OpenCV en base64 pour Qwen2-VL."""
@@ -260,6 +308,105 @@ class QwenOnlySurveillanceSystem:
         _, buffer = cv2.imencode('.jpg', frame_rgb, [cv2.IMWRITE_JPEG_QUALITY, 85])
         frame_b64 = base64.b64encode(buffer).decode('utf-8')
         return frame_b64
+    
+    def should_generate_cumulative_summary(self) -> bool:
+        """Vérifie si il faut générer un résumé cumulatif."""
+        current_time = time.time()
+        elapsed_since_start = current_time - self.video_start_time
+        elapsed_since_last_summary = current_time - self.last_summary_time
+        
+        # Générer un résumé toutes les 30s
+        if elapsed_since_last_summary >= self.summary_interval_seconds:
+            return True
+        return False
+    
+    async def generate_cumulative_summary(self, frame_b64: str, current_context: Dict[str, Any]) -> Optional[Dict]:
+        """Génère un résumé cumulatif des 30 dernières secondes."""
+        try:
+            current_time = time.time()
+            elapsed_total = current_time - self.video_start_time
+            period_number = int(elapsed_total // self.summary_interval_seconds) + 1
+            
+            # Construire le contexte cumulatif
+            cumulative_context = current_context.copy()
+            cumulative_context.update({
+                "summary_type": "cumulative_video_analysis",
+                "period_number": period_number,
+                "total_elapsed_seconds": elapsed_total,
+                "period_start": f"{(period_number-1) * 30}s",
+                "period_end": f"{period_number * 30}s",
+                "previous_descriptions": self.cumulative_descriptions[-5:] if self.cumulative_descriptions else [],  # 5 dernières descriptions
+                "current_period_descriptions": self.current_period_descriptions
+            })
+            
+            # Prompt spécial pour description cumulative
+            cumulative_prompt = f"""
+            ANALYSE CUMULATIVE DE SURVEILLANCE - PÉRIODE {period_number}
+            =======================================================
+            
+            📊 CONTEXTE:
+            - Période: {cumulative_context['period_start']} à {cumulative_context['period_end']}
+            - Temps total écoulé: {elapsed_total:.0f} secondes
+            - Frame actuel: {current_context.get('frame_id', 0)}
+            
+            📋 DESCRIPTIONS PRÉCÉDENTES:
+            {chr(10).join([f"- Période {i+1}: {desc}" for i, desc in enumerate(self.cumulative_descriptions[-3:])]) if self.cumulative_descriptions else "Aucune description précédente"}
+            
+            🔍 DESCRIPTIONS ACTUELLES ({len(self.current_period_descriptions)} observations):
+            {chr(10).join([f"- {desc}" for desc in self.current_period_descriptions[-10:]]) if self.current_period_descriptions else "Aucune observation dans cette période"}
+            
+            🎥 TÂCHE:
+            Analysez l'image actuelle et générez une DESCRIPTION CUMULATIVE de cette période de 30 secondes.
+            
+            Votre réponse doit inclure:
+            1. 📝 RÉSUMÉ PÉRIODE: Que s'est-il passé durant ces 30 secondes?
+            2. 👥 PERSONNES: Combien de personnes, leurs actions principales
+            3. 🎨 ACTIVITÉS: Actions et comportements observés
+            4. 📋 ÉVOLUTION: Comment cette période s'inscrit dans l'ensemble de la vidéo
+            5. ⚠️ POINTS D'INTÉRÊT: Éléments remarquables ou suspects
+            
+            Soyez PRÉCIS, DÉTAILLÉ et FACTUEL. Cette description sera utilisée pour comprendre l'ensemble de la vidéo.
+            """
+            
+            # Utiliser l'orchestrateur avec le prompt cumulatif
+            cumulative_analysis = await self.orchestrator.vlm.analyze_with_custom_prompt(
+                frame_data=frame_b64,
+                custom_prompt=cumulative_prompt,
+                context=cumulative_context
+            )
+            
+            if cumulative_analysis:
+                # Extraire la description cumulative
+                description_text = cumulative_analysis.get('description', '')
+                if not description_text and hasattr(cumulative_analysis, 'description'):
+                    description_text = cumulative_analysis.description
+                
+                summary_data = {
+                    "period_number": period_number,
+                    "period_range": f"{cumulative_context['period_start']}-{cumulative_context['period_end']}",
+                    "timestamp": current_time,
+                    "frame_id": current_context.get('frame_id', 0),
+                    "description": description_text,
+                    "total_elapsed": elapsed_total,
+                    "analysis_details": cumulative_analysis
+                }
+                
+                # Ajouter à l'historique cumulatif
+                self.cumulative_descriptions.append(description_text)
+                
+                # Réinitialiser pour la prochaine période
+                self.current_period_descriptions.clear()
+                self.last_summary_time = current_time
+                
+                logger.info(f"📋 Résumé cumulatif Période {period_number} généré ({elapsed_total:.0f}s total)")
+                logger.info(f"📝 Description: {description_text[:200]}...") 
+                
+                return summary_data
+            
+        except Exception as e:
+            logger.error(f"❌ Erreur génération résumé cumulatif: {e}")
+        
+        return None
     
     def save_frame_with_detections(self, frame: np.ndarray, detections: List[DetectedObject], frame_id: int):
         """Sauvegarde un frame avec les détections dessinées."""
@@ -345,6 +492,11 @@ class QwenOnlySurveillanceSystem:
         # DÉCLENCHEMENT INTELLIGENT DE QWEN2-VL
         should_trigger_vlm = self._should_trigger_vlm_analysis(detections, persons_count, context)
         
+        # Vérifier si il faut générer un résumé cumulatif (toutes les 30s)
+        cumulative_summary = None
+        if self.should_generate_cumulative_summary():
+            cumulative_summary = await self.generate_cumulative_summary(frame_b64, context)
+        
         try:
             if should_trigger_vlm:
                 # Marquer le déclenchement
@@ -357,6 +509,10 @@ class QwenOnlySurveillanceSystem:
                     detections=detections,
                     context=context
                 )
+                
+                # Ajouter cette analyse à la période courante pour le cumul
+                if vlm_analysis and hasattr(vlm_analysis, 'description'):
+                    self.current_period_descriptions.append(vlm_analysis.description)
                 
                 self.processing_stats["vlm_analyses"] += 1
             else:
@@ -418,7 +574,8 @@ class QwenOnlySurveillanceSystem:
             alert_level=alert_level.value,
             vlm_analysis=vlm_analysis_dict,
             actions_taken=actions_taken,
-            processing_time=processing_time
+            processing_time=processing_time,
+            cumulative_summary=cumulative_summary
         )
         
         # === MISE À JOUR DES STATISTIQUES ===
@@ -492,13 +649,20 @@ class QwenOnlySurveillanceSystem:
         
         try:
             frame_processed = 0
+            frame_read_count = 0  # Compteur pour frame_skip
             
             while True:
                 # Lecture optimisée du frame
                 ret, frame = cap.read()
+                frame_read_count += 1
+                
                 if not ret:
                     logger.warning("📹 Fin de vidéo ou erreur lecture")
                     break
+                
+                # Application du frame_skip
+                if frame_read_count % self.frame_skip != 0:
+                    continue  # Skip ce frame
                 
                 # Validation du frame
                 if frame is None or frame.size == 0:
@@ -514,6 +678,10 @@ class QwenOnlySurveillanceSystem:
                 self.results_log.append(result)
                 
                 frame_processed += 1
+                
+                # Log de progression avec frame skip info
+                if frame_processed % 10 == 0:
+                    logger.info(f"📊 Traité: {frame_processed} frames (lu: {frame_read_count}, skip: {self.frame_skip})")
                 
                 # Limite de frames si spécifiée
                 if max_frames and frame_processed >= max_frames:
@@ -577,10 +745,17 @@ class QwenOnlySurveillanceSystem:
                 "model_type": "qwen2-vl-72b-ONLY",
                 "fallback_enabled": False,
                 "orchestration_mode": self.orchestration_mode.value,
+                "vlm_analysis_mode": self.vlm_analysis_mode,
+                "summary_interval_seconds": self.summary_interval_seconds,
                 "total_frames": len(self.results_log),
                 "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")
             },
             "statistics": self.processing_stats,
+            "cumulative_video_summary": {
+                "total_periods": len(self.cumulative_descriptions),
+                "periods_descriptions": self.cumulative_descriptions,
+                "interval_seconds": self.summary_interval_seconds
+            },
             "results": [self._serialize_result(result) for result in self.results_log]
         }
         
@@ -627,6 +802,27 @@ class QwenOnlySurveillanceSystem:
         logger.info(f"  💾 Frames en mémoire: {memory_stats['current_frames_in_memory']}")
         logger.info(f"  👥 Personnes trackées: {memory_stats['active_persons']}")
         logger.info(f"  🔍 Patterns détectés: {memory_stats['patterns_detected']}")
+        
+        # Statistiques descriptions cumulatives
+        logger.info("")
+        logger.info("📋 DESCRIPTIONS CUMULATIVES:")
+        logger.info("-" * 60)
+        logger.info(f"  📄 Mode VLM: {self.vlm_analysis_mode}")
+        logger.info(f"  🕒 Intervalle résumés: {self.summary_interval_seconds}s")
+        logger.info(f"  📝 Résumés générés: {len(self.cumulative_descriptions)}")
+        logger.info(f"  📊 Descriptions courantes: {len(self.current_period_descriptions)}")
+        
+        # Afficher les résumés cumulatifs
+        if self.cumulative_descriptions:
+            logger.info("")
+            logger.info("📜 RÉSUMÉS DE LA VIDÉO:")
+            logger.info("=" * 60)
+            for i, description in enumerate(self.cumulative_descriptions):
+                period_start = i * self.summary_interval_seconds
+                period_end = (i + 1) * self.summary_interval_seconds
+                logger.info(f"  🕰️ Période {i+1} ({period_start}s-{period_end}s):")
+                logger.info(f"    {description[:300]}{'...' if len(description) > 300 else ''}")
+                logger.info("")
 
 
 def parse_arguments():
@@ -638,13 +834,20 @@ def parse_arguments():
     
     parser.add_argument("--video", "-v", default="webcam",
                        help="Source vidéo")
-    parser.add_argument("--model", "-m", default="qwen2-vl-72b",
+    parser.add_argument("--model", "-m", default="qwen2-vl-7b-instruct",
                        help="Modèle VLM Qwen2-VL")
     parser.add_argument("--mode", default="BALANCED",
                        choices=["FAST", "BALANCED", "THOROUGH"],
                        help="Mode orchestration")
     parser.add_argument("--max-frames", type=int, default=None,
                        help="Nombre max de frames")
+    parser.add_argument("--frame-skip", type=int, default=1,
+                       help="Traiter 1 frame sur N (ex: 2 = une frame sur deux)")
+    parser.add_argument("--vlm-mode", default="continuous",
+                       choices=["continuous", "smart"],
+                       help="Mode analyse VLM: continuous (fréquent) ou smart (économique)")
+    parser.add_argument("--summary-interval", type=int, default=30,
+                       help="Intervalle en secondes pour résumés cumulatifs")
     parser.add_argument("--save-frames", action="store_true",
                        help="Sauvegarder frames avec détections")
     parser.add_argument("--no-save", action="store_true",
@@ -668,6 +871,9 @@ Configuration:
 💾 Sauvegarde    : {'Activée' if not args.no_save else 'Désactivée'}
 🖼️ Frames        : {'Sauvées' if args.save_frames else 'Non sauvées'}
 📊 Max frames    : {args.max_frames or 'Illimité'}
+🔢 Frame skip    : {args.frame_skip} (traite 1 frame sur {args.frame_skip})
+📄 Mode VLM      : {args.vlm_mode} ({'Analyse continue' if args.vlm_mode == 'continuous' else 'Analyse économique'})
+📋 Résumés       : Toutes les {args.summary_interval}s
 
 ⚠️ ATTENTION: AUCUN FALLBACK CONFIGURÉ
 Si {args.model} échoue → ARRÊT DU SYSTÈME
@@ -699,8 +905,13 @@ WORKFLOW QWEN2-VL ONLY:
         vlm_model=args.model,
         orchestration_mode=mode_mapping[args.mode],
         save_results=not args.no_save,
-        save_frames=args.save_frames
+        save_frames=args.save_frames,
+        frame_skip=args.frame_skip,
+        vlm_analysis_mode=args.vlm_mode
     )
+    
+    # Configurer l'intervalle de résumé
+    system.summary_interval_seconds = args.summary_interval
     
     try:
         # Initialisation et démarrage

@@ -487,15 +487,15 @@ class DynamicVisionLanguageModel:
             
             logger.debug(f"Inputs préparés, device: {self.device}")
             
-            # Paramètres de génération selon documentation officielle
+            # Paramètres de génération selon documentation officielle - OPTIMISÉS SURVEILLANCE
             if self.current_config and self.current_config.model_type == VLMModelType.KIMI_VL:
-                # Paramètres officiels Kimi-VL (Thinking model = Temperature 0.8)
+                # Paramètres Kimi-VL OPTIMISÉS pour surveillance temps réel
                 gen_params = {
-                    "max_new_tokens": 512,  # Documentation officielle
-                    "temperature": 0.8,     # CRITIQUE: Documentation officielle pour Thinking
+                    "max_new_tokens": 150,  # ✅ Réduit pour vitesse (512→150)
+                    "temperature": 0.3,     # ✅ Réduit pour vitesse et cohérence (0.8→0.3)  
                     "do_sample": True,
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
-                    "use_cache": False,     # Désactiver cache pour éviter DynamicCache error
+                    "use_cache": True,      # ✅ ACTIVER cache pour vitesse
                     "return_dict_in_generate": False,
                     "output_attentions": False,
                     "output_hidden_states": False

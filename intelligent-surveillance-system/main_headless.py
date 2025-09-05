@@ -139,7 +139,7 @@ class HeadlessSurveillanceSystem:
         
         # === SYSTÈME DE DÉCLENCHEMENT INTELLIGENT ===
         self.last_vlm_trigger_time = 0
-        self.vlm_cooldown_seconds = 2 if vlm_analysis_mode == "continuous" else 5
+        self.vlm_cooldown_seconds = 2 if vlm_analysis_mode == "continuous" else 15  # ✅ Plus long pour mode smart
         self.person_count_history = []  # Historique du nombre de personnes
         self.alert_history = []  # Historique des alertes
         

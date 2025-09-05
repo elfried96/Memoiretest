@@ -467,6 +467,7 @@ class HeadlessSurveillanceSystem:
         vlm_analysis = None
         alert_level = AlertLevel.NORMAL
         actions_taken = []
+        cumulative_summary = None  # ✅ Initialiser dès le début pour éviter UnboundLocalError
         
         # Vérifier que le VLM est chargé avant de continuer
         vlm_ready = (
@@ -496,7 +497,6 @@ class HeadlessSurveillanceSystem:
             }
             
             # Vérifier si il faut générer un résumé cumulatif (toutes les 30s)
-            cumulative_summary = None
             if self.should_generate_cumulative_summary():
                 cumulative_summary = await self.generate_cumulative_summary(frame_b64, context)
             

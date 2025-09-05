@@ -492,8 +492,8 @@ class DynamicVisionLanguageModel:
                 # Paramètres Kimi-VL OPTIMISÉS surveillance - CACHE DÉSACTIVÉ
                 gen_params = {
                     "max_new_tokens": 100,  # ✅ Ultra-réduit pour vitesse (150→100)
-                    "temperature": 0.1,     # ✅ Très déterministe = plus rapide (0.3→0.1)  
                     "do_sample": False,     # ✅ Greedy = plus rapide que sampling
+                    # temperature supprimée car incompatible avec do_sample=False
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
                     "use_cache": False,     # ❌ DÉSACTIVER cache (erreur DynamicCache)
                     "return_dict_in_generate": False,

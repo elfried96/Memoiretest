@@ -70,32 +70,30 @@ class SAM2Segmentator:
             return
             
         try:
-            from sam2.build_sam import build_sam2
             from sam2.sam2_image_predictor import SAM2ImagePredictor
             
             logger.info(f"Loading SAM2 model...")
             
-            # Utilisation du modèle SAM2 officiel
-            # Mapping des noms de modèles
-            model_cfg_map = {
-                "facebook/sam2-hiera-large": "sam2_hiera_l.yaml",
-                "sam2-hiera-large": "sam2_hiera_l.yaml",
-                "sam2-hiera-base": "sam2_hiera_b.yaml", 
-                "sam2-hiera-small": "sam2_hiera_s.yaml",
-                "sam2-hiera-tiny": "sam2_hiera_t.yaml"
+            # API OFFICIELLE 2024 - Utilisation de from_pretrained
+            # Mapping des noms de modèles vers checkpoints officiels
+            model_checkpoint_map = {
+                "facebook/sam2-hiera-large": "facebook/sam2-hiera-large",
+                "sam2-hiera-large": "facebook/sam2-hiera-large",
+                "sam2-hiera-base": "facebook/sam2-hiera-base-plus", 
+                "sam2-hiera-small": "facebook/sam2-hiera-small",
+                "sam2-hiera-tiny": "facebook/sam2-hiera-tiny"
             }
             
-            # Sélection du config
-            config_name = model_cfg_map.get(self.model_path, "sam2_hiera_l.yaml")
+            # Sélection du checkpoint
+            checkpoint_name = model_checkpoint_map.get(self.model_path, "facebook/sam2-hiera-large")
             
-            # Construction du modèle SAM2
-            sam2_model = build_sam2(config_name, device=self.device)
-            self.model = SAM2ImagePredictor(sam2_model)
+            # NOUVEAU: API 2024 avec from_pretrained 
+            self.model = SAM2ImagePredictor.from_pretrained(checkpoint_name)
             
             # Pas besoin de processor avec l'API SAM2 native
             self.processor = None
             
-            logger.info(f"SAM2 model loaded on {self.device}")
+            logger.info(f"SAM2 model loaded on {self.device} (API 2024)")
             self._model_loaded = True
             
         except ImportError as e:

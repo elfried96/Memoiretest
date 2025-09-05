@@ -69,10 +69,10 @@ class OpenPoseEstimator:
             logger.info("Loading MediaPipe Pose model (modèle physique)...")
             
             self.mp_pose = mp.solutions.pose
-            # Configuration selon documentation officielle
+            # Configuration selon documentation officielle 2024
             self.pose_detector = self.mp_pose.Pose(
-                min_detection_confidence=0.7,  # Plus strict selon doc
-                min_tracking_confidence=0.7    # Plus strict selon doc
+                min_detection_confidence=0.5,  # Valeurs officielles recommandées
+                min_tracking_confidence=0.5    # Valeurs officielles recommandées
             )
             
             # Pour drawing (selon doc officielle)
@@ -164,7 +164,11 @@ class OpenPoseEstimator:
     
     def _estimate_mediapipe_poses(self, frame: np.ndarray, person_boxes: Optional[List[Tuple[int, int, int, int]]],
                                 start_time: float) -> PoseKeypoints:
-        """Estimate poses using MediaPipe."""
+        """
+        Estimate poses using MediaPipe.
+        NOTE: Utilise l'instance persistante. Pour usage optimal selon doc officielle 2024,
+        préférer context manager avec 'with mp_pose.Pose(min_detection_confidence=0.5):'
+        """
         # Convert BGR to RGB
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         

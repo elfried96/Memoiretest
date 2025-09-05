@@ -376,10 +376,13 @@ class QwenOnlySurveillanceSystem:
             )
             
             if cumulative_analysis:
-                # Extraire la description cumulative
-                description_text = cumulative_analysis.get('description', '')
-                if not description_text and hasattr(cumulative_analysis, 'description'):
+                # Extraire la description cumulative - Correction pour AnalysisResponse
+                if hasattr(cumulative_analysis, 'description'):
                     description_text = cumulative_analysis.description
+                elif isinstance(cumulative_analysis, dict):
+                    description_text = cumulative_analysis.get('description', '')
+                else:
+                    description_text = str(cumulative_analysis)
                 
                 summary_data = {
                     "period_number": period_number,

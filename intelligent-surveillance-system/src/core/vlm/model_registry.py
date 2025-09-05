@@ -43,7 +43,22 @@ class VLMModelRegistry:
         
         # === Kimi-VL Models (Moonshot AI) ===
         
-        # Kimi-VL-A3B-Thinking (PRINCIPAL - Pour TOUT)
+        # Kimi-VL-A3B-Thinking-2506 (NOUVEAU - Version améliorée 2024)
+        models["kimi-vl-a3b-thinking-2506"] = ModelConfig(
+            model_name="moonshotai/Kimi-VL-A3B-Thinking-2506",
+            model_type=VLMModelType.KIMI_VL,
+            processor_class="AutoProcessor",
+            model_class="AutoModelForVision2Seq", 
+            default_params={
+                "max_new_tokens": 512,
+                "temperature": 0.8,  # Recommandé pour Thinking
+                "do_sample": True,
+                "use_cache": False  # Fix DynamicCache error
+            },
+            description="NOUVEAU - Kimi-VL 2506 avec meilleurs vision/reasoning/agent (fix erreurs cache)"
+        )
+        
+        # Kimi-VL-A3B-Thinking (LEGACY - Problèmes DynamicCache)
         models["kimi-vl-a3b-thinking"] = ModelConfig(
             model_name="moonshotai/Kimi-VL-A3B-Thinking", 
             model_type=VLMModelType.KIMI_VL,

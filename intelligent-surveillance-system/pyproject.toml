@@ -41,8 +41,8 @@ dependencies = [
     "rich>=13.0.0",
     "psutil>=5.9.0",
     "tqdm>=4.65.0",
-    # HuggingFace - Version mise à jour pour Kimi-VL 2025
-    "transformers>=4.48.2",  # Version requise pour ProcessingKwargs 
+    # HuggingFace - Version OFFICIELLE recommandée par MoonshotAI  
+    "transformers==4.51.3",  # Version EXACTE supportée Kimi-VL (source: GitHub officiel) 
     "huggingface-hub>=0.17.0",
     "tokenizers>=0.15.0",
     "safetensors>=0.4.0",

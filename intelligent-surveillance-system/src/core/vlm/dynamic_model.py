@@ -461,8 +461,8 @@ class DynamicVisionLanguageModel:
         )
         
         # Optimisations spécifiques par modèle
-        if self.current_config and self.current_config.model_type == VLMModelType.KIM:
-            # KIM préfère des prompts structurés avec étapes
+        if self.current_config and self.current_config.model_type == VLMModelType.KIMI_VL:
+            # Kimi-VL préfère des prompts structurés avec étapes
             base_prompt += "\n\nRaisonne étape par étape pour cette analyse de surveillance."
         
         elif self.current_config and self.current_config.model_type == VLMModelType.QWEN:

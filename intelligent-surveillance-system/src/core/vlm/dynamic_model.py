@@ -28,23 +28,59 @@ from .tool_schema import ToolSchemaBuilder
 
 class DynamicVisionLanguageModel:
     """
-    VLM avec architecture mono-VLM selon standards 2025.
+    Modèle de Vision-Language dynamique avec architecture moderne.
+    
+    Cette classe implémente un système VLM robuste supportant plusieurs modèles
+    avec capacités de tool-calling avancées pour l'analyse de surveillance.
     
     Architecture:
-    - UNIQUE: Kimi-VL-A3B-Thinking avec Tool Calling natif
-    - AUCUN FALLBACK: Échec propre selon standards 2025
-    - Tool Calling officiel avec schémas JSON stricts
+    - Support multi-modèles: Kimi-VL, Qwen2-VL
+    - Tool Calling natif avec schémas JSON stricts
     - Monitoring de performance intégré
+    - Gestion d'erreurs robuste avec fallbacks optionnels
+    
+    Modèles supportés:
+    - kimi-vl-a3b-thinking: Modèle principal pour surveillance
+    - kimi-vl-a3b-thinking-2506: Version améliorée
+    - qwen2-vl-7b-instruct: Fallback robuste
+    - qwen2.5-vl-32b-instruct: Version haute performance
+    
+    Attributes:
+        device (torch.device): Device de computation (GPU/CPU)
+        current_model_id (str): ID du modèle actuellement chargé
+        is_loaded (bool): État de chargement du modèle
+        enable_fallback (bool): Active les modèles de fallback
+        
+    Example:
+        >>> vlm = DynamicVisionLanguageModel(
+        ...     default_model="kimi-vl-a3b-thinking",
+        ...     device="cuda",
+        ...     enable_fallback=True
+        ... )
+        >>> await vlm.load_model()
+        >>> result = await vlm.analyze_image(image, prompt)
     """
     
     def __init__(
         self,
         default_model: str = "kimi-vl-a3b-thinking",
-        device: str = "auto",
-        enable_fallback: bool = False  # SUPPRIMÉ: Plus de fallback selon standards 2025
+        device: str = "auto", 
+        enable_fallback: bool = True
     ):
+        """
+        Initialise le modèle VLM dynamique.
+        
+        Args:
+            default_model: ID du modèle par défaut à utiliser
+            device: Device de computation ("auto", "cpu", "cuda", ou device spécifique)
+            enable_fallback: Active la basculement automatique vers modèles de fallback
+            
+        Raises:
+            ModelError: Si la configuration du modèle est invalide
+            RuntimeError: Si l'initialisation échoue
+        """
         self.device = self._setup_device(device)
-        # SUPPRIMÉ: enable_fallback selon standards 2025
+        self.enable_fallback = enable_fallback
         
         # Registre des modèles
         self.model_registry = VLMModelRegistry()
@@ -80,8 +116,21 @@ class DynamicVisionLanguageModel:
         return torch.device(device)
     
     async def load_model(self, model_id: str = None) -> bool:
-        """Chargement d'un modèle spécifique - Standards 2025 sans fallback."""
-        return await self._load_model_direct(model_id, enable_fallback=False)
+        """
+        Charge un modèle VLM spécifique.
+        
+        Args:
+            model_id: ID du modèle à charger. Si None, utilise le modèle par défaut.
+            
+        Returns:
+            bool: True si le chargement réussit, False sinon.
+            
+        Example:
+            >>> success = await vlm.load_model("kimi-vl-a3b-thinking")
+            >>> if success:
+            ...     print("Modèle chargé avec succès")
+        """
+        return await self._load_model_direct(model_id, enable_fallback=self.enable_fallback)
     
     async def _load_model_direct(self, model_id: str = None, enable_fallback: bool = False) -> bool:
         """Chargement direct d'un modèle sans fallback automatique."""

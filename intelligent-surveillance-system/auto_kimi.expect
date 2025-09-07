@@ -1,0 +1,19 @@
+#!/usr/bin/expect -f
+
+# Script expect pour automatiser les réponses "y"
+set timeout -1
+
+# Lancer la commande
+spawn python main_headless.py --model kimi-vl-a3b-thinking-2506 --video videos/surveillance01.mp4 --max-frames 5 --vlm-mode smart --frame-skip 3
+
+# Répondre automatiquement aux questions
+expect {
+    "Do you wish to run the custom code? \[y/N\]" {
+        send "y\r"
+        exp_continue
+    }
+    "trust_remote_code=True" {
+        exp_continue  
+    }
+    eof
+}

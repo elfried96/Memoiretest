@@ -10,7 +10,7 @@ authors = [
     {name = "Elfried Steve David KINZOUN", email = "elfried.kinzoun@example.com"}
 ]
 license = {text = "MIT"}
-requires-python = ">=3.10.0"
+requires-python = ">=3.10.0,<3.13"
 dependencies = [
     # Core AI/ML - Versions mises à jour
     "torch>=2.4.0,<3.0.0",
@@ -52,7 +52,7 @@ dependencies = [
     "bitsandbytes>=0.47.0",
     "blobfile>=3.0.0",
     "scikit-image>=0.25.0",
-    "mediapipe>=0.11.0",
+    "mediapipe>=0.10.0,<0.11.0",
     "sam-2",
     "plotly>=6.3.0",
     "qwen-vl-utils>=0.0.11",

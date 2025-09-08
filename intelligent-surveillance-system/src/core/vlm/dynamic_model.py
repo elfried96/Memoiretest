@@ -469,6 +469,18 @@ class DynamicVisionLanguageModel:
             # Qwen2-VL excelle avec des instructions précises
             base_prompt += "\n\nSois précis et factuel dans ton analyse. Justifie chaque conclusion."
         
+        # FORCAGE JSON STRICT pour tous modèles (documentation 2025)
+        base_prompt += """\n\n⚠️ IMPORTANT: Réponds UNIQUEMENT en JSON valide avec cette structure EXACTE:
+```json
+{
+  "suspicion_level": "low|medium|high",
+  "action_type": "normal_shopping|suspicious_behavior|theft_detected",
+  "confidence": 0.85,
+  "description": "Description détaillée de ce qui est observé",
+  "reasoning": "Processus de raisonnement étape par étape",
+  "recommendations": ["Recommandation 1", "Recommandation 2"]
+}
+```"""
         
         return base_prompt
     
@@ -538,25 +550,25 @@ class DynamicVisionLanguageModel:
             
             # Paramètres de génération selon documentation officielle - OPTIMISÉS SURVEILLANCE
             if self.current_config and self.current_config.model_type == VLMModelType.KIMI_VL:
-                # Paramètres Kimi-VL OPTIMISÉS surveillance - CACHE DÉSACTIVÉ
+                # Paramètres Kimi-VL OPTIMISÉS 2025 (doc Moonshot officielle)
                 gen_params = {
-                    "max_new_tokens": 100,  # ✅ Ultra-réduit pour vitesse (150→100)
-                    "do_sample": False,     # ✅ Greedy = plus rapide que sampling
-                    # temperature supprimée car incompatible avec do_sample=False
+                    "max_new_tokens": 50,   # ✅ RÉDUIT DRASTIQUEMENT pour surveillance temps réel
+                    "temperature": 0.8,     # ✅ Doc officielle: 0.8 pour Thinking models  
+                    "do_sample": True,      # ✅ Nécessaire avec temperature
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
-                    "use_cache": False,     # ❌ DÉSACTIVER cache (erreur DynamicCache)
+                    "use_cache": True,      # ✅ ACTIVER cache pour performance (fix erreur)
                     "return_dict_in_generate": False,
                     "output_attentions": False,
                     "output_hidden_states": False
                 }
             else:
-                # Paramètres standards pour autres modèles
+                # Paramètres Qwen2-VL OPTIMISÉS 2025 (doc Alibaba officielle)
                 gen_params = {
-                    "max_new_tokens": self.current_config.default_params.get("max_new_tokens", 512),
-                    "temperature": self.current_config.default_params.get("temperature", 0.1),
-                    "do_sample": self.current_config.default_params.get("do_sample", True),
+                    "max_new_tokens": 100,  # ✅ RÉDUIT de 512 → 100 pour surveillance
+                    "temperature": 0.1,     # ✅ Stable pour Qwen2-VL
+                    "do_sample": True,
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
-                    "use_cache": False,  # CRITIQUE: Désactiver cache pour éviter DynamicCache error
+                    "use_cache": True,      # ✅ ACTIVER cache pour performance
                     "return_dict_in_generate": False,  # Simplifier retour
                     "output_attentions": False,
                     "output_hidden_states": False
@@ -578,7 +590,7 @@ class DynamicVisionLanguageModel:
                         "do_sample": False,  # Greedy decoding
                         "num_beams": 1,
                         "early_stopping": True,
-                        "use_cache": False,  # CRITIQUE: Désactiver cache
+                        "use_cache": True,   # ✅ ACTIVER cache pour performance
                         "return_dict_in_generate": False,
                         "output_attentions": False,
                         "output_hidden_states": False
@@ -648,6 +660,7 @@ class DynamicVisionLanguageModel:
             action_type=ActionType.NORMAL_SHOPPING,
             confidence=0.0,
             description=f"Erreur VLM ({self.current_model_id}): {error}",
+            reasoning=f"Erreur système VLM: {error}",  # ✅ AJOUTÉ
             tools_used=[],
             recommendations=["Vérification système requise"]
         )
@@ -840,7 +853,7 @@ DIRECTIVE: Utilise les outils pertinents puis fournis ton analyse finale."""
                 "max_new_tokens": 1024,  # Plus de tokens pour tool calls
                 "temperature": 0.7,  # Optimisé pour tool calling 2025
                 "do_sample": True,
-                "use_cache": False,  # Éviter DynamicCache errors
+                "use_cache": True,   # ✅ ACTIVER cache pour performance 2025
                 "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
                 "return_dict_in_generate": False,
                 "output_attentions": False,
@@ -999,6 +1012,7 @@ DIRECTIVE: Utilise les outils pertinents puis fournis ton analyse finale."""
             action_type=action_type,
             confidence=0.85,
             description=f"Analyse Tool Calling 2025: {success_count}/{len(tools_used)} outils exécutés avec succès",
+            reasoning=f"Analyse basée sur {success_count} outils: {', '.join(tools_used)}",  # ✅ AJOUTÉ
             tools_used=tools_used,
             recommendations=[f"Outils utilisés: {', '.join(tools_used)}"]
         )

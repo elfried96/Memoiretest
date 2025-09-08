@@ -29,16 +29,20 @@ class ResponseParser:
             return self._error_fallback(response_text, str(e))
     
     def _extract_json(self, text: str) -> Dict[str, Any]:
-        """Extraction du JSON de la réponse."""
+        """Extraction JSON optimisée pour Qwen2.5-VL et Kimi-VL 2025."""
         
-        # Méthode 1: Recherche entre ```json et ```
-        json_pattern = r'```json\s*(\{.*?\})\s*```'
-        match = re.search(json_pattern, text, re.DOTALL)
-        if match:
-            try:
-                return json.loads(match.group(1))
-            except json.JSONDecodeError:
-                pass
+        # Nettoyer la réponse des tokens de thinking spéciaux (Kimi-VL)
+        text = re.sub(r'◁think▷.*?◁/think▷', '', text, flags=re.DOTALL)
+        text = text.replace('assistant◁think▷', '').replace('◁/think▷', '')
+        
+        # Méthode 1: JSON dans blocs markdown
+        for pattern in [r'```json\s*(\{.*?\})\s*```', r'```\s*(\{.*?\})\s*```']:
+            match = re.search(pattern, text, re.DOTALL)
+            if match:
+                try:
+                    return json.loads(match.group(1))
+                except json.JSONDecodeError:
+                    pass
         
         # Méthode 2: Recherche du premier objet JSON complet
         json_start = text.find('{')
@@ -94,6 +98,7 @@ class ResponseParser:
             action_type=action_type,
             confidence=confidence,
             description=description,
+            reasoning=reasoning,  # ✅ AJOUTÉ - Processus de raisonnement
             tools_used=tools_to_use,
             recommendations=recommendations
         )
@@ -180,6 +185,7 @@ class ResponseParser:
             action_type=action,
             confidence=confidence,
             description=f"Analyse heuristique: {text[:300]}...",
+            reasoning=f"Analyse heuristique du texte: {text[:100]}...",  # ✅ AJOUTÉ
             tools_used=[],
             recommendations=recommendations
         )
@@ -192,6 +198,7 @@ class ResponseParser:
             action_type=ActionType.NORMAL_SHOPPING,
             confidence=0.0,
             description=f"Erreur parsing VLM: {error}. Réponse brute: {response_text[:200]}...",
+            reasoning=f"Erreur de parsing: {error}",  # ✅ AJOUTÉ
             tools_used=[],
             recommendations=["Vérification manuelle urgente", "Relance analyse VLM"]
         )

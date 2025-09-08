@@ -161,6 +161,7 @@ class AnalysisResponse(BaseModel):
     action_type: ActionType
     confidence: float = Field(..., ge=0.0, le=1.0)
     description: str
+    reasoning: str = Field(default="", description="Processus de raisonnement du modèle")
     tools_used: List[str] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.now)

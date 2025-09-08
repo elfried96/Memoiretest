@@ -50,10 +50,10 @@ class VLMModelRegistry:
             processor_class="AutoProcessor",
             model_class="AutoModelForVision2Seq", 
             default_params={
-                "max_new_tokens": 512,
-                "temperature": 0.8,  # Recommandé pour Thinking
+                "max_new_tokens": 50,  # ✅ SURVEILLANCE TEMPS RÉEL
+                "temperature": 0.8,    # ✅ Doc officielle Kimi Thinking  
                 "do_sample": True,
-                "use_cache": False  # Fix DynamicCache error
+                "use_cache": True      # ✅ ACTIVER cache pour performance 2025
             },
             description="NOUVEAU - Kimi-VL 2506 avec meilleurs vision/reasoning/agent (fix erreurs cache)"
         )

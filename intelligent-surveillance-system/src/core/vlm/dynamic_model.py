@@ -168,8 +168,7 @@ class DynamicVisionLanguageModel:
                 return True
             else:
                 logger.error(f"❌ Échec chargement {model_id}")
-                if enable_fallback and self.enable_fallback:
-                    return await self._load_fallback_model(exclude_models=[model_id])
+                logger.error("❌ Modèle requis indisponible - arrêt selon standards 2025")
                 return False
                 
         except Exception as e:

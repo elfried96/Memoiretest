@@ -160,12 +160,17 @@ class HeadlessSurveillanceSystem:
         if self.vlm_enabled:
             # Chargement du VLM
             logger.info(f"⏳ Chargement {self.vlm_model}...")
-            vlm_loaded = await self.vlm.load_model()
-            
-            if vlm_loaded:
-                logger.info(f"✅ {self.vlm_model} chargé avec succès")
-            else:
-                logger.warning("⚠️ VLM principal échec, fallback activé")
+            try:
+                vlm_loaded = await self.vlm.load_model()
+                
+                if vlm_loaded:
+                    logger.info(f"✅ {self.vlm_model} chargé avec succès")
+                else:
+                    logger.warning("⚠️ VLM principal échec, fallback activé")
+                    self.vlm_enabled = False  # Désactive VLM pour éviter les crashes
+            except Exception as e:
+                logger.error(f"❌ Erreur critique VLM: {e}")
+                self.vlm_enabled = False  # Désactive VLM complètement
         
         # Test des composants
         logger.info("🔍 Tests des composants...")
@@ -176,9 +181,13 @@ class HeadlessSurveillanceSystem:
         logger.info(f"✅ YOLO opérationnel - {len(test_detections)} détections test")
         
         if self.vlm_enabled:
-            # Statut complet
-            status = await self.orchestrator.health_check()
-            logger.info(f"📊 Health check: {status}")
+            # Statut complet seulement si VLM disponible
+            try:
+                status = await self.orchestrator.health_check()
+                logger.info(f"📊 Health check: {status}")
+            except Exception as e:
+                logger.warning(f"⚠️ Health check échoué: {e}")
+                self.vlm_enabled = False
         
         logger.info("🎯 Système prêt pour surveillance headless!")
     

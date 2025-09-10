@@ -708,12 +708,15 @@ class QwenOnlySurveillanceSystem:
     def _serialize_result(self, result):
         """Sérialise un résultat en évitant les erreurs JSON."""
         import datetime
+        from pydantic import BaseModel
         
         def serialize_value(value):
             if hasattr(value, 'value'):
                 return value.value
             elif isinstance(value, datetime.datetime):
                 return value.isoformat()
+            elif isinstance(value, BaseModel):
+                return serialize_value(value.dict())
             elif isinstance(value, dict):
                 return {k: serialize_value(v) for k, v in value.items()}
             elif isinstance(value, list):
@@ -722,7 +725,12 @@ class QwenOnlySurveillanceSystem:
                 return value
         
         try:
-            result_dict = asdict(result)
+            # Si c'est un objet Pydantic, utiliser .dict()
+            if isinstance(result, BaseModel):
+                result_dict = result.dict()
+            else:
+                # Sinon, essayer asdict() pour les dataclasses
+                result_dict = asdict(result)
             return {key: serialize_value(value) for key, value in result_dict.items()}
         except Exception as e:
             return {
@@ -734,7 +742,7 @@ class QwenOnlySurveillanceSystem:
                 "actions_taken": getattr(result, 'actions_taken', []),
                 "processing_time": getattr(result, 'processing_time', 0),
                 "vlm_analysis": None,
-                "model_used": "qwen2-vl-72b-ONLY"
+                "model_used": "qwen2-vl-7b-ONLY"
             }
     
     def save_results_to_json(self):

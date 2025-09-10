@@ -5,6 +5,7 @@ from typing import Dict, List, Optional, Any
 import torch
 from PIL import Image
 import base64
+import json
 from io import BytesIO
 from loguru import logger
 
@@ -468,8 +469,24 @@ class DynamicVisionLanguageModel:
             # Qwen2-VL excelle avec des instructions précises
             base_prompt += "\n\nSois précis et factuel dans ton analyse. Justifie chaque conclusion."
         
-        # FORCAGE JSON STRICT pour tous modèles (documentation 2025)
-        base_prompt += """\n\n⚠️ IMPORTANT: Réponds UNIQUEMENT en JSON valide avec cette structure EXACTE:
+        # FORCAGE JSON STRICT RENFORCÉ pour Qwen2-VL (très strict)
+        if self.current_config and self.current_config.model_type == VLMModelType.QWEN:
+            base_prompt += """\n\n🚨 RÉPONSE OBLIGATOIRE EN JSON UNIQUEMENT 🚨
+Tu DOIS répondre SEULEMENT avec ce JSON (aucun autre texte):
+
+{
+  "suspicion_level": "low",
+  "action_type": "normal_shopping",
+  "confidence": 0.85,
+  "description": "Description détaillée de ce qui est observé dans l'image",
+  "reasoning": "Mon processus de raisonnement pour cette analyse",
+  "recommendations": ["Action recommandée 1", "Action recommandée 2"]
+}
+
+STRICT: Commence directement par { et termine par }. Aucun texte avant/après."""
+        else:
+            # Pour autres modèles (Kimi-VL)
+            base_prompt += """\n\n⚠️ IMPORTANT: Réponds UNIQUEMENT en JSON valide avec cette structure EXACTE:
 ```json
 {
   "suspicion_level": "low|medium|high",
@@ -612,17 +629,83 @@ class DynamicVisionLanguageModel:
             generated_text = self.processor.batch_decode(generated_ids, skip_special_tokens=True)[0]
             logger.debug(f"Décodage terminé, longueur: {len(generated_text)}")
             
-            # Extraction de la réponse
+            # Extraction de la réponse avec nettoyage spécial Qwen2-VL
             if prompt in generated_text:
                 response = generated_text.split(prompt)[-1].strip()
             else:
                 response = generated_text.strip()
+            
+            # Post-processing spécial pour Qwen2-VL (extract JSON)
+            if self.current_config and self.current_config.model_type == VLMModelType.QWEN:
+                response = self._extract_json_from_qwen_response(response)
             
             return response
             
         except Exception as e:
             logger.error(f"Erreur génération {self.current_model_id}: {e}")
             raise ProcessingError(f"Génération échouée: {e}")
+    
+    def _extract_json_from_qwen_response(self, response: str) -> str:
+        """Extrait le JSON de la réponse Qwen2-VL qui peut contenir du texte supplémentaire."""
+        import re
+        import json
+        
+        try:
+            # Chercher un JSON valide dans la réponse
+            # Pattern pour trouver du JSON entre accolades
+            json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+            matches = re.findall(json_pattern, response, re.DOTALL)
+            
+            for match in matches:
+                try:
+                    # Tester si c'est un JSON valide
+                    parsed = json.loads(match)
+                    # Vérifier qu'il contient les champs requis
+                    if 'suspicion_level' in parsed and 'action_type' in parsed:
+                        logger.debug(f"JSON extrait avec succès de la réponse Qwen2-VL")
+                        return match
+                except json.JSONDecodeError:
+                    continue
+            
+            # Si aucun JSON valide trouvé, essayer d'en construire un à partir du texte
+            logger.warning("Aucun JSON valide trouvé, construction depuis texte")
+            return self._construct_json_from_text(response)
+            
+        except Exception as e:
+            logger.error(f"Erreur extraction JSON: {e}")
+            return response  # Retourner la réponse originale
+    
+    def _construct_json_from_text(self, text: str) -> str:
+        """Construit un JSON valide à partir du texte libre de Qwen2-VL."""
+        try:
+            # JSON par défaut avec analyse heuristique du texte
+            default_json = {
+                "suspicion_level": "low",
+                "action_type": "normal_shopping",
+                "confidence": 0.5,
+                "description": text[:200] + "..." if len(text) > 200 else text,
+                "reasoning": "Analyse heuristique du texte généré",
+                "recommendations": ["Analyse manuelle recommandée"]
+            }
+            
+            # Améliorer l'analyse heuristique
+            text_lower = text.lower()
+            if any(word in text_lower for word in ['suspect', 'vol', 'dissimul', 'suspicious', 'theft']):
+                default_json["suspicion_level"] = "medium"
+                default_json["action_type"] = "suspicious_movement"
+                default_json["confidence"] = 0.6
+            
+            if any(word in text_lower for word in ['sac', 'bag', 'poche', 'pocket', 'cach', 'hidden']):
+                default_json["suspicion_level"] = "high"
+                default_json["action_type"] = "potential_theft"
+                default_json["confidence"] = 0.8
+            
+            return json.dumps(default_json, ensure_ascii=False)
+            
+        except Exception as e:
+            logger.error(f"Erreur construction JSON: {e}")
+            # JSON minimal en cas d'erreur totale
+            return '{"suspicion_level": "low", "action_type": "normal_shopping", "confidence": 0.0, "description": "Erreur analyse", "reasoning": "Erreur parsing", "recommendations": ["Verification manuelle"]}'
     
     def _prepare_image(self, image_data: str) -> Image.Image:
         """Préparation de l'image."""

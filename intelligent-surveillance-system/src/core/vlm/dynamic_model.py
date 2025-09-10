@@ -555,7 +555,7 @@ class DynamicVisionLanguageModel:
                     "temperature": 0.8,     # ✅ Doc officielle: 0.8 pour Thinking models  
                     "do_sample": True,      # ✅ Nécessaire avec temperature
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
-                    "use_cache": True,      # ✅ ACTIVER cache pour performance (fix erreur)
+                    "use_cache": False,      # ❌ DÉSACTIVER cache pour éviter DynamicCache bug (transformers >= 4.55)
                     "return_dict_in_generate": False,
                     "output_attentions": False,
                     "output_hidden_states": False
@@ -567,7 +567,7 @@ class DynamicVisionLanguageModel:
                     "temperature": 0.1,     # ✅ Stable pour Qwen2-VL
                     "do_sample": True,
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
-                    "use_cache": True,      # ✅ ACTIVER cache pour performance
+                    "use_cache": False,      # ❌ DÉSACTIVER cache pour éviter DynamicCache bug (transformers >= 4.55)
                     "return_dict_in_generate": False,  # Simplifier retour
                     "output_attentions": False,
                     "output_hidden_states": False
@@ -589,7 +589,7 @@ class DynamicVisionLanguageModel:
                         "do_sample": False,  # Greedy decoding
                         "num_beams": 1,
                         "early_stopping": True,
-                        "use_cache": True,   # ✅ ACTIVER cache pour performance
+                        "use_cache": False,   # ❌ DÉSACTIVER cache pour éviter DynamicCache bug (transformers >= 4.55)
                         "return_dict_in_generate": False,
                         "output_attentions": False,
                         "output_hidden_states": False
@@ -852,7 +852,7 @@ DIRECTIVE: Utilise les outils pertinents puis fournis ton analyse finale."""
                 "max_new_tokens": 1024,  # Plus de tokens pour tool calls
                 "temperature": 0.7,  # Optimisé pour tool calling 2025
                 "do_sample": True,
-                "use_cache": True,   # ✅ ACTIVER cache pour performance 2025
+                "use_cache": False,   # ❌ DÉSACTIVER cache pour éviter DynamicCache bug (transformers >= 4.55)
                 "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
                 "return_dict_in_generate": False,
                 "output_attentions": False,

@@ -716,7 +716,7 @@ class QwenOnlySurveillanceSystem:
             elif isinstance(value, datetime.datetime):
                 return value.isoformat()
             elif isinstance(value, BaseModel):
-                return serialize_value(value.dict())
+                return serialize_value(value.model_dump())
             elif isinstance(value, dict):
                 return {k: serialize_value(v) for k, v in value.items()}
             elif isinstance(value, list):
@@ -725,9 +725,9 @@ class QwenOnlySurveillanceSystem:
                 return value
         
         try:
-            # Si c'est un objet Pydantic, utiliser .dict()
+            # Si c'est un objet Pydantic, utiliser .model_dump()
             if isinstance(result, BaseModel):
-                result_dict = result.dict()
+                result_dict = result.model_dump()
             else:
                 # Sinon, essayer asdict() pour les dataclasses
                 result_dict = asdict(result)

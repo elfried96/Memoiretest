@@ -596,6 +596,68 @@ class TemporalTransformer:
             'sequence_length': len(sequence)
         }
     
+    def analyze_sequence(self, sequence_data: List[float], sequence_type: str = "behavior") -> Dict[str, Any]:
+        """Analyze a simple sequence of numeric data (compatibility method)."""
+        try:
+            # Convertir les données en numpy array
+            data_array = np.array(sequence_data)
+            
+            if len(data_array) < 3:
+                return {
+                    "patterns": ["insufficient_data"],
+                    "anomaly_score": 0.0,
+                    "consistency": 0.5,
+                    "confidence": 0.1
+                }
+            
+            # Analyse statistique simple
+            mean_val = np.mean(data_array)
+            std_val = np.std(data_array)
+            trend = np.polyfit(range(len(data_array)), data_array, 1)[0] if len(data_array) > 2 else 0.0
+            
+            # Détection d'anomalies
+            z_scores = np.abs((data_array - mean_val) / (std_val + 1e-8))
+            anomaly_score = np.mean(z_scores > 2.0)
+            
+            # Consistance basée sur la variance
+            consistency = 1.0 / (1.0 + std_val) if std_val > 0 else 1.0
+            
+            # Détection de patterns
+            patterns = []
+            if abs(trend) < 0.01:
+                patterns.append("stable_normal")
+            elif trend > 0.05:
+                patterns.append("gradual_increase")
+            elif trend < -0.05:
+                patterns.append("gradual_decrease")
+                
+            # Détection de spikes
+            if len(data_array) > 2 and np.any(np.diff(data_array) > std_val * 2):
+                patterns.append("sudden_spike")
+            
+            if not patterns:
+                patterns = ["unknown_pattern"]
+            
+            confidence = consistency * (1 - anomaly_score)
+            
+            return {
+                "patterns": patterns,
+                "anomaly_score": float(anomaly_score),
+                "consistency": float(consistency),
+                "confidence": float(confidence),
+                "trend": float(trend),
+                "sequence_type": sequence_type
+            }
+            
+        except Exception as e:
+            logger.error(f"Error in analyze_sequence: {e}")
+            return {
+                "patterns": ["analysis_error"],
+                "anomaly_score": 0.5,
+                "consistency": 0.0,
+                "confidence": 0.0
+            }
+
     def cleanup_old_sequences(self, max_age_seconds: int = 300):
         """Clean up old temporal sequences."""
         current_time = time.time()

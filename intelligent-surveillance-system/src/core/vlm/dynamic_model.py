@@ -189,7 +189,7 @@ class DynamicVisionLanguageModel:
                 torch_dtype = getattr(torch, torch_dtype_str, torch.float16)
                 
             model_kwargs = {
-                "torch_dtype": torch_dtype,
+                "dtype": torch_dtype,  # Nouveau format transformers (torch_dtype déprécié)
                 "device_map": config.default_params.get("device_map", "auto")
             }
             
@@ -551,7 +551,7 @@ class DynamicVisionLanguageModel:
             if self.current_config and self.current_config.model_type == VLMModelType.KIMI_VL:
                 # Paramètres Kimi-VL OPTIMISÉS 2025 (doc Moonshot officielle)
                 gen_params = {
-                    "max_new_tokens": 50,   # ✅ RÉDUIT DRASTIQUEMENT pour surveillance temps réel
+                    "max_new_tokens": 300,   # ✅ AUGMENTÉ pour JSON complet Kimi-VL
                     "temperature": 0.8,     # ✅ Doc officielle: 0.8 pour Thinking models  
                     "do_sample": True,      # ✅ Nécessaire avec temperature
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
@@ -563,7 +563,7 @@ class DynamicVisionLanguageModel:
             else:
                 # Paramètres Qwen2-VL OPTIMISÉS 2025 (doc Alibaba officielle)
                 gen_params = {
-                    "max_new_tokens": 100,  # ✅ RÉDUIT de 512 → 100 pour surveillance
+                    "max_new_tokens": 300,  # ✅ AUGMENTÉ pour JSON complet
                     "temperature": 0.1,     # ✅ Stable pour Qwen2-VL
                     "do_sample": True,
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
@@ -585,7 +585,7 @@ class DynamicVisionLanguageModel:
                     
                     # Paramètres ultra-sécurisés pour éviter DynamicCache
                     safe_params = {
-                        "max_new_tokens": 128,
+                        "max_new_tokens": 300,
                         "do_sample": False,  # Greedy decoding
                         "num_beams": 1,
                         "early_stopping": True,

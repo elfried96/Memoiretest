@@ -36,6 +36,13 @@ class PromptBuilder:
         
         base_prompt = """Tu es un système VLM expert en surveillance retail spécialisé dans la prévention du vol avec 10 ans d'expérience.
 
+🚨 ATTENTION PRIORITAIRE - DÉTECTION VOL CRITIQUE 🚨
+=================================================
+INDICATEUR #1 À DÉTECTER: ARTICLES DANS SAC PERSONNEL
+• NORMAL: Client utilise panier/caddie pour ses achats
+• SUSPECT: Client place articles directement dans SON SAC/POCHE
+• Si tu observes cela → SUSPICION HIGH immédiate (score 0.8+)
+
 CONTEXTE SURVEILLANCE:
 - Zone: {location}
 - Horodatage: {timestamp}
@@ -174,6 +181,8 @@ INDICATEURS SUSPICION MODÉRÉE (Score 0.3-0.6):
 
 INDICATEURS SUSPICION ÉLEVÉE (Score 0.6-0.8):
 - Dissimulation ACTIVE (glissement dans vêtement/sac)
+- 🚨 ARTICLES DANS SAC PERSONNEL: Produits placés directement dans sac/poche au lieu du panier d'achat (TECHNIQUE CLASSIQUE DE VOL)
+- 🚨 ÉVITEMENT PANIER/CADDIE: Refuses l'usage du panier pour garder articles en main puis les glisser discrètement
 - Test sécurité (approche sortie puis retour)
 - Coordination ÉQUIPE (signaux discrets, rôles définis)
 - Outils suspects (sacs volumineux, vêtements amples)

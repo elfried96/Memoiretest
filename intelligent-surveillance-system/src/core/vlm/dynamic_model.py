@@ -64,7 +64,7 @@ class DynamicVisionLanguageModel:
     
     def __init__(
         self,
-        default_model: str = "kimi-vl-a3b-thinking",
+        default_model: str = "Qwen/Qwen2.5-VL-32B-Instruct",
         device: str = "auto", 
         enable_fallback: bool = True
     ):

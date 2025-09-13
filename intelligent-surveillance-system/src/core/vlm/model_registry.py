@@ -142,11 +142,11 @@ class VLMModelRegistry:
         }
     
     def get_recommended_model(self, use_case: str = "surveillance") -> str:
-        """Récupère le modèle recommandé - SIMPLIFIÉ: Kimi-VL-Thinking pour TOUT."""
+        """Récupère le modèle recommandé - QWEN 2.5 32B comme principal."""
         
-        # Architecture simplifiée: Kimi-VL-Thinking pour tous les cas d'usage
-        # Fallback automatique vers Qwen2-VL si nécessaire
-        return "kimi-vl-a3b-thinking"
+        # Architecture mise à jour: Qwen2.5-VL-32B comme modèle principal
+        # Fallback automatique vers Qwen2-VL 7B si nécessaire
+        return "qwen2.5-vl-32b-instruct"
     
     def validate_model_availability(self, model_id: str) -> Tuple[bool, str]:
         """Valide la disponibilité d'un modèle."""
@@ -182,12 +182,12 @@ class VLMModelRegistry:
         """Retourne les recommandations - SIMPLIFIÉ: Architecture dual-VLM."""
         
         return {
-            "surveillance": "kimi-vl-a3b-thinking",    # Principal pour TOUT
-            "thinking": "kimi-vl-a3b-thinking",       # Principal pour TOUT
-            "high_performance": "kimi-vl-a3b-thinking", # Principal pour TOUT
-            "reasoning": "kimi-vl-a3b-thinking",      # Principal pour TOUT
-            "fallback": "qwen2-vl-7b-instruct",      # Fallback uniquement
-            "default": "kimi-vl-a3b-thinking"         # Principal par défaut
+            "surveillance": "qwen2.5-vl-32b-instruct",    # Principal Qwen2.5 32B
+            "thinking": "qwen2.5-vl-32b-instruct",       # Principal Qwen2.5 32B
+            "high_performance": "qwen2.5-vl-32b-instruct", # Principal Qwen2.5 32B
+            "reasoning": "qwen2.5-vl-32b-instruct",      # Principal Qwen2.5 32B
+            "fallback": "qwen2-vl-7b-instruct",          # Fallback Qwen 7B
+            "default": "qwen2.5-vl-32b-instruct"         # Principal par défaut
         }
     
     def get_model_comparison(self) -> Dict[str, Any]:

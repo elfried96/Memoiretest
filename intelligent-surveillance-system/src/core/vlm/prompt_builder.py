@@ -340,7 +340,7 @@ FORMAT RÉPONSE JSON:
     "suspicion_level": "LOW|MEDIUM|HIGH|CRITICAL",
     "suspicion_score": 0.25,
     "action_type": "normal_shopping|suspicious_movement|item_concealment|potential_theft|confirmed_theft|analysis_incomplete",
-    "confidence": 0.85,
+    "confidence": 0.85b,
     "description": "Description factuelle et objective des observations",
     "reasoning": "Justification calibrée du niveau de suspicion",
     "evidence_strength": "weak|moderate|strong",

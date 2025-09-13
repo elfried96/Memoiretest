@@ -1,0 +1,67 @@
+# Dashboard Streamlit - Surveillance Intelligente
+# ==============================================
+
+# Interface utilisateur
+streamlit>=1.30.0
+streamlit-option-menu>=0.3.6
+streamlit-components-v1>=0.10.0
+
+# Traitement vidéo et images
+opencv-python>=4.8.0
+opencv-python-headless>=4.8.0
+Pillow>=10.0.0
+imageio>=2.31.1
+imageio-ffmpeg>=0.4.8
+
+# Calcul scientifique
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.10.0
+
+# Visualisation
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+bokeh>=3.2.0
+
+# Machine Learning (optionnel pour simulation)
+scikit-learn>=1.3.0
+torch>=2.0.0
+torchvision>=0.15.0
+transformers>=4.30.0
+
+# Audio (pour les alertes)
+sounddevice>=0.4.6
+soundfile>=0.12.1
+playsound>=1.3.0
+
+# Utilitaires
+loguru>=0.7.0
+python-dateutil>=2.8.2
+psutil>=5.9.0
+requests>=2.31.0
+
+# Interface système
+rich>=13.0.0
+typer>=0.9.0
+
+# Formats de données
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+dataclasses-json>=0.6.0
+
+# Base de données (optionnel)
+sqlite3  # Inclus dans Python
+sqlalchemy>=2.0.0
+
+# Tests (développement)
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-mock>=3.11.0
+
+# Monitoring
+prometheus-client>=0.17.0
+
+# Sécurité
+cryptography>=41.0.0
+bcrypt>=4.0.0

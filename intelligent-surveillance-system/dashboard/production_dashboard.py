@@ -25,6 +25,13 @@ import tempfile
 import os
 import asyncio
 
+# Import contexte vidéo
+from video_context_integration import (
+    VideoContextMetadata, 
+    create_video_metadata_from_form,
+    get_video_context_integration
+)
+
 # Configuration de la page
 st.set_page_config(
     page_title="🔒 Surveillance Intelligente - Production",
@@ -43,6 +50,7 @@ try:
         is_real_pipeline_available
     )
     from camera_manager import CameraConfig, MultiCameraManager, FrameData
+    from vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
     PIPELINE_AVAILABLE = True
 except ImportError as e:
     st.error(f"❌ Impossible d'importer la pipeline VLM: {e}")
@@ -505,8 +513,9 @@ def render_integrated_chat(chat_type: str, context_data: Dict = None):
             'timestamp': datetime.now()
         })
         
-        # Générer réponse avec vraies données VLM
-        ai_response = generate_real_vlm_response(message_to_send, chat_type, context_data)
+        # Générer réponse avec VLM thinking/reasoning
+        with st.spinner("🧠 Analyse VLM avec thinking..."):
+            ai_response = asyncio.run(generate_real_vlm_response(message_to_send, chat_type, context_data))
         
         st.session_state[chat_key].append({
             'role': 'assistant',
@@ -516,79 +525,63 @@ def render_integrated_chat(chat_type: str, context_data: Dict = None):
         
         st.rerun()
 
-def generate_real_vlm_response(question: str, chat_type: str, context_data: Dict) -> str:
-    """Génère une réponse basée sur les vraies données VLM."""
+async def generate_real_vlm_response(question: str, chat_type: str, context_data: Dict) -> str:
+    """Génère une réponse VLM intelligente avec thinking/reasoning."""
     
-    question_lower = question.lower()
+    if not PIPELINE_AVAILABLE:
+        return "🤖 Pipeline VLM non disponible - Mode simulation basique."
     
-    # Récupération des vraies données si pipeline active
-    real_data = {}
+    # Récupération des vraies données pour contexte VLM
+    vlm_context = {}
     if st.session_state.pipeline_initialized and st.session_state.real_pipeline:
-        real_data = {
+        vlm_context = {
             'stats': st.session_state.real_pipeline.get_performance_stats(),
             'tools': st.session_state.real_pipeline.get_tool_performance_details(),
-            'detections': st.session_state.real_detections[-10:],  # 10 dernières
-            'optimizations': st.session_state.optimization_results[-5:]  # 5 dernières
+            'detections': st.session_state.real_detections[-10:],
+            'optimizations': st.session_state.optimization_results[-5:],
+            'alerts': st.session_state.real_alerts[-5:]
         }
     
-    if chat_type == "surveillance":
-        if "outil" in question_lower or "tool" in question_lower:
-            if real_data.get('stats'):
-                optimal_tools = real_data['stats'].get('current_optimal_tools', [])
-                tool_usage = real_data['stats'].get('tool_usage_stats', {})
-                
-                if optimal_tools:
-                    usage_text = ", ".join([f"{tool}: {tool_usage.get(tool, 0)} fois" for tool in optimal_tools[:3]])
-                    return f"🛠️ Outils optimaux actuels: {', '.join(optimal_tools)}. Utilisation: {usage_text}. Performance moyenne: {real_data['stats'].get('current_performance_score', 0):.2f}"
-                else:
-                    return "🛠️ Optimisation des outils en cours. Aucune configuration optimale stabilisée pour le moment."
-            return "🛠️ Pipeline non active. Impossible d'analyser les performances des outils en temps réel."
+    try:
+        # 🧠 APPEL VLM CHATBOT AVEC THINKING/REASONING
+        response_data = await process_vlm_chat_query(
+            question=question,
+            chat_type=chat_type, 
+            vlm_context=vlm_context
+        )
         
-        elif "performance" in question_lower or "score" in question_lower:
-            if real_data.get('stats'):
-                stats = real_data['stats']
-                return f"📊 Performance pipeline: {stats.get('frames_processed', 0)} frames traitées, temps moyen {stats.get('average_processing_time', 0):.2f}s, score actuel {stats.get('current_performance_score', 0):.2f}, {stats.get('total_detections', 0)} détections totales."
-            return "📊 Aucune métrique de performance disponible - Pipeline non initialisée."
-        
-        elif "optimisation" in question_lower or "optimization" in question_lower:
-            if real_data.get('optimizations'):
-                latest_opt = real_data['optimizations'][-1]
-                best_combo = latest_opt.get('best_combination', [])
-                improvement = latest_opt.get('performance_improvement', 0)
-                return f"🎯 Dernière optimisation: Meilleure combinaison {', '.join(best_combo[:3])}. Amélioration performance: +{improvement:.1%}. Cycles d'optimisation: {real_data['stats'].get('optimization_cycles', 0)}"
-            return "🎯 Système d'optimisation adaptative en cours d'apprentissage. Premières recommandations en attente."
-        
-        elif "détection" in question_lower or "detection" in question_lower:
-            if real_data.get('detections'):
-                recent_detections = real_data['detections']
-                high_confidence = [d for d in recent_detections if d.confidence > 0.8]
-                tools_count = len(set([tool for d in recent_detections for tool in d.tools_used]))
-                return f"🔍 Détections récentes: {len(recent_detections)} analyses, {len(high_confidence)} haute confiance, {tools_count} outils distincts utilisés. Dernière analyse: {recent_detections[-1].description if recent_detections else 'N/A'}"
-            return "🔍 Aucune détection VLM récente disponible."
-        
-        else:
-            frames_processed = real_data.get('stats', {}).get('frames_processed', 0)
-            return f"🔬 Système VLM {'actif' if st.session_state.pipeline_initialized else 'inactif'}: {frames_processed} frames analysées avec pipeline adaptative. 8 outils avancés disponibles."
-    
-    elif chat_type == "video":
-        if "outil" in question_lower and real_data.get('tools'):
-            available_tools = real_data['tools'].get('available_tools', [])
-            usage_stats = real_data['tools'].get('tool_usage_stats', {})
-            top_tools = sorted(usage_stats.items(), key=lambda x: x[1], reverse=True)[:3]
+        # Formatage pour interface chat Streamlit
+        if response_data.get("type") == "vlm_thinking":
+            # Réponse VLM complète avec thinking
+            response_text = f"""🧠 **Analyse VLM avec Thinking:**
+
+**💭 Processus de Raisonnement:**
+{response_data.get('thinking', 'Thinking non disponible')[:300]}...
+
+**📊 Analyse Technique:**
+{response_data.get('analysis', 'Analyse non disponible')[:200]}...
+
+**🎯 Réponse:**
+{response_data.get('response', 'Réponse non disponible')}
+
+**🔧 Détails Techniques:**
+{response_data.get('technical_details', 'Détails non disponibles')}
+
+**💡 Recommandations:**
+{' | '.join(response_data.get('recommendations', [])[:3])}
+
+**📈 Confiance:** {response_data.get('confidence', 0):.1%} | **📊 Qualité Données:** {response_data.get('data_quality', 'medium')}"""
             
-            return f"🎥 Analyse vidéo: {len(available_tools)} outils disponibles. Top 3 utilisés: {', '.join([f'{tool} ({count})' for tool, count in top_tools])}. Optimisation adaptative active."
-        
-        elif "performance" in question_lower or "confiance" in question_lower:
-            if st.session_state.video_analysis_results:
-                last_analysis = list(st.session_state.video_analysis_results.values())[-1]
-                avg_confidence = np.mean([d.get('confidence', 0) for d in last_analysis.get('detections', [])])
-                return f"📊 Dernière analyse vidéo: Confiance moyenne {avg_confidence:.1%}, {len(last_analysis.get('detections', []))} détections, outils utilisés: {', '.join(last_analysis.get('tools_used', [])[:3])}"
-            return "📊 Aucune analyse vidéo récente pour évaluer les performances."
-        
+            return response_text
+            
         else:
-            return f"🎥 Système d'analyse vidéo VLM: Pipeline {'active' if st.session_state.pipeline_initialized else 'simulation'}, {len(st.session_state.uploaded_videos)} vidéos traitées, optimisation adaptative {'activée' if real_data else 'en attente'}."
-    
-    return "🤖 Réponse générée par l'IA de surveillance VLM avec pipeline adaptative."
+            # Fallback ou réponse basique
+            return response_data.get("response", "🤖 Réponse VLM générée.")
+            
+    except Exception as e:
+        # Fallback sur ancien système si erreur VLM
+        logger.error(f"Erreur chatbot VLM: {e}")
+        return f"⚠️ Erreur VLM chatbot: {str(e)}. Utilisant fallback basique."
 
 def render_surveillance_tab():
     """Onglet surveillance avec vraie intégration VLM."""
@@ -678,8 +671,8 @@ def render_video_upload_tab():
     # Statut pipeline
     render_pipeline_status()
     
-    # Section d'upload
-    st.markdown("### 📤 Upload de Vidéo")
+    # Section d'upload avec description
+    st.markdown("### 📤 Upload de Vidéo avec Description")
     
     uploaded_file = st.file_uploader(
         "Sélectionnez une vidéo à analyser avec VLM",
@@ -687,15 +680,99 @@ def render_video_upload_tab():
         help="La vidéo sera analysée avec la pipeline VLM complète (8 outils avancés)"
     )
     
+    # Formulaire de description enrichi
+    st.markdown("### 📝 Description et Contexte Vidéo")
+    
     col1, col2 = st.columns(2)
+    
     with col1:
-        analysis_mode = st.selectbox(
-            "Mode d'analyse VLM",
-            ["Optimisation adaptative", "Tous les outils", "Outils sélectionnés", "Performance maximale"]
+        video_title = st.text_input(
+            "Titre/Nom de la vidéo",
+            placeholder="Ex: Surveillance magasin - Caisse principale - 14h-16h",
+            help="Nom descriptif pour identifier cette analyse"
+        )
+        
+        video_location = st.selectbox(
+            "Lieu de surveillance",
+            ["Magasin/Commerce", "Entrepôt", "Bureau", "Parking", "Zone industrielle", 
+             "Espace public", "Résidentiel", "Transport", "Autre"],
+            help="Type d'environnement surveillé"
+        )
+        
+        video_time_context = st.selectbox(
+            "Contexte temporel",
+            ["Heures ouverture", "Heures affluence", "Heures creuses", "Nuit/Fermeture",
+             "Weekend", "Jour férié", "Événement spécial", "Période de crise", "Non spécifié"],
+            help="Contexte temporal pour adapter l'analyse"
         )
     
     with col2:
-        confidence_threshold = st.slider("Seuil de confiance VLM", 0.1, 1.0, 0.7)
+        expected_activity = st.multiselect(
+            "Activités attendues (normales)",
+            ["Clients shopping", "Personnel travail", "Livraisons", "Nettoyage", 
+             "Maintenance", "Circulation véhicules", "Activités bureau", "Surveillance"],
+            help="Activités considérées comme normales dans ce contexte"
+        )
+        
+        suspicious_focus = st.multiselect(
+            "Focus surveillance (à détecter)",
+            ["Vol à l'étalage", "Intrusion", "Comportements agressifs", "Objets abandonnés",
+             "Accès non autorisé", "Vandalisme", "Activités inhabituelles", "Mouvements suspects"],
+            help="Types de comportements suspects à prioriser"
+        )
+        
+        camera_angle = st.selectbox(
+            "Angle/Position caméra",
+            ["Vue plongeante", "Vue niveau", "Vue latérale", "Vue face", "Vue multi-angles", "Non spécifié"],
+            help="Perspective de la caméra pour optimiser l'analyse"
+        )
+    
+    # Description libre détaillée
+    video_description = st.text_area(
+        "Description détaillée du contexte",
+        placeholder="""Décrivez le contexte spécifique de cette vidéo:
+        
+• Situation particulière ou événements en cours
+• Éléments d'environnement importants (layout, éclairage, foule)  
+• Comportements spécifiques à surveiller
+• Informations techniques (résolution, qualité, conditions)
+• Objectifs d'analyse particuliers
+• Contraintes ou défis attendus
+
+Cette description aidera le VLM à mieux contextualiser son analyse...""",
+        height=150,
+        help="Description libre pour contextualiser l'analyse VLM"
+    )
+    
+    # Configuration analyse avancée
+    st.markdown("### ⚙️ Configuration Analyse VLM")
+    
+    col3, col4 = st.columns(2)
+    with col3:
+        analysis_mode = st.selectbox(
+            "Mode d'analyse VLM",
+            ["Optimisation adaptative", "Tous les outils", "Outils sélectionnés", "Performance maximale"],
+            help="Stratégie d'analyse selon contexte et ressources"
+        )
+        
+        confidence_threshold = st.slider(
+            "Seuil de confiance VLM", 
+            0.1, 1.0, 0.7,
+            help="Niveau de confiance minimum pour les détections"
+        )
+    
+    with col4:
+        analysis_priority = st.selectbox(
+            "Priorité analyse",
+            ["Précision maximale", "Vitesse optimisée", "Équilibré", "Économie ressources"],
+            help="Compromis vitesse/précision selon urgence"
+        )
+        
+        frame_sampling = st.selectbox(
+            "Échantillonnage frames",
+            ["Dense (toutes frames)", "Standard (1/2 frames)", "Rapide (1/5 frames)", "Clés seulement"],
+            help="Densité d'analyse selon durée vidéo"
+        )
     
     # Sélection d'outils spécifiques
     if analysis_mode == "Outils sélectionnés":
@@ -726,13 +803,43 @@ def render_video_upload_tab():
         analyze_button_text = "🔬 Analyser avec Pipeline VLM" if st.session_state.pipeline_initialized else "🔬 Analyser (Mode Simulation)"
         
         if st.button(analyze_button_text, type="primary"):
-            with st.spinner("🔬 Analyse VLM en cours..."):
+            # Validation formulaire
+            if not video_title.strip():
+                st.error("⚠️ Veuillez saisir un titre pour la vidéo")
+                return
+            
+            # Construction métadonnées enrichies pour VLM avec VideoContextMetadata
+            form_data = {
+                'title': video_title.strip(),
+                'location_type': video_location,
+                'time_context': video_time_context,
+                'expected_activities': expected_activity,
+                'suspicious_focus': suspicious_focus,
+                'camera_angle': camera_angle,
+                'detailed_description': video_description.strip(),
+                'analysis_priority': analysis_priority,
+                'frame_sampling': frame_sampling
+            }
+            
+            # Création de l'objet VideoContextMetadata structuré
+            video_metadata_obj = create_video_metadata_from_form(form_data)
+            video_metadata = video_metadata_obj.to_dict()
+            
+            # Intégration dans le système VLM
+            context_integration = get_video_context_integration()
+            base_chat_context = {'video_analysis_mode': True, 'timestamp': datetime.now()}
+            enhanced_context = context_integration.enhance_chat_context(
+                base_chat_context, video_metadata_obj
+            )
+            
+            with st.spinner("🔬 Analyse VLM contextualisée en cours..."):
                 progress_bar = st.progress(0)
                 
-                # Simulation de traitement par frames
+                # Simulation de traitement par frames avec contexte
                 total_frames = random.randint(50, 200)
                 analysis_results = {
                     'video_name': uploaded_file.name,
+                    'video_metadata': video_metadata,  # Métadonnées enrichies
                     'analysis_mode': analysis_mode,
                     'pipeline_used': 'Real VLM Pipeline' if st.session_state.pipeline_initialized else 'Simulation',
                     'total_frames': total_frames,
@@ -741,7 +848,8 @@ def render_video_upload_tab():
                     'tool_performance': {},
                     'optimization_data': {},
                     'summary': {},
-                    'timestamp': datetime.now()
+                    'timestamp': datetime.now(),
+                    'context_used': True  # Marqueur contexte utilisé
                 }
                 
                 # Simulation du traitement frame par frame

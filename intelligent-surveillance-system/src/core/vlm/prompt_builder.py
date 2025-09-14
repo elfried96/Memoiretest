@@ -30,9 +30,15 @@ class PromptBuilder:
         self, 
         context: Dict[str, Any],
         available_tools: List[str],
-        tools_results: Dict[str, Any] = None
+        tools_results: Dict[str, Any] = None,
+        video_context_metadata: Dict[str, Any] = None
     ) -> str:
-        """Construction du prompt principal de surveillance."""
+        """Construction du prompt principal de surveillance avec contexte vidéo enrichi."""
+        
+        # Intégration contexte vidéo si disponible
+        video_context_prompt = ""
+        if video_context_metadata:
+            video_context_prompt = self._build_video_context_section(video_context_metadata)
         
         base_prompt = """Tu es un système VLM expert en surveillance retail spécialisé dans la prévention du vol avec 10 ans d'expérience.
 
@@ -42,6 +48,8 @@ INDICATEUR #1 À DÉTECTER: ARTICLES DANS SAC PERSONNEL
 • NORMAL: Client utilise panier/caddie pour ses achats
 • SUSPECT: Client place articles directement dans SON SAC/POCHE
 • Si tu observes cela → SUSPICION HIGH immédiate (score 0.8+)
+
+{video_context_section}
 
 CONTEXTE SURVEILLANCE:
 - Zone: {location}
@@ -304,7 +312,8 @@ FORMAT RÉPONSE JSON:
             previous_detections=json.dumps(context.get("previous_detections", []), indent=2),
             tools_description=tools_description,
             tools_results_section=tools_results_section,
-            json_format=json_format
+            json_format=json_format,
+            video_context_section=video_context_prompt if video_context_metadata else ""
         )
     
     def _build_tools_description(self, available_tools: List[str]) -> str:
@@ -328,6 +337,67 @@ FORMAT RÉPONSE JSON:
         
         return section
     
+    def _build_video_context_section(self, video_metadata: Dict[str, Any]) -> str:
+        """Construit la section contexte vidéo pour le prompt."""
+        if not video_metadata:
+            return ""
+        
+        context_section = f"""
+
+🎥 CONTEXTE VIDÉO SPÉCIFIQUE - INFORMATIONS UTILISATEUR:
+=====================================================
+
+📋 IDENTIFICATION VIDÉO:
+- Titre: "{video_metadata.get('title', 'Non spécifié')}"
+- Type environnement: {video_metadata.get('location_type', 'Non spécifié')}
+- Contexte temporel: {video_metadata.get('time_context', 'Non spécifié')}
+- Angle caméra: {video_metadata.get('camera_angle', 'Non spécifié')}
+
+✅ ACTIVITÉS NORMALES ATTENDUES (selon utilisateur):
+{self._format_list_for_context(video_metadata.get('expected_activities', []))}
+
+🚨 FOCUS SURVEILLANCE PRIORITAIRE (selon utilisateur):
+{self._format_list_for_context(video_metadata.get('suspicious_focus', []))}
+
+📝 DESCRIPTION DÉTAILLÉE UTILISATEUR:
+"{video_metadata.get('detailed_description', 'Aucune description fournie')}"
+
+🎯 PRIORITÉ ANALYSE: {video_metadata.get('analysis_priority', 'Standard')}
+📊 ÉCHANTILLONNAGE: {video_metadata.get('frame_sampling', 'Standard')}
+
+INSTRUCTIONS CONTEXTUALISÉES:
+=============================
+
+🔍 ADAPTATION SELON CONTEXTE UTILISATEUR:
+- Calibre tes seuils de suspicion selon le type "{video_metadata.get('location_type', 'Non spécifié')}"
+- Prends en compte le contexte "{video_metadata.get('time_context', 'Non spécifié')}" pour évaluer normalité
+- Perspective caméra "{video_metadata.get('camera_angle', 'Non spécifié')}" influence interprétation spatiale
+
+⚖️ ÉVALUATION COMPORTEMENTS CONTEXTUALISÉE:
+- NORMAUX dans ce contexte spécifique: {', '.join(video_metadata.get('expected_activities', []))}
+- SUSPECTS à prioriser: {', '.join(video_metadata.get('suspicious_focus', []))}
+- Description utilisateur doit PRIMER sur assumptions générales
+
+🎯 OBJECTIFS SPÉCIFIQUES CETTE VIDÉO:
+- Focus principal: détection patterns listés en "Focus surveillance prioritaire"
+- Ignorer ou minimiser activités normales listées sauf si vraiment suspectes
+- Adapter confiance selon qualité description utilisateur fournie
+- Corréler obligatoirement avec description détaillée fournie
+
+CALIBRAGE SUSPICION CONTEXTUEL ADAPTÉ:
+- LOW (0.0-0.3): Activité listée comme normale ET cohérente avec contexte
+- MEDIUM (0.3-0.6): Activité non listée mais cohérente avec contexte général  
+- HIGH (0.6-0.8): Comportement incohérent avec contexte OU focus surveillance détecté
+- CRITICAL (0.8-1.0): Focus surveillance confirmé ET description utilisateur validée
+"""
+        return context_section
+
+    def _format_list_for_context(self, items: list) -> str:
+        """Formate une liste pour inclusion dans le contexte."""
+        if not items:
+            return "Aucun élément spécifié par l'utilisateur"
+        return f"[{', '.join(str(item) for item in items)}]"
+
     def _get_json_format(self) -> str:
         """Format JSON attendu pour la réponse."""
         return """{
@@ -340,7 +410,7 @@ FORMAT RÉPONSE JSON:
     "suspicion_level": "LOW|MEDIUM|HIGH|CRITICAL",
     "suspicion_score": 0.25,
     "action_type": "normal_shopping|suspicious_movement|item_concealment|potential_theft|confirmed_theft|analysis_incomplete",
-    "confidence": 0.85b,
+    "confidence": 0.85,
     "description": "Description factuelle et objective des observations",
     "reasoning": "Justification calibrée du niveau de suspicion",
     "evidence_strength": "weak|moderate|strong",

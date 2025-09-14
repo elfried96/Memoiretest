@@ -70,7 +70,8 @@ class ModernVLMOrchestrator:
         self, 
         frame_data: str,  # Base64 encoded
         detections: List[Detection] = None,
-        context: Dict[str, Any] = None
+        context: Dict[str, Any] = None,
+        video_context_metadata: Dict[str, Any] = None
     ) -> AnalysisResponse:
         """Analyse complète d'un frame de surveillance."""
         
@@ -78,9 +79,9 @@ class ModernVLMOrchestrator:
         self.stats["total_analyses"] += 1
         
         try:
-            # 1. Préparation de la requête
+            # 1. Préparation de la requête avec contexte vidéo
             analysis_request = self._prepare_analysis_request(
-                frame_data, detections, context
+                frame_data, detections, context, video_context_metadata
             )
             
             # 2. Sélection des outils selon le mode
@@ -122,7 +123,8 @@ class ModernVLMOrchestrator:
         self,
         frame_data: str,
         detections: List[Detection] = None,
-        context: Dict[str, Any] = None
+        context: Dict[str, Any] = None,
+        video_context_metadata: Dict[str, Any] = None
     ) -> AnalysisRequest:
         """Préparation de la requête d'analyse."""
         
@@ -147,6 +149,11 @@ class ModernVLMOrchestrator:
             "analysis_mode": self.config.mode.value,
             "frame_id": f"frame_{int(time.time() * 1000)}"
         })
+        
+        # Intégration du contexte vidéo utilisateur si disponible
+        if video_context_metadata:
+            enriched_context["video_context_metadata"] = video_context_metadata
+            logger.info(f"Contexte vidéo intégré - Titre: {video_context_metadata.get('title', 'Non spécifié')}")
         
         return AnalysisRequest(
             frame_data=frame_data,

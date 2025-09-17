@@ -24,6 +24,11 @@ from typing import Dict, List, Any, Optional
 import tempfile
 import os
 import asyncio
+import requests
+import threading
+import queue
+import io
+from PIL import Image
 
 # Import contexte vidéo
 from video_context_integration import (
@@ -81,6 +86,12 @@ if 'real_pipeline' not in st.session_state:
     st.session_state.real_pipeline = None
 if 'optimization_results' not in st.session_state:
     st.session_state.optimization_results = []
+if 'streaming_manager' not in st.session_state:
+    st.session_state.streaming_manager = None
+if 'frame_cache' not in st.session_state:
+    st.session_state.frame_cache = {}
+if 'last_frame_update' not in st.session_state:
+    st.session_state.last_frame_update = {}
 
 # CSS pour l'interface
 st.markdown("""
@@ -379,8 +390,500 @@ def simulate_vlm_analysis(frame_data: FrameData) -> RealAnalysisResult:
         bbox_annotations=detections
     )
 
+class StreamingManager:
+    """Gestionnaire de streaming en arrière-plan pour éviter les rechargements."""
+    
+    def __init__(self):
+        self.active_streams = {}  # Dict[camera_id, thread]
+        self.frame_cache = {}     # Dict[camera_id, frame]
+        self.last_update = {}     # Dict[camera_id, timestamp]
+        self.running = False
+        
+    def start_stream(self, camera_id: str, camera_config: dict):
+        """Démarre un stream en arrière-plan pour une caméra."""
+        if camera_id in self.active_streams:
+            return  # Déjà actif
+        
+        def stream_worker():
+            """Worker thread pour capture continue."""
+            attempt = 0
+            while self.running and camera_id in self.active_streams:
+                try:
+                    attempt += 1
+                    print(f"DEBUG: Stream {camera_id} tentative {attempt}")
+                    
+                    frame = capture_real_frame(camera_config, width=640, height=480)
+                    if frame is not None:
+                        print(f"DEBUG: Frame capturée pour {camera_id} - shape: {frame.shape}")
+                        self.frame_cache[camera_id] = frame
+                        self.last_update[camera_id] = time.time()
+                    else:
+                        print(f"DEBUG: Frame NULL pour {camera_id}")
+                    
+                    # Pause selon la configuration
+                    refresh_rate = camera_config.get('refresh_rate', 2)
+                    time.sleep(refresh_rate)
+                    
+                except Exception as e:
+                    print(f"ERREUR stream {camera_id}: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    time.sleep(5)  # Retry après erreur
+        
+        # Démarre le thread
+        thread = threading.Thread(target=stream_worker, daemon=True)
+        thread.start()
+        self.active_streams[camera_id] = thread
+        self.running = True
+    
+    def stop_stream(self, camera_id: str):
+        """Arrête le stream d'une caméra."""
+        if camera_id in self.active_streams:
+            del self.active_streams[camera_id]
+            if camera_id in self.frame_cache:
+                del self.frame_cache[camera_id]
+            if camera_id in self.last_update:
+                del self.last_update[camera_id]
+    
+    def get_latest_frame(self, camera_id: str):
+        """Récupère la dernière frame en cache."""
+        return self.frame_cache.get(camera_id, None)
+    
+    def is_frame_fresh(self, camera_id: str, max_age: float = 10.0) -> bool:
+        """Vérifie si la frame est récente."""
+        if camera_id not in self.last_update:
+            return False
+        return (time.time() - self.last_update[camera_id]) < max_age
+    
+    def stop_all(self):
+        """Arrête tous les streams."""
+        self.running = False
+        self.active_streams.clear()
+        self.frame_cache.clear()
+        self.last_update.clear()
+
+class MJPEGStreamManager:
+    """Gestionnaire optimisé pour flux MJPEG avec cache et réduction latence."""
+    
+    def __init__(self):
+        self.sessions = {}  # Cache des sessions par URL
+        self.frame_cache = {}  # Cache des dernières frames
+        self.last_update = {}  # Timestamp dernière mise à jour
+        
+    def get_session(self, url: str):
+        """Récupère ou crée une session HTTP optimisée."""
+        if url not in self.sessions:
+            session = requests.Session()
+            # Configuration optimisée pour faible latence
+            session.headers.update({
+                'User-Agent': 'SurveillanceBot/1.0 (low-latency)',
+                'Accept': 'multipart/x-mixed-replace, */*',
+                'Connection': 'keep-alive',
+                'Cache-Control': 'no-cache',
+                'Pragma': 'no-cache'
+            })
+            self.sessions[url] = session
+        return self.sessions[url]
+    
+    def capture_latest_frame(self, url: str, width: int = 640, height: int = 480, max_age_ms: int = 500):
+        """Capture avec cache intelligent pour réduire la latence."""
+        current_time = time.time() * 1000
+        
+        # Vérification cache
+        if url in self.frame_cache and url in self.last_update:
+            age = current_time - self.last_update[url]
+            if age < max_age_ms:
+                return self.frame_cache[url]  # Frame récente en cache
+        
+        # Capture nouvelle frame
+        frame = self._capture_fresh_frame(url, width, height)
+        if frame is not None:
+            self.frame_cache[url] = frame
+            self.last_update[url] = current_time
+            return frame
+        
+        # Fallback sur cache même ancien
+        return self.frame_cache.get(url, None)
+    
+    def _capture_fresh_frame(self, url: str, width: int, height: int):
+        """Capture MJPEG robuste avec validation stricte."""
+        try:
+            session = self.get_session(url)
+            
+            # Stream optimisé
+            response = session.get(url, stream=True, timeout=3)
+            
+            if response.status_code == 200:
+                content = b""
+                frames_tested = 0
+                max_frames_to_test = 3
+                
+                # Lecture par chunks plus grands
+                for i, chunk in enumerate(response.iter_content(chunk_size=8192)):
+                    if not chunk:
+                        break
+                        
+                    content += chunk
+                    
+                    # Recherche d'images complètes
+                    while frames_tested < max_frames_to_test:
+                        jpg_start = content.find(b'\xff\xd8')
+                        if jpg_start == -1:
+                            break
+                            
+                        jpg_end = content.find(b'\xff\xd9', jpg_start)
+                        if jpg_end == -1:
+                            # Image incomplète
+                            content = content[jpg_start:]
+                            break
+                            
+                        try:
+                            # Extraction
+                            jpeg_data = content[jpg_start:jpg_end+2]
+                            
+                            # Validation stricte
+                            if len(jpeg_data) > 5000:  # Taille minimale pour image correcte
+                                pil_image = Image.open(io.BytesIO(jpeg_data))
+                                
+                                # Vérifications de qualité
+                                if (pil_image.size[0] >= 320 and pil_image.size[1] >= 240 and
+                                    pil_image.mode in ['RGB', 'L']):
+                                    
+                                    frame = np.array(pil_image)
+                                    
+                                    # Conversion couleur
+                                    if len(frame.shape) == 3 and frame.shape[2] == 3:
+                                        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                                    elif len(frame.shape) == 2:  # Grayscale
+                                        frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+                                    
+                                    # Validation du contenu (pas que du bruit)
+                                    if frame.std() > 10:  # Vérification variance
+                                        # Redimensionnement final
+                                        if frame.shape[1] != width or frame.shape[0] != height:
+                                            frame = cv2.resize(frame, (width, height))
+                                        
+                                        return frame
+                            
+                        except Exception:
+                            pass
+                        
+                        frames_tested += 1
+                        # Supprime cette image et continue
+                        content = content[jpg_end+2:]
+                    
+                    # Limite buffer
+                    if len(content) > 200000:
+                        content = content[-50000:]
+                    
+                    # Limite chunks
+                    if i > 25:
+                        break
+                        
+        except Exception:
+            pass
+        
+        return None
+
+# Instance globale pour réutilisation
+_mjpeg_manager = MJPEGStreamManager()
+
+def capture_mjpeg_frame_simple(url: str, width: int = 640, height: int = 480):
+    """Capture MJPEG simple et robuste."""
+    try:
+        # Headers optimisés pour MJPEG
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Linux; SurveillanceBot)',
+            'Accept': 'multipart/x-mixed-replace, image/jpeg, */*',
+            'Connection': 'keep-alive',
+            'Cache-Control': 'no-cache'
+        }
+        
+        # Stream pour capture continue
+        with requests.get(url, stream=True, timeout=5, headers=headers) as response:
+            if response.status_code == 200:
+                content_buffer = b""
+                
+                # Lecture par chunks
+                for chunk in response.iter_content(chunk_size=4096):
+                    if not chunk:
+                        continue
+                        
+                    content_buffer += chunk
+                    
+                    # Recherche image JPEG la plus récente
+                    while True:
+                        # Trouve début JPEG
+                        start_marker = content_buffer.find(b'\xff\xd8')
+                        if start_marker == -1:
+                            break
+                            
+                        # Trouve fin JPEG
+                        end_marker = content_buffer.find(b'\xff\xd9', start_marker)
+                        if end_marker == -1:
+                            # Image incomplète, garder le buffer
+                            content_buffer = content_buffer[start_marker:]
+                            break
+                        
+                        # Extraction de l'image
+                        jpeg_data = content_buffer[start_marker:end_marker + 2]
+                        
+                        try:
+                            # Validation stricte taille et contenu
+                            if len(jpeg_data) > 5000:  # Image suffisamment grande
+                                try:
+                                    img = Image.open(io.BytesIO(jpeg_data))
+                                    
+                                    # Vérifications multiples
+                                    if (img.width >= 320 and img.height >= 240 and 
+                                        img.mode in ['RGB', 'L', 'RGBA']):
+                                        
+                                        frame = np.array(img)
+                                        
+                                        # Conversion couleur selon le mode
+                                        if len(frame.shape) == 3 and frame.shape[2] == 3:
+                                            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                                        elif len(frame.shape) == 3 and frame.shape[2] == 4:
+                                            frame = cv2.cvtColor(frame, cv2.COLOR_RGBA2BGR)
+                                        elif len(frame.shape) == 2:
+                                            frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+                                        
+                                        # Validation du contenu (pas de bruit)
+                                        if frame.std() > 15:  # Variance significative
+                                            # Redimensionnement
+                                            if frame.shape[1] != width or frame.shape[0] != height:
+                                                frame = cv2.resize(frame, (width, height))
+                                            
+                                            return frame
+                                            
+                                except Exception:
+                                    pass
+                        except Exception:
+                            pass
+                        
+                        # Supprime cette image et continue
+                        content_buffer = content_buffer[end_marker + 2:]
+                    
+                    # Limite taille buffer
+                    if len(content_buffer) > 100000:
+                        content_buffer = content_buffer[-50000:]
+                    
+                    # Limite lecture pour éviter blocage
+                    if len(content_buffer) > 200000:
+                        break
+                        
+    except Exception:
+        pass
+    
+    return None
+
+def capture_mjpeg_frame_native(url: str, width: int = 640, height: int = 480):
+    """Capture MJPEG avec double fallback."""
+    # Essai 1 : Système optimisé
+    frame = _mjpeg_manager.capture_latest_frame(url, width, height, max_age_ms=500)
+    if frame is not None:
+        return frame
+    
+    # Essai 2 : Méthode simple
+    frame = capture_mjpeg_frame_simple(url, width, height)
+    if frame is not None:
+        return frame
+    
+    return None
+
+def capture_real_frame_simple(camera_config: dict, width: int = 640, height: int = 480):
+    """Capture simplifiée et directe - pas de cache complexe."""
+    source_url = camera_config['source']
+    camera_name = camera_config.get('name', 'Camera')
+    
+    print(f"DEBUG SIMPLE: Capture pour {camera_name} depuis {source_url}")
+    
+    # 1. FLUX HTTP/MJPEG - méthode directe
+    if source_url.startswith('http'):
+        print(f"DEBUG SIMPLE: Tentative HTTP native pour {source_url}")
+        try:
+            frame = capture_mjpeg_frame_simple(source_url, width, height)
+            if frame is not None:
+                print(f"DEBUG SIMPLE: HTTP réussi - shape: {frame.shape}")
+                # Overlay minimal
+                timestamp = datetime.now().strftime("%H:%M:%S")
+                cv2.putText(frame, f"{camera_name}", (10, 30), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                cv2.putText(frame, f"HTTP | {timestamp}", (10, height - 15), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                return frame
+            else:
+                print(f"DEBUG SIMPLE: HTTP échoué pour {source_url}")
+        except Exception as e:
+            print(f"DEBUG SIMPLE: Exception HTTP {source_url}: {e}")
+    
+    # 2. WEBCAM/RTSP - OpenCV direct
+    else:
+        print(f"DEBUG SIMPLE: Tentative OpenCV pour {source_url}")
+        try:
+            # Sélection backend selon type
+            if source_url.isdigit():
+                # Webcam
+                backends = [cv2.CAP_ANY, cv2.CAP_V4L2]
+                source_index = int(source_url)
+            else:
+                # RTSP/fichier
+                backends = [cv2.CAP_FFMPEG, cv2.CAP_ANY]
+                source_index = source_url
+                if source_url.startswith('rtsp') and 'tcp' not in source_url.lower():
+                    separator = '&' if '?' in source_url else '?'
+                    source_index = f"{source_url}{separator}tcp"
+            
+            for backend in backends:
+                print(f"DEBUG SIMPLE: Test backend {backend} pour {source_index}")
+                try:
+                    cap = cv2.VideoCapture(source_index, backend)
+                    if cap.isOpened():
+                        ret, frame = cap.read()
+                        if ret and frame is not None and frame.size > 0:
+                            print(f"DEBUG SIMPLE: OpenCV réussi - shape: {frame.shape}")
+                            
+                            # Redimensionnement si nécessaire
+                            if frame.shape[:2] != (height, width):
+                                frame = cv2.resize(frame, (width, height))
+                            
+                            # Overlay minimal
+                            timestamp = datetime.now().strftime("%H:%M:%S")
+                            cv2.putText(frame, f"{camera_name}", (10, 30), 
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                            cv2.putText(frame, f"CV2 | {timestamp}", (10, height - 15), 
+                                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                            
+                            cap.release()
+                            return frame
+                        else:
+                            print(f"DEBUG SIMPLE: Pas de frame valide avec backend {backend}")
+                    else:
+                        print(f"DEBUG SIMPLE: Ouverture échouée avec backend {backend}")
+                    cap.release()
+                except Exception as e:
+                    print(f"DEBUG SIMPLE: Exception backend {backend}: {e}")
+        except Exception as e:
+            print(f"DEBUG SIMPLE: Exception OpenCV globale: {e}")
+    
+    # 3. Frame d'erreur si tout échoue
+    print(f"DEBUG SIMPLE: Échec total pour {source_url}")
+    error_frame = np.zeros((height, width, 3), dtype=np.uint8)
+    cv2.putText(error_frame, f"ECHEC: {camera_name}", (10, height//2 - 20), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    cv2.putText(error_frame, f"Source: {source_url[:30]}...", (10, height//2 + 10), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 1)
+    cv2.putText(error_frame, datetime.now().strftime("%H:%M:%S"), (10, height - 15), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.4, (128, 128, 128), 1)
+    return error_frame
+
+def capture_real_frame(camera_config: dict, width: int = 640, height: int = 480):
+    """Wrapper qui utilise la méthode simplifiée."""
+    return capture_real_frame_simple(camera_config, width, height)
+    
+    # OpenCV pour RTSP/locaux uniquement (PAS HTTP)
+    if not source_url.startswith('http'):
+        # Sélection du backend selon le type et ce qui a marché au test
+        if source_url.isdigit():
+            # Webcam : utiliser backend natif, éviter FFMPEG
+            if backend_tested in ['V4L2', 'DSHOW', 'DEFAULT']:
+                backend_map = {
+                    'V4L2': cv2.CAP_V4L2,
+                    'DSHOW': cv2.CAP_DSHOW, 
+                    'DEFAULT': cv2.CAP_ANY,
+                    'GSTREAMER': cv2.CAP_GSTREAMER
+                }
+            else:
+                # Forcer DEFAULT si backend testé pas adapté webcam
+                backend_tested = 'DEFAULT'
+                backend_map = {'DEFAULT': cv2.CAP_ANY}
+        else:
+            # RTSP/fichier : FFMPEG OK
+            backend_map = {
+                'FFMPEG': cv2.CAP_FFMPEG,
+                'DEFAULT': cv2.CAP_ANY,
+                'GSTREAMER': cv2.CAP_GSTREAMER,
+                'V4L2': cv2.CAP_V4L2,
+                'DSHOW': cv2.CAP_DSHOW
+            }
+        
+        try:
+            cap = cv2.VideoCapture()
+            
+            # Configuration optimisée selon le type
+            cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            
+            # URL finale selon le type
+            final_url = source_url
+            
+            # Optimisations RTSP
+            if source_url.startswith('rtsp'):
+                # Transport TCP pour RTSP
+                if 'tcp' not in source_url.lower():
+                    separator = '&' if '?' in source_url else '?'
+                    final_url += f"{separator}tcp"
+                
+                # FPS plus bas pour RTSP
+                cap.set(cv2.CAP_PROP_FPS, 15)
+            elif source_url.isdigit():
+                # Webcam - convertir en entier
+                final_url = int(source_url)
+                cap.set(cv2.CAP_PROP_FPS, 30)
+                # Configuration webcam
+                cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
+            else:
+                # Fichier local
+                cap.set(cv2.CAP_PROP_FPS, 25)
+            
+            backend_code = backend_map.get(backend_tested, cv2.CAP_FFMPEG)
+            
+            if cap.open(final_url, backend_code) and cap.isOpened():
+                # Configuration résolution
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
+                
+                # Vide buffer pour frame récente (seulement pour RTSP)
+                if source_url.startswith('rtsp'):
+                    for _ in range(2):
+                        cap.read()
+                
+                # Capture
+                ret, frame = cap.read()
+                if ret and frame is not None and frame.size > 0:
+                    # Redimensionnement si nécessaire
+                    if frame.shape[:2] != (height, width):
+                        frame = cv2.resize(frame, (width, height), interpolation=cv2.INTER_LINEAR)
+                    
+                    # Overlay
+                    timestamp = datetime.now().strftime("%H:%M:%S")
+                    cv2.putText(frame, f"{camera_config['name']}", (10, 30), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                    cv2.putText(frame, timestamp, (10, height - 15), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                    cv2.putText(frame, f"{backend_tested} | {source_url[:4].upper()}", (10, height - 35), 
+                               cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+                    
+                    cap.release()
+                    return frame
+            
+            cap.release()
+            
+        except Exception as e:
+            pass
+    
+    # Frame d'erreur
+    error_frame = np.zeros((height, width, 3), dtype=np.uint8)
+    cv2.putText(error_frame, f"ERREUR: {camera_config['name']}", (10, height//2), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
+    cv2.putText(error_frame, "Flux non disponible", (10, height//2 + 30), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+    cv2.putText(error_frame, f"Source: {source_url[:50]}...", (10, height//2 + 50), 
+               cv2.FONT_HERSHEY_SIMPLEX, 0.3, (128, 128, 128), 1)
+    
+    return error_frame
+
 def generate_dummy_frame(camera_id: str, width: int = 320, height: int = 240):
-    """Génère une frame simulée avec analyse VLM."""
+    """Génère une frame simulée avec analyse VLM (fallback)."""
     img = np.random.randint(50, 200, (height, width, 3), dtype=np.uint8)
     
     # Informations de base
@@ -614,8 +1117,43 @@ def render_surveillance_tab():
                 """, unsafe_allow_html=True)
                 
                 if camera.get('active', False) and st.session_state.surveillance_active:
-                    frame = generate_dummy_frame(camera['id'])
-                    st.image(frame, channels="BGR", caption=f"Live Feed - {camera['name']}")
+                    # MÉTHODE SIMPLIFIÉE - capture directe sans cache complexe
+                    camera_id = camera['id']
+                    
+                    try:
+                        print(f"DEBUG: Capture directe pour caméra {camera_id}")
+                        # Capture directe de frame
+                        frame = capture_real_frame_simple(camera, width=640, height=480)
+                        
+                        if frame is not None:
+                            st.image(frame, channels="BGR", caption=f"🔴 LIVE - {camera['name']}")
+                            st.caption(f"✅ Flux actif à {datetime.now().strftime('%H:%M:%S')}")
+                        else:
+                            st.error(f"❌ Flux {camera['name']} indisponible")
+                            # Fallback vers dummy  
+                            frame = generate_dummy_frame(camera['id'])
+                            st.image(frame, channels="BGR", caption=f"⚠️ Fallback - {camera['name']}")
+                            
+                    except Exception as e:
+                        st.error(f"💥 Erreur capture {camera['name']}: {str(e)}")
+                        print(f"DEBUG: Exception capture {camera_id}: {e}")
+                        # Test direct disponible en cas d'erreur
+                        if st.button(f"🧪 Test Direct", key=f"test_direct_{camera_id}"):
+                            with st.spinner("Test direct en cours..."):
+                                try:
+                                    test_frame = capture_real_frame_simple(camera, width=320, height=240)
+                                    if test_frame is not None:
+                                        st.success("✅ Test direct réussi !")
+                                        st.image(test_frame, channels="BGR", caption="Frame test")
+                                    else:
+                                        st.error("❌ Test direct échoué")
+                                        st.info(f"Source: {camera.get('source')}")
+                                except Exception as te:
+                                    st.error(f"Test échoué: {te}")
+                
+                elif camera.get('active', False):
+                    # Caméra active mais surveillance inactive
+                    st.info(f"📹 {camera['name']} prête - Démarrez la surveillance")
                     
                     col1, col2 = st.columns(2)
                     with col1:
@@ -1026,8 +1564,390 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
     }
     render_integrated_chat("video", context_data)
 
+def test_mjpeg_stream_native(url: str, timeout: int = 10) -> Dict[str, Any]:
+    """Test natif robuste pour flux MJPEG HTTP."""
+    import requests
+    import io
+    from PIL import Image
+    import numpy as np
+    
+    result = {
+        'success': False,
+        'backend_used': 'HTTP_NATIVE',
+        'resolution': None,
+        'error_messages': [],
+        'test_duration': 0
+    }
+    
+    start_time = time.time()
+    
+    try:
+        # Headers optimisés pour MJPEG
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; SurveillanceBot/1.0)',
+            'Accept': 'multipart/x-mixed-replace, */*',
+            'Connection': 'close'  # Force nouvelle connexion
+        }
+        
+        # Test simple d'abord
+        response = requests.get(url, stream=True, timeout=timeout, headers=headers)
+        
+        if response.status_code == 200:
+            content = b""
+            chunks_read = 0
+            
+            for chunk in response.iter_content(chunk_size=2048):
+                if not chunk:
+                    continue
+                    
+                content += chunk
+                chunks_read += 1
+                
+                # Recherche d'image JPEG complète
+                jpg_start = content.find(b'\xff\xd8')
+                if jpg_start != -1:
+                    jpg_end = content.find(b'\xff\xd9', jpg_start)
+                    if jpg_end != -1:
+                        try:
+                            jpeg_data = content[jpg_start:jpg_end+2]
+                            
+                            # Test de décodage
+                            if len(jpeg_data) > 500:  # Taille minimale raisonnable
+                                img = Image.open(io.BytesIO(jpeg_data))
+                                
+                                # Vérification dimensions
+                                if img.width > 10 and img.height > 10:
+                                    result['success'] = True
+                                    result['resolution'] = f"{img.width}x{img.height}"
+                                    response.close()
+                                    break
+                                    
+                        except Exception as e:
+                            result['error_messages'].append(f"Image decode: {str(e)}")
+                
+                # Sécurités pour éviter les blocages
+                if len(content) > 200000:  # Limite buffer
+                    content = content[-100000:]
+                
+                if chunks_read > 50:  # Limite chunks
+                    break
+                    
+                if time.time() - start_time > timeout:  # Timeout
+                    result['error_messages'].append("Test timeout")
+                    break
+            
+            response.close()
+            
+        else:
+            result['error_messages'].append(f"HTTP status: {response.status_code}")
+            
+    except requests.exceptions.Timeout:
+        result['error_messages'].append("Connexion timeout")
+    except requests.exceptions.ConnectionError:
+        result['error_messages'].append("Erreur connexion réseau")
+    except Exception as e:
+        result['error_messages'].append(f"Erreur: {str(e)}")
+    
+    result['test_duration'] = time.time() - start_time
+    return result
+
+def check_webcam_permissions() -> Dict[str, Any]:
+    """Vérifie les permissions et dispositifs webcam sur Linux."""
+    import os
+    import stat
+    
+    result = {
+        'video_devices': [],
+        'permissions_ok': True,
+        'user_groups': [],
+        'recommendations': []
+    }
+    
+    try:
+        # Vérification des périphériques /dev/video*
+        for i in range(10):
+            video_dev = f"/dev/video{i}"
+            if os.path.exists(video_dev):
+                stat_info = os.stat(video_dev)
+                result['video_devices'].append({
+                    'device': video_dev,
+                    'readable': os.access(video_dev, os.R_OK),
+                    'writable': os.access(video_dev, os.W_OK),
+                    'mode': oct(stat_info.st_mode)
+                })
+        
+        # Vérification des groupes utilisateur
+        try:
+            import subprocess
+            groups_output = subprocess.check_output(['groups'], text=True)
+            result['user_groups'] = groups_output.strip().split()
+            
+            if 'video' not in result['user_groups']:
+                result['permissions_ok'] = False
+                result['recommendations'].append("Ajouter l'utilisateur au groupe 'video'")
+                
+        except:
+            pass
+            
+    except:
+        pass
+    
+    return result
+
+def list_video_devices() -> List[Dict[str, Any]]:
+    """Liste les dispositifs vidéo disponibles sur le système."""
+    import os
+    import glob
+    
+    devices = []
+    
+    # Recherche des dispositifs /dev/video*
+    video_devices = glob.glob("/dev/video*")
+    video_devices.sort()
+    
+    for device_path in video_devices:
+        device_info = {
+            'path': device_path,
+            'index': None,
+            'accessible': False,
+            'name': 'Unknown',
+            'capabilities': []
+        }
+        
+        try:
+            # Extraction de l'index
+            index = int(device_path.replace('/dev/video', ''))
+            device_info['index'] = index
+            
+            # Test d'accessibilité
+            device_info['accessible'] = os.access(device_path, os.R_OK | os.W_OK)
+            
+            # Lecture des informations v4l2 si possible
+            try:
+                import subprocess
+                result = subprocess.run(['v4l2-ctl', '--device', device_path, '--info'], 
+                                      capture_output=True, text=True, timeout=2)
+                if result.returncode == 0:
+                    for line in result.stdout.split('\n'):
+                        if 'Card type' in line:
+                            device_info['name'] = line.split(':')[-1].strip()
+                        elif 'Capabilities' in line:
+                            device_info['capabilities'] = line.split(':')[-1].strip().split()
+            except:
+                pass
+                
+        except Exception:
+            pass
+        
+        devices.append(device_info)
+    
+    return devices
+
+def detect_available_cameras() -> List[int]:
+    """Détecte les webcams disponibles avec diagnostic complet."""
+    available_cameras = []
+    
+    print("DEBUG: Détection des webcams...")
+    
+    # 1. Liste des dispositifs système
+    video_devices = list_video_devices()
+    print(f"DEBUG: Dispositifs trouvés: {video_devices}")
+    
+    # 2. Test des indices avec backends appropriés
+    backends_to_test = [
+        ('DEFAULT', cv2.CAP_ANY),
+        ('V4L2', cv2.CAP_V4L2), 
+        ('GSTREAMER', cv2.CAP_GSTREAMER)
+    ]
+    
+    # Test étendu jusqu'à 10 pour couvrir tous les /dev/video*
+    indices_to_test = list(range(10))
+    
+    # Prioriser les indices correspondant aux dispositifs détectés
+    device_indices = [d['index'] for d in video_devices if d['index'] is not None and d['accessible']]
+    if device_indices:
+        indices_to_test = device_indices + [i for i in indices_to_test if i not in device_indices]
+    
+    for index in indices_to_test:
+        print(f"DEBUG: Test index {index}")
+        
+        for backend_name, backend_code in backends_to_test:
+            try:
+                print(f"DEBUG: Test {backend_name} pour index {index}")
+                cap = cv2.VideoCapture(index, backend_code)
+                
+                if cap.isOpened():
+                    print(f"DEBUG: Ouverture réussie {backend_name} index {index}")
+                    
+                    # Test de capture avec timeout
+                    import signal
+                    def timeout_handler(signum, frame):
+                        raise TimeoutError("Timeout capture")
+                    
+                    try:
+                        signal.signal(signal.SIGALRM, timeout_handler)
+                        signal.alarm(3)  # 3 secondes timeout
+                        
+                        ret, frame = cap.read()
+                        signal.alarm(0)  # Cancel timeout
+                        
+                        if ret and frame is not None and frame.size > 0:
+                            print(f"DEBUG: Capture réussie {backend_name} index {index} - shape: {frame.shape}")
+                            available_cameras.append(index)
+                            cap.release()
+                            break
+                        else:
+                            print(f"DEBUG: Capture échouée {backend_name} index {index}")
+                            
+                    except TimeoutError:
+                        print(f"DEBUG: Timeout capture {backend_name} index {index}")
+                    except Exception as e:
+                        print(f"DEBUG: Erreur capture {backend_name} index {index}: {e}")
+                    finally:
+                        signal.alarm(0)
+                else:
+                    print(f"DEBUG: Ouverture échouée {backend_name} index {index}")
+                
+                cap.release()
+                
+            except Exception as e:
+                print(f"DEBUG: Exception {backend_name} index {index}: {e}")
+    
+    result = list(set(available_cameras))
+    print(f"DEBUG: Caméras détectées: {result}")
+    return result
+
+def test_camera_connection(source_url: str, timeout: int = 15) -> Dict[str, Any]:
+    """Teste la connexion caméra avec fallbacks multiples.""" 
+    import cv2
+    import threading
+    import time
+    import requests
+    
+    # FORCER HTTP natif pour tous les flux HTTP (MJPEG détecté ou non)
+    if source_url.startswith('http'):
+        mjpeg_result = test_mjpeg_stream_native(source_url, timeout=10)
+        # Retourner le résultat même si échec - PAS de fallback OpenCV pour HTTP
+        return mjpeg_result
+    
+    result = {
+        'success': False,
+        'backend_used': None,
+        'resolution': None,
+        'error_messages': [],
+        'test_duration': 0
+    }
+    
+    start_time = time.time()
+    
+    # Test HTTP basique
+    if source_url.startswith('http'):
+        try:
+            response = requests.head(source_url, timeout=5)
+            if response.status_code != 200:
+                result['error_messages'].append(f"HTTP: Status {response.status_code}")
+            else:
+                result['error_messages'].append("HTTP: URL accessible")
+        except Exception as e:
+            result['error_messages'].append(f"HTTP: {str(e)}")
+    
+    # OpenCV uniquement pour flux RTSP/locaux (PAS HTTP)
+    if not source_url.startswith('http'):
+        # Backends adaptés selon le type de source
+        if source_url.isdigit():
+            # Pour webcam : éviter FFMPEG, préférer backends natifs
+            backends = [
+                ('V4L2', cv2.CAP_V4L2),      # Linux webcam
+                ('DSHOW', cv2.CAP_DSHOW),    # Windows webcam  
+                ('DEFAULT', cv2.CAP_ANY),    # Backend par défaut
+                ('GSTREAMER', cv2.CAP_GSTREAMER)
+            ]
+        else:
+            # Pour RTSP/fichiers : FFMPEG OK
+            backends = [
+                ('FFMPEG', cv2.CAP_FFMPEG),
+                ('DEFAULT', cv2.CAP_ANY),
+                ('GSTREAMER', cv2.CAP_GSTREAMER)
+            ]
+        
+        for backend_name, backend_code in backends:
+            try:
+                cap = cv2.VideoCapture()
+                
+                # Configuration optimisée pour RTSP
+                cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                cap.set(cv2.CAP_PROP_FPS, 20)
+                
+                # Paramètres spéciaux pour RTSP
+                if source_url.startswith('rtsp'):
+                    # Ajouter transport TCP si pas déjà présent
+                    rtsp_url = source_url
+                    if 'tcp' not in rtsp_url.lower():
+                        separator = '&' if '?' in rtsp_url else '?'
+                        rtsp_url += f"{separator}tcp"
+                    
+                    if not cap.open(rtsp_url, backend_code):
+                        result['error_messages'].append(f"{backend_name}: RTSP ouverture échouée")
+                        cap.release()
+                        continue
+                elif source_url.isdigit():
+                    # Webcam - conversion en entier
+                    webcam_index = int(source_url)
+                    if not cap.open(webcam_index, backend_code):
+                        result['error_messages'].append(f"{backend_name}: Webcam {webcam_index} échouée")
+                        cap.release()
+                        continue
+                else:
+                    # Fichier local
+                    if not cap.open(source_url, backend_code):
+                        result['error_messages'].append(f"{backend_name}: Fichier échoué")
+                        cap.release()
+                        continue
+                
+                # Vérification connexion
+                if not cap.isOpened():
+                    result['error_messages'].append(f"{backend_name}: Capture fermée")
+                    cap.release()
+                    continue
+                
+                # Test de lecture avec timeout plus court
+                frame_captured = False
+                
+                for attempt in range(5):  # Max 5 tentatives
+                    ret, frame = cap.read()
+                    if ret and frame is not None and frame.size > 0:
+                        # Vérification qualité frame
+                        if frame.mean() > 5 and frame.std() > 1:  # Pas du bruit
+                            result['success'] = True
+                            result['backend_used'] = backend_name
+                            result['resolution'] = f"{frame.shape[1]}x{frame.shape[0]}"
+                            frame_captured = True
+                            break
+                    
+                    time.sleep(0.2)  # Attente courte
+                
+                cap.release()
+                
+                if frame_captured:
+                    break
+                else:
+                    result['error_messages'].append(f"{backend_name}: Pas de frame valide après 5 tentatives")
+                
+            except Exception as e:
+                result['error_messages'].append(f"{backend_name}: {str(e)}")
+                try:
+                    cap.release()
+                except:
+                    pass
+    else:
+        # Pour les flux HTTP, on a déjà testé en natif - ne pas refaire OpenCV
+        result['error_messages'].append("HTTP: Test déjà effectué en mode natif")
+    
+    result['test_duration'] = time.time() - start_time
+    return result
+
 def render_camera_config():
-    """Configuration des caméras (identique à avant)."""
+    """Configuration des caméras avec tests de connexion renforcés."""
     st.subheader("📹 Configuration des Caméras")
     
     with st.expander("➕ Ajouter une nouvelle caméra", expanded=len(st.session_state.cameras) == 0):
@@ -1035,33 +1955,228 @@ def render_camera_config():
         
         with col1:
             cam_name = st.text_input("Nom de la caméra", f"Caméra {len(st.session_state.cameras) + 1}")
-            cam_source = st.selectbox("Source", ["Webcam (0)", "RTSP URL", "Fichier vidéo"])
+            cam_source_type = st.selectbox("Type de source", [
+                "Webcam locale", 
+                "Caméra IP (RTSP)", 
+                "Flux MJPEG (HTTP)", 
+                "Fichier vidéo"
+            ])
         
         with col2:
             cam_resolution = st.selectbox("Résolution", ["640x480", "1280x720", "1920x1080"])
             cam_fps = st.slider("FPS", 15, 60, 30)
         
-        if cam_source == "RTSP URL":
-            rtsp_url = st.text_input("URL RTSP", "rtsp://192.168.1.100:554/stream")
-        elif cam_source == "Fichier vidéo":
+        # Configuration spécifique selon le type
+        source_url = ""
+        if cam_source_type == "Webcam locale":
+            # Diagnostic complet des dispositifs vidéo
+            col_detect1, col_detect2 = st.columns(2)
+            
+            with col_detect1:
+                if st.button("🔍 Détecter webcams disponibles"):
+                    with st.spinner("Détection complète en cours..."):
+                        available_cams = detect_available_cameras()
+                        if available_cams:
+                            st.success(f"✅ Webcams fonctionnelles: {available_cams}")
+                        else:
+                            st.error("❌ Aucune webcam fonctionnelle détectée")
+            
+            with col_detect2:
+                if st.button("🔧 Diagnostic système vidéo"):
+                    with st.spinner("Analyse des dispositifs..."):
+                        devices = list_video_devices()
+                        permissions = check_webcam_permissions()
+                        
+                        # Diagnostic USB et système
+                        try:
+                            import subprocess
+                            
+                            # Liste USB des caméras
+                            usb_result = subprocess.run(['lsusb'], capture_output=True, text=True, timeout=5)
+                            camera_usb_devices = []
+                            if usb_result.returncode == 0:
+                                for line in usb_result.stdout.split('\n'):
+                                    if any(keyword in line.lower() for keyword in ['camera', 'webcam', 'video', 'imaging']):
+                                        camera_usb_devices.append(line.strip())
+                            
+                            if camera_usb_devices:
+                                st.write("**Caméras USB détectées:**")
+                                for usb_cam in camera_usb_devices:
+                                    st.write(f"🔌 {usb_cam}")
+                            else:
+                                st.warning("Aucune caméra USB détectée via lsusb")
+                                
+                        except Exception as e:
+                            st.warning(f"Impossible d'exécuter lsusb: {e}")
+                        
+                        if devices:
+                            st.write("**Dispositifs /dev/video* trouvés:**")
+                            for device in devices:
+                                access_icon = "✅" if device['accessible'] else "❌"
+                                st.write(f"{access_icon} {device['path']} - {device['name']} (Index: {device['index']})")
+                                
+                                # Test des capacités
+                                if device['capabilities']:
+                                    st.write(f"   └── Capacités: {', '.join(device['capabilities'])}")
+                        else:
+                            st.error("❌ Aucun dispositif /dev/video* trouvé")
+                        
+                        # Vérification permissions
+                        st.write("**Permissions:**")
+                        if permissions['permissions_ok']:
+                            st.write("✅ Permissions OK")
+                        else:
+                            st.write("❌ Problèmes de permissions")
+                            for rec in permissions['recommendations']:
+                                st.write(f"   • {rec}")
+                        
+                        st.write(f"**Groupes utilisateur:** {', '.join(permissions['user_groups'])}")
+                        
+                        # Commandes de diagnostic
+                        st.write("**Commandes de diagnostic utiles:**")
+                        st.code("sudo usermod -a -G video $USER")
+                        st.code("ls -la /dev/video*")
+                        st.code("v4l2-ctl --list-devices")
+            
+            # Sélection de l'index avec options étendues
+            available_indices = list(range(10))  # 0-9 pour couvrir tous les cas
+            webcam_index = st.selectbox(
+                "Index webcam", 
+                options=available_indices,
+                index=0,
+                help="Index de la webcam. Vérifiez les dispositifs détectés ci-dessus."
+            )
+            source_url = str(webcam_index)
+            
+            # Informations selon les dispositifs détectés
+            devices = list_video_devices()
+            matching_device = next((d for d in devices if d['index'] == webcam_index), None)
+            
+            if matching_device:
+                if matching_device['accessible']:
+                    st.success(f"✅ Dispositif trouvé: {matching_device['path']} - {matching_device['name']}")
+                else:
+                    st.error(f"❌ Dispositif trouvé mais non accessible: {matching_device['path']}")
+                    st.write("💡 Solution: Vérifiez les permissions ou ajoutez l'utilisateur au groupe 'video'")
+            else:
+                st.warning(f"⚠️ Aucun dispositif /dev/video{webcam_index} détecté sur le système")
+                st.write("💡 Le test tentera quand même la connexion avec les backends disponibles")
+            
+            st.info(f"🔧 Test utilisera l'index {webcam_index} avec backends: DEFAULT, V4L2, GSTREAMER")
+        elif cam_source_type == "Caméra IP (RTSP)":
+            source_url = st.text_input("URL RTSP", "rtsp://192.168.1.100:554/stream")
+            st.info("🔗 Format: rtsp://user:pass@ip:port/stream")
+        elif cam_source_type == "Flux MJPEG (HTTP)":
+            source_url = st.text_input("URL MJPEG", "http://192.168.1.100/mjpeg")
+            st.info("🔗 Exemple: http://38.79.156.188/CgiStart/nphMotionJpeg?Resolution=640x480")
+        elif cam_source_type == "Fichier vidéo":
             video_file = st.file_uploader("Sélectionner vidéo", type=['mp4', 'avi', 'mov'])
+            if video_file:
+                source_url = video_file.name
         
         detection_sensitivity = st.slider("Sensibilité détection", 0.1, 1.0, 0.7)
         
+        # Options de performance
+        col_perf1, col_perf2 = st.columns(2)
+        with col_perf1:
+            connection_timeout = st.slider("Timeout connexion (s)", 5, 30, 15)
+            refresh_rate = st.selectbox("Taux de rafraîchissement", [
+                ("Temps réel (1s)", 1),
+                ("Rapide (2s)", 2), 
+                ("Normal (3s)", 3),
+                ("Lent (5s)", 5)
+            ], index=1)
+        
+        with col_perf2:
+            quality_mode = st.selectbox("Mode qualité", [
+                ("Faible latence", "low_latency"),
+                ("Équilibré", "balanced"),
+                ("Haute qualité", "high_quality")
+            ], index=0)
+            
+            frame_skip = st.checkbox("Ignorer frames anciennes", value=True, 
+                                   help="Améliore la réactivité en sautant les frames en retard")
+        
+        # Test de connexion avant ajout
+        if source_url and st.button("🧪 Tester Connexion", key="test_connection"):
+            with st.spinner("Test de connexion en cours..."):
+                test_result = test_camera_connection(source_url, connection_timeout)
+                
+                if test_result['success']:
+                    st.success(f"✅ Connexion réussie!")
+                    st.info(f"🔧 Backend: {test_result['backend_used']}")
+                    st.info(f"📐 Résolution détectée: {test_result['resolution']}")
+                    st.info(f"⏱️ Temps de test: {test_result['test_duration']:.1f}s")
+                else:
+                    st.error("❌ Impossible de se connecter")
+                    with st.expander("Détails des erreurs"):
+                        for error in test_result['error_messages']:
+                            st.write(f"• {error}")
+        
         if st.button("➕ Ajouter Caméra"):
-            camera_id = f"cam_{len(st.session_state.cameras) + 1}"
-            st.session_state.cameras[camera_id] = {
-                'id': camera_id,
-                'name': cam_name,
-                'source': cam_source,
-                'resolution': cam_resolution,
-                'fps': cam_fps,
-                'sensitivity': detection_sensitivity,
-                'active': False,
-                'created': datetime.now()
-            }
-            st.success(f"✅ Caméra '{cam_name}' ajoutée avec succès!")
-            st.rerun()
+            if not source_url:
+                st.error("Veuillez configurer la source de la caméra")
+                return
+            
+            # Test automatique avant ajout
+            with st.spinner("Vérification de la caméra..."):
+                test_result = test_camera_connection(source_url, connection_timeout)
+                
+                if test_result['success']:
+                    camera_id = f"cam_{len(st.session_state.cameras) + 1}"
+                    st.session_state.cameras[camera_id] = {
+                        'id': camera_id,
+                        'name': cam_name,
+                        'source': source_url,
+                        'source_type': cam_source_type,
+                        'resolution': cam_resolution,
+                        'fps': cam_fps,
+                        'sensitivity': detection_sensitivity,
+                        'timeout': connection_timeout,
+                        'backend_tested': test_result['backend_used'],
+                        'refresh_rate': refresh_rate[1],
+                        'quality_mode': quality_mode[1],
+                        'frame_skip': frame_skip,
+                        'active': False,
+                        'created': datetime.now()
+                    }
+                    st.success(f"✅ Caméra '{cam_name}' ajoutée avec succès!")
+                    st.info(f"🔧 Backend optimal: {test_result['backend_used']}")
+                    st.rerun()
+                else:
+                    st.error("❌ Impossible d'ajouter la caméra - connexion échouée")
+                    with st.expander("Diagnostics d'erreur détaillés"):
+                        for error in test_result['error_messages']:
+                            st.write(f"• {error}")
+                        
+                        st.write("---")
+                        st.write("**Solutions par type:**")
+                        
+                        if cam_source_type == "Webcam locale":
+                            st.write("🎥 **Webcam:**")
+                            st.write("• Vérifiez que la webcam n'est pas utilisée par une autre app")
+                            st.write("• Essayez des indices différents (0, 1, 2)")
+                            st.write("• Utilisez 'Détecter webcams disponibles'")
+                            st.write("• Sur Linux: vérifiez les permissions /dev/video*")
+                        elif cam_source_type == "Flux MJPEG (HTTP)":
+                            st.write("🌐 **MJPEG HTTP:**")
+                            st.write("• Vérifiez l'accessibilité de l'URL dans un navigateur")
+                            st.write("• Testez sans authentification d'abord")
+                            st.write("• Vérifiez que le flux retourne multipart/x-mixed-replace")
+                        elif cam_source_type == "Caméra IP (RTSP)":
+                            st.write("📡 **RTSP:**")
+                            st.write("• Vérifiez user:pass@ip:port/stream")
+                            st.write("• Testez avec VLC d'abord")
+                            st.write("• Essayez d'ajouter ?tcp à la fin de l'URL")
+                        
+                        # Diagnostic système
+                        st.write("---")
+                        st.write("**Diagnostic système:**")
+                        available_cams = detect_available_cameras()
+                        if available_cams:
+                            st.write(f"✅ Webcams détectées: {available_cams}")
+                        else:
+                            st.write("❌ Aucune webcam système détectée")
     
     # Liste des caméras existantes
     if st.session_state.cameras:
@@ -1072,21 +2187,76 @@ def render_camera_config():
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
+                    st.write(f"**Type:** {camera.get('source_type', 'N/A')}")
                     st.write(f"**Source:** {camera['source']}")
                     st.write(f"**Résolution:** {camera['resolution']}")
                 
                 with col2:
                     st.write(f"**FPS:** {camera['fps']}")
                     st.write(f"**Sensibilité:** {camera['sensitivity']}")
+                    if 'timeout' in camera:
+                        st.write(f"**Timeout:** {camera['timeout']}s")
                 
                 with col3:
                     status = "🟢 Active" if camera.get('active') else "⭕ Inactive"
                     st.write(f"**Statut:** {status}")
                     
-                    if st.button("🗑️ Supprimer", key=f"delete_{camera_id}"):
-                        del st.session_state.cameras[camera_id]
-                        st.success(f"Caméra {camera['name']} supprimée")
-                        st.rerun()
+                    if 'backend_tested' in camera:
+                        st.write(f"**Backend:** {camera['backend_tested']}")
+                    
+                    # Indicateurs de performance
+                    if 'refresh_rate' in camera:
+                        refresh_rate = camera['refresh_rate']
+                        if refresh_rate == 1:
+                            perf_icon = "⚡"
+                        elif refresh_rate <= 2:
+                            perf_icon = "🚀"
+                        elif refresh_rate <= 3:
+                            perf_icon = "✅"
+                        else:
+                            perf_icon = "🐌"
+                        st.write(f"**Performance:** {perf_icon} {refresh_rate}s")
+                    
+                    if 'quality_mode' in camera:
+                        mode = camera['quality_mode']
+                        mode_display = {
+                            'low_latency': '⚡ Faible latence',
+                            'balanced': '⚖️ Équilibré', 
+                            'high_quality': '💎 Haute qualité'
+                        }
+                        st.write(f"**Mode:** {mode_display.get(mode, mode)}")
+                    
+                    # Boutons d'action
+                    col_test, col_delete = st.columns(2)
+                    
+                    with col_test:
+                        if st.button("🧪 Re-tester", key=f"retest_{camera_id}"):
+                            with st.spinner("Re-test en cours..."):
+                                test_result = test_camera_connection(
+                                    camera['source'], 
+                                    camera.get('timeout', 15)
+                                )
+                                
+                                if test_result['success']:
+                                    st.success("✅ Connexion OK")
+                                    # Mise à jour du backend optimal
+                                    st.session_state.cameras[camera_id]['backend_tested'] = test_result['backend_used']
+                                    st.rerun()
+                                else:
+                                    st.error("❌ Connexion échouée")
+                    
+                    with col_delete:
+                        if st.button("🗑️ Supprimer", key=f"delete_{camera_id}"):
+                            del st.session_state.cameras[camera_id]
+                            st.success(f"Caméra {camera['name']} supprimée")
+                            st.rerun()
+                
+                # Affichage d'informations détaillées
+                if st.button("ℹ️ Détails techniques", key=f"details_{camera_id}"):
+                    st.json({
+                        'configuration': camera,
+                        'created': camera.get('created', 'N/A').isoformat() if camera.get('created') else 'N/A'
+                    })
 
 def render_vlm_analytics():
     """Tableau de bord analytique avec métriques VLM réelles."""
@@ -1360,10 +2530,24 @@ def main():
     with tab1:
         render_surveillance_tab()
         
-        # Auto-refresh pour données VLM
+        # Auto-refresh optimisé pour le streaming en arrière-plan
         if st.session_state.surveillance_active:
-            time.sleep(3)
+            active_cameras = [cam for cam in st.session_state.cameras.values() if cam.get('active')]
+            if active_cameras:
+                # Refresh plus rapide pour affichage des frames en cache
+                min_refresh = min(cam.get('refresh_rate', 2) for cam in active_cameras)
+                # Minimum 1s pour éviter surcharge, maximum 5s pour réactivité
+                refresh_time = max(1, min(5, min_refresh))
+            else:
+                refresh_time = 3
+            
+            # Auto-refresh avec indicateur
+            time.sleep(refresh_time)
             st.rerun()
+        else:
+            # Pas de surveillance active - arrête tous les streams
+            if st.session_state.streaming_manager:
+                st.session_state.streaming_manager.stop_all()
     
     with tab2:
         render_video_upload_tab()

@@ -52,13 +52,25 @@ class CameraStream:
     def start(self) -> bool:
         """Démarre le flux caméra."""
         try:
-            # Ouverture du flux
+            # Ouverture du flux avec configuration améliorée
             if self.config.source.isdigit():
+                # Webcam locale
                 self.cap = cv2.VideoCapture(int(self.config.source))
+                # Permissions webcam
+                self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('M','J','P','G'))
             else:
-                self.cap = cv2.VideoCapture(self.config.source)
+                # Flux réseau avec timeout et buffer
+                self.cap = cv2.VideoCapture()
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                self.cap.set(cv2.CAP_PROP_TIMEOUT, 5000)  # 5s timeout
+                
+                # Essai backends multiples pour MJPEG
+                if not self.cap.open(self.config.source, cv2.CAP_FFMPEG):
+                    if not self.cap.open(self.config.source, cv2.CAP_GSTREAMER):
+                        self.cap.open(self.config.source)
             
             if not self.cap.isOpened():
+                st.error(f"❌ Impossible d'ouvrir {self.config.source}")
                 return False
             
             # Configuration

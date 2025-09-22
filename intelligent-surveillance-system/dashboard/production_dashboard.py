@@ -20,7 +20,7 @@ from datetime import datetime, timedelta
 import time
 import random
 import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 import tempfile
 import os
 import asyncio
@@ -1574,8 +1574,8 @@ def get_fluid_frame(camera_id: str, camera_config: dict, max_age_ms: int = 33):
     
     return frame
 
-class NetworkQualityMonitor:
-    """Moniteur de qualité réseau adaptatif pour optimisation automatique."""
+class CameraNetworkQualityMonitor:
+    """Moniteur de qualité réseau adaptatif pour optimisation automatique par caméra."""
     
     def __init__(self, camera_id: str):
         self.camera_id = camera_id

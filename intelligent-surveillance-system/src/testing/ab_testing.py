@@ -12,9 +12,15 @@ import logging
 import json
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-import matplotlib.pyplot as plt
-import seaborn as sns
-from scipy import stats
+try:
+    import matplotlib.pyplot as plt
+    import seaborn as sns
+    from scipy import stats
+    VISUALIZATION_AVAILABLE = True
+except ImportError:
+    VISUALIZATION_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("⚠️ Modules de visualisation non disponibles (matplotlib/seaborn/scipy)")
 
 logger = logging.getLogger(__name__)
 
@@ -361,7 +367,10 @@ class ABTestFramework:
                 # Perform ANOVA test
                 groups = [group[metric].values for name, group in df.groupby("variant")]
                 if len(groups) >= 2 and all(len(group) > 0 for group in groups):
-                    f_stat, p_value = stats.f_oneway(*groups)
+                    if VISUALIZATION_AVAILABLE:
+                        f_stat, p_value = stats.f_oneway(*groups)
+                    else:
+                        f_stat, p_value = 0.0, 1.0
                     statistical_tests[metric] = {
                         "f_statistic": float(f_stat),
                         "p_value": float(p_value),
@@ -425,6 +434,9 @@ class ABTestFramework:
     
     def visualize_results(self, test_results: Dict[str, TestResult], output_file: Optional[str] = None):
         """Create visualizations of test results."""
+        if not VISUALIZATION_AVAILABLE:
+            logger.warning("⚠️ Visualisation non disponible - modules matplotlib/seaborn manquants")
+            return
         
         if not test_results or all(result is None for result in test_results.values()):
             logger.warning("No valid results to visualize")

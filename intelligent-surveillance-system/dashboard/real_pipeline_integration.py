@@ -161,11 +161,11 @@ class RealVLMPipeline:
             # 1. Orchestrateur adaptatif
             logger.info("📋 Initialisation AdaptiveVLMOrchestrator...")
             orchestration_config = OrchestrationConfig(
-                mode=OrchestrationMode.ADAPTIVE,
+                mode=OrchestrationMode.THOROUGH,
                 confidence_threshold=0.7,
-                max_tools_per_analysis=4,
-                timeout_seconds=30.0,
-                enable_parallel_execution=True
+                max_concurrent_tools=4,
+                timeout_seconds=30,
+                enable_advanced_tools=True
             )
             
             self.orchestrator = AdaptiveVLMOrchestrator(
@@ -191,9 +191,8 @@ class RealVLMPipeline:
             if self.enable_optimization:
                 logger.info("🧪 Initialisation ToolOptimizationBenchmark...")
                 self.benchmark = ToolOptimizationBenchmark(
-                    orchestrator=self.orchestrator,
-                    test_data_path=Path("data/benchmark/test_cases"),
-                    results_path=Path("data/benchmark/results")
+                    vlm_model_name=self.vlm_model_name,
+                    test_data_path=Path("data/benchmark/test_cases")
                 )
             
             # 5. Monitoring de performance
@@ -201,8 +200,7 @@ class RealVLMPipeline:
             self.performance_monitor = PerformanceMonitor()
             self.metrics_collector = VLMMetricsCollector()
             
-            # 6. Initialisation des composants
-            await self.orchestrator.initialize()
+            # 6. Initialisation des composants (orchestrator déjà initialisé)
             
             # 7. Chargement de la configuration optimale existante
             await self._load_optimization_data()
@@ -597,14 +595,27 @@ def get_real_pipeline() -> Optional[RealVLMPipeline]:
     """Récupère l'instance de pipeline réelle."""
     return real_pipeline
 
-def initialize_real_pipeline(**kwargs) -> bool:
-    """Initialise la pipeline réelle."""
+async def initialize_real_pipeline_async(**kwargs) -> bool:
+    """Initialise la pipeline réelle (version async)."""
     global real_pipeline
     
     if real_pipeline is None:
         real_pipeline = RealVLMPipeline(**kwargs)
     
-    return asyncio.run(real_pipeline.initialize())
+    return await real_pipeline.initialize()
+
+def initialize_real_pipeline(**kwargs) -> bool:
+    """Initialise la pipeline réelle (version sync)."""
+    global real_pipeline
+    
+    if real_pipeline is None:
+        real_pipeline = RealVLMPipeline(**kwargs)
+    
+    try:
+        return asyncio.run(real_pipeline.initialize())
+    except RuntimeError:
+        # Si on est déjà dans une boucle asyncio
+        return False
 
 def is_real_pipeline_available() -> bool:
     """Vérifie si la pipeline réelle est disponible."""

@@ -29,6 +29,8 @@ import threading
 import queue
 import io
 from PIL import Image
+import signal
+from collections import deque
 
 # Import contexte vidéo
 from video_context_integration import (
@@ -92,6 +94,18 @@ if 'frame_cache' not in st.session_state:
     st.session_state.frame_cache = {}
 if 'last_frame_update' not in st.session_state:
     st.session_state.last_frame_update = {}
+if 'threaded_captures' not in st.session_state:
+    st.session_state.threaded_captures = {}
+if 'capture_threads' not in st.session_state:
+    st.session_state.capture_threads = {}
+if 'fluid_cache' not in st.session_state:
+    st.session_state.fluid_cache = {}
+if 'last_display_time' not in st.session_state:
+    st.session_state.last_display_time = {}
+if 'network_monitor' not in st.session_state:
+    st.session_state.network_monitor = {}
+if 'adaptive_settings' not in st.session_state:
+    st.session_state.adaptive_settings = {}
 
 # CSS pour l'interface
 st.markdown("""
@@ -588,6 +602,1177 @@ class MJPEGStreamManager:
 # Instance globale pour réutilisation
 _mjpeg_manager = MJPEGStreamManager()
 
+class NetworkQualityMonitor:
+    """Moniteur de qualité réseau ULTRA-AVANCÉ pour optimisation automatique."""
+    
+    def __init__(self):
+        self.running = False
+        self.thread = None
+        
+        # Historique des métriques avec limite de mémoire
+        self.latency_history = deque(maxlen=50)
+        self.speed_history = deque(maxlen=30)
+        self.packet_loss_history = deque(maxlen=20)
+        
+        # Métriques courantes
+        self.current_latency = 100
+        self.current_speed = 1000  # KB/s
+        self.current_quality = "good"
+        self.avg_latency = 100
+        self.avg_speed = 1000
+        self.jitter = 0
+        self.packet_loss = 0
+        
+        # Paramètres adaptatifs optimaux
+        self.adaptive_params = {
+            "resolution": (640, 480),
+            "fps": 25,
+            "compression": 80,
+            "timeout": 5,
+            "buffer_size": 2,
+            "retry_count": 3
+        }
+    
+    def start_monitoring(self):
+        """Démarre le monitoring réseau continu."""
+        if self.running:
+            return
+        
+        self.running = True
+        self.thread = threading.Thread(target=self._monitor_network_quality, daemon=True)
+        self.thread.start()
+        print("🌐 Monitoring réseau adaptatif démarré")
+    
+    def stop_monitoring(self):
+        """Arrête le monitoring."""
+        self.running = False
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=3.0)
+    
+    def _monitor_network_quality(self):
+        """Thread de surveillance ULTRA-AVANCÉE de la qualité réseau."""
+        consecutive_errors = 0
+        max_consecutive_errors = 3
+        test_iteration = 0
+        
+        while self.running:
+            test_iteration += 1
+            
+            try:
+                # === Test latence multi-serveurs avec failover ===
+                latency_tests = []
+                test_urls = [
+                    'https://httpbin.org/json',
+                    'https://jsonplaceholder.typicode.com/posts/1',
+                    'https://api.github.com'
+                ]
+                
+                for i, url in enumerate(test_urls[:2]):  # Max 2 serveurs
+                    try:
+                        start_time = time.perf_counter()
+                        response = requests.get(url, timeout=4, 
+                                              headers={'User-Agent': 'NetworkMonitor/1.0'})
+                        if response.status_code == 200:
+                            latency = (time.perf_counter() - start_time) * 1000
+                            latency_tests.append(latency)
+                            if i == 0:  # Premier test réussi, pas besoin d'autres
+                                break
+                    except Exception as e:
+                        print(f"⚠️ Test latence serveur {i+1} échoué: {e}")
+                        continue
+                
+                # === Calcul latence finale ===
+                if latency_tests:
+                    # Utilise la médiane pour robustesse contre outliers
+                    current_latency = np.median(latency_tests)
+                    consecutive_errors = max(0, consecutive_errors - 1)  # Récupération graduelle
+                else:
+                    current_latency = 3000  # Latence très dégradée
+                    consecutive_errors += 1
+                
+                # === Test vitesse adaptatif avec streaming ===
+                speed_kbps = 0
+                try:
+                    # Taille test adaptée à la qualité actuelle
+                    test_sizes = {
+                        "excellent": 200000,
+                        "good": 100000, 
+                        "fair": 50000,
+                        "poor": 20000
+                    }
+                    test_size = test_sizes.get(self.current_quality, 100000)
+                    
+                    speed_start = time.perf_counter()
+                    response = requests.get(f'https://httpbin.org/bytes/{test_size}', 
+                                          timeout=10, stream=True,
+                                          headers={'User-Agent': 'SpeedTest/1.0'})
+                    
+                    total_bytes = 0
+                    chunk_times = []
+                    
+                    for chunk in response.iter_content(chunk_size=8192):
+                        chunk_start = time.perf_counter()
+                        total_bytes += len(chunk)
+                        chunk_times.append(time.perf_counter() - chunk_start)
+                        
+                        # Timeout progressif
+                        if time.perf_counter() - speed_start > 8:
+                            break
+                    
+                    download_time = time.perf_counter() - speed_start
+                    if download_time > 0:
+                        speed_kbps = (total_bytes / download_time) / 1024
+                        
+                        # Calcul du jitter basé sur la variance des chunks
+                        if len(chunk_times) > 5:
+                            self.jitter = np.std(chunk_times) * 1000
+                            
+                except Exception as e:
+                    print(f"⚠️ Test vitesse échoué: {e}")
+                    speed_kbps = 30  # Vitesse très dégradée
+                    consecutive_errors += 1
+                
+                # === Mise à jour métriques avec validation ===
+                if 5 < current_latency < 10000:  # Latence réaliste
+                    self.latency_history.append(current_latency)
+                    self.current_latency = current_latency
+                
+                if 1 < speed_kbps < 500000:  # Vitesse réaliste (1KB/s à 500MB/s)
+                    self.speed_history.append(speed_kbps)
+                    self.current_speed = speed_kbps
+                
+                # === Calcul moyennes pondérées (priorité au récent) ===
+                if self.latency_history:
+                    recent_samples = min(5, len(self.latency_history))
+                    recent_latency = np.mean(list(self.latency_history)[-recent_samples:])
+                    historical_latency = np.mean(self.latency_history)
+                    self.avg_latency = 0.8 * recent_latency + 0.2 * historical_latency
+                
+                if self.speed_history:
+                    recent_samples = min(3, len(self.speed_history))
+                    recent_speed = np.mean(list(self.speed_history)[-recent_samples:])
+                    historical_speed = np.mean(self.speed_history)
+                    self.avg_speed = 0.8 * recent_speed + 0.2 * historical_speed
+                
+                # === Détection qualité avec HYSTERESIS pour éviter oscillations ===
+                previous_quality = self.current_quality
+                new_quality = self._calculate_network_quality(consecutive_errors)
+                
+                # Hysteresis: changement seulement si différence significative
+                quality_levels = {"poor": 0, "fair": 1, "good": 2, "excellent": 3}
+                current_level = quality_levels[self.current_quality]
+                new_level = quality_levels[new_quality]
+                
+                # Changement seulement si écart >= 1 niveau OU détérioration immédiate
+                if abs(new_level - current_level) >= 1 or new_level < current_level:
+                    self.current_quality = new_quality
+                
+                # === Adaptation paramètres si changement qualité ===
+                if previous_quality != self.current_quality:
+                    self._adapt_parameters_advanced()
+                    print(f"🔄 Qualité réseau: {previous_quality} → {self.current_quality}")
+                
+                # === Logging informatif périodique ===
+                if test_iteration % 8 == 0:  # Toutes les 8 itérations
+                    stability = "stable" if self.jitter < 50 else "variable" if self.jitter < 150 else "instable"
+                    print(f"📊 Réseau: {self.current_quality} ({stability}) | "
+                          f"Latence: {self.current_latency:.0f}ms (moy: {self.avg_latency:.0f}ms) | "
+                          f"Vitesse: {self.current_speed:.0f}KB/s | "
+                          f"Jitter: {self.jitter:.1f}ms | Errors: {consecutive_errors}")
+                
+                # === Sauvegarde métriques pour dashboard ===
+                current_time = time.time()
+                stability_score = max(0, 100 - self.jitter * 2)
+                
+                if 'network_metrics' not in st.session_state:
+                    st.session_state.network_metrics = {}
+                
+                st.session_state.network_metrics.update({
+                    'quality': self.current_quality,
+                    'latency': self.current_latency,
+                    'avg_latency': self.avg_latency,
+                    'speed': self.current_speed,
+                    'avg_speed': self.avg_speed,
+                    'jitter': self.jitter,
+                    'stability_score': stability_score,
+                    'consecutive_errors': consecutive_errors,
+                    'last_update': current_time,
+                    'params': self.adaptive_params.copy()
+                })
+                
+            except Exception as e:
+                consecutive_errors += 1
+                print(f"⚠️ Erreur monitoring réseau critique: {e}")
+                
+                # Dégradation progressive selon erreurs
+                if consecutive_errors >= max_consecutive_errors:
+                    self.current_quality = "poor"
+                    self._adapt_parameters_advanced()
+                    print(f"🔴 Connexion très instable, mode dégradé activé")
+            
+            # === Fréquence adaptative intelligente ===
+            base_intervals = {"excellent": 20, "good": 15, "fair": 10, "poor": 6}
+            base_interval = base_intervals.get(self.current_quality, 12)
+            
+            # Augmente la fréquence si problèmes détectés
+            if consecutive_errors > 0:
+                interval = max(4, base_interval - consecutive_errors * 2)
+            else:
+                interval = base_interval
+            
+            time.sleep(interval)
+    
+    def _calculate_network_quality(self, consecutive_errors: int) -> str:
+        """Calcule la qualité réseau avec algorithme de scoring avancé."""
+        
+        # === Scores individuels (0-100) ===
+        
+        # Score latence (logarithmique pour plus de sensibilité)
+        if self.current_latency <= 50:
+            latency_score = 100
+        elif self.current_latency <= 150:
+            latency_score = 100 - (self.current_latency - 50) * 0.6  # Dégradation douce
+        else:
+            latency_score = max(0, 40 - (self.current_latency - 150) * 0.1)
+        
+        # Score vitesse (adaptatif selon usage)
+        min_speed = 100  # KB/s minimum pour "good"
+        optimal_speed = 2000  # KB/s pour "excellent"
+        
+        if self.current_speed >= optimal_speed:
+            speed_score = 100
+        elif self.current_speed >= min_speed:
+            speed_score = 60 + ((self.current_speed - min_speed) / (optimal_speed - min_speed)) * 40
+        else:
+            speed_score = max(0, (self.current_speed / min_speed) * 60)
+        
+        # Score stabilité (basé sur jitter)
+        if self.jitter <= 20:
+            stability_score = 100
+        elif self.jitter <= 100:
+            stability_score = 100 - (self.jitter - 20) * 1.25
+        else:
+            stability_score = max(0, 30 - (self.jitter - 100) * 0.3)
+        
+        # Pénalité erreurs consécutives
+        error_penalty = min(50, consecutive_errors * 15)
+        
+        # === Score composite pondéré ===
+        composite_score = (
+            latency_score * 0.4 +      # 40% - latence critique pour streaming
+            speed_score * 0.35 +       # 35% - vitesse importante
+            stability_score * 0.25     # 25% - stabilité pour qualité
+        ) - error_penalty
+        
+        # === Classification avec seuils calibrés ===
+        if composite_score >= 85:
+            return "excellent"
+        elif composite_score >= 65:
+            return "good" 
+        elif composite_score >= 35:
+            return "fair"
+        else:
+            return "poor"
+    
+    def _adapt_parameters_advanced(self):
+        """Adaptation ULTRA-INTELLIGENTE des paramètres selon qualité réseau."""
+        
+        if self.current_quality == "excellent":
+            self.adaptive_params.update({
+                "resolution": (1280, 720),    # HD pour excellent réseau
+                "fps": 30,
+                "compression": 95,            # Qualité maximale
+                "timeout": 3,
+                "buffer_size": 1,             # Buffer minimal, réactivité max
+                "retry_count": 2,
+                "stream_optimization": "quality"
+            })
+            
+        elif self.current_quality == "good":
+            self.adaptive_params.update({
+                "resolution": (960, 540),     # Résolution intermédiaire
+                "fps": 25,
+                "compression": 85,
+                "timeout": 4,
+                "buffer_size": 2,
+                "retry_count": 3,
+                "stream_optimization": "balanced"
+            })
+            
+        elif self.current_quality == "fair":
+            self.adaptive_params.update({
+                "resolution": (640, 480),     # VGA pour réseau moyen
+                "fps": 20,
+                "compression": 75,
+                "timeout": 6,
+                "buffer_size": 3,
+                "retry_count": 4,
+                "stream_optimization": "stability"
+            })
+            
+        else:  # poor
+            self.adaptive_params.update({
+                "resolution": (320, 240),     # Résolution minimale
+                "fps": 15,
+                "compression": 60,            # Compression agressive
+                "timeout": 10,                # Timeout élevé
+                "buffer_size": 5,             # Buffer élevé pour absorber variabilité
+                "retry_count": 6,
+                "stream_optimization": "survival"
+            })
+        
+        print(f"⚙️ Paramètres adaptés pour qualité '{self.current_quality}': "
+              f"{self.adaptive_params['resolution']} @ {self.adaptive_params['fps']}fps")
+    
+    def get_adaptive_parameters(self) -> dict:
+        """Retourne les paramètres optimaux actuels."""
+        return self.adaptive_params.copy()
+    
+    def get_network_status(self) -> dict:
+        """Retourne le status réseau complet."""
+        return {
+            'quality': self.current_quality,
+            'latency': self.current_latency,
+            'speed': self.current_speed,
+            'jitter': self.jitter,
+            'adaptive_params': self.adaptive_params.copy(),
+            'running': self.running
+        }
+
+class ThreadedVideoCapture:
+    """Capture vidéo ULTRA optimisée avec double buffering et prédiction."""
+    
+    def __init__(self, source, backend=cv2.CAP_ANY, buffer_size=1):  # Buffer minimal pour latence zéro
+        self.source = source
+        self.backend = backend
+        self.buffer_size = buffer_size
+        self.frame_queue = queue.Queue(maxsize=buffer_size)
+        self.cap = None
+        self.running = False
+        self.thread = None
+        self.fps_counter = 0
+        self.last_fps_time = time.time()
+        self.actual_fps = 0
+        self.frame_count = 0
+        self.drop_count = 0
+        self.target_fps = 30  # Remonte à 30 FPS avec optimisations
+        
+        # NOUVEAU: Double buffering pour fluidité parfaite
+        self.current_frame = None
+        self.previous_frame = None
+        self.frame_lock = threading.Lock()
+        
+        # NOUVEAU: Système de prédiction pour éviter coupures
+        self.last_successful_capture = time.time()
+        self.capture_interval_history = deque(maxlen=10)
+        self.predicted_next_frame_time = 0
+        
+    def start(self):
+        """Démarre la capture en thread séparé."""
+        if self.running:
+            return True
+            
+        try:
+            # Initialisation capture avec optimisations
+            if isinstance(self.source, str) and self.source.isdigit():
+                self.cap = cv2.VideoCapture(int(self.source), self.backend)
+            else:
+                self.cap = cv2.VideoCapture(self.source, self.backend)
+            
+            if not self.cap.isOpened():
+                return False
+            
+            # Configurations ULTRA optimisées pour fluidité maximale
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)  # Buffer minimal absolu
+            self.cap.set(cv2.CAP_PROP_FPS, self.target_fps)  # FPS cible optimisé
+            
+            # Pour webcams : optimisations spécifiques
+            if isinstance(self.source, str) and self.source.isdigit():
+                self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('Y','U','Y','V'))  # Format plus rapide que MJPEG
+                # Résolution plus basse pour fluidité
+                self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+                self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            else:
+                # RTSP optimisations
+                self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('H','2','6','4'))
+                
+            # Désactive l'auto-exposition/focus pour éviter lag
+            self.cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.25)  # Manual mode
+            
+            # Démarre le thread de capture
+            self.running = True
+            self.thread = threading.Thread(target=self._capture_loop, daemon=True)
+            self.thread.start()
+            
+            return True
+            
+        except Exception as e:
+            print(f"Erreur initialisation ThreadedVideoCapture: {e}")
+            return False
+    
+    def _capture_loop(self):
+        """Boucle de capture ULTRA optimisée avec double buffering et prédiction."""
+        last_frame_time = time.time()
+        target_interval = 1.0 / self.target_fps
+        
+        while self.running and self.cap and self.cap.isOpened():
+            try:
+                capture_start = time.time()
+                
+                ret, frame = self.cap.read()
+                
+                if ret and frame is not None:
+                    self.frame_count += 1
+                    current_time = time.time()
+                    
+                    # Mise à jour système de prédiction
+                    if self.last_successful_capture > 0:
+                        interval = current_time - self.last_successful_capture
+                        self.capture_interval_history.append(interval)
+                    self.last_successful_capture = current_time
+                    
+                    # Calcul FPS
+                    self.fps_counter += 1
+                    if current_time - self.last_fps_time >= 1.0:
+                        self.actual_fps = self.fps_counter
+                        self.fps_counter = 0
+                        self.last_fps_time = current_time
+                    
+                    # DOUBLE BUFFERING: Rotation des frames pour continuité
+                    with self.frame_lock:
+                        self.previous_frame = self.current_frame
+                        self.current_frame = frame.copy()  # Copie pour thread safety
+                    
+                    # Queue management ultra-rapide
+                    while not self.frame_queue.empty():
+                        try:
+                            self.frame_queue.get_nowait()
+                            self.drop_count += 1
+                        except queue.Empty:
+                            break
+                    
+                    try:
+                        self.frame_queue.put_nowait(frame)
+                    except queue.Full:
+                        self.drop_count += 1
+                        
+                else:
+                    # Pas de frame - utilise prédiction pour éviter coupures
+                    if self.capture_interval_history and self.current_frame is not None:
+                        avg_interval = sum(self.capture_interval_history) / len(self.capture_interval_history)
+                        if current_time - self.last_successful_capture < avg_interval * 3:
+                            # Réutilise la dernière frame valide temporairement
+                            with self.frame_lock:
+                                if self.current_frame is not None:
+                                    try:
+                                        self.frame_queue.put_nowait(self.current_frame.copy())
+                                    except queue.Full:
+                                        pass
+                    
+                    # Pause très courte pour retry immédiat
+                    time.sleep(0.01)
+                    continue
+                
+                # Timing ultra-précis avec compensation
+                elapsed = time.time() - capture_start
+                sleep_time = target_interval - elapsed
+                if sleep_time > 0.005:  # Seuil minimum pour éviter overhead
+                    time.sleep(sleep_time)
+                    
+            except Exception as e:
+                print(f"Erreur capture thread: {e}")
+                # En cas d'erreur, utilise frame précédente si disponible
+                if self.previous_frame is not None:
+                    with self.frame_lock:
+                        try:
+                            self.frame_queue.put_nowait(self.previous_frame.copy())
+                        except queue.Full:
+                            pass
+                time.sleep(0.05)  # Pause très courte
+    
+    def get_latest_frame(self):
+        """Récupère la frame la plus récente avec fallback intelligent."""
+        frame = None
+        try:
+            # Récupère frame de la queue
+            while not self.frame_queue.empty():
+                frame = self.frame_queue.get_nowait()
+        except queue.Empty:
+            pass
+        
+        # NOUVEAU: Fallback sur double buffer si queue vide
+        if frame is None:
+            with self.frame_lock:
+                if self.current_frame is not None:
+                    frame = self.current_frame.copy()
+                elif self.previous_frame is not None:
+                    # En dernier recours, utilise la frame précédente
+                    frame = self.previous_frame.copy()
+        
+        return frame
+    
+    def get_stats(self):
+        """Statistiques de performance."""
+        return {
+            'fps': self.actual_fps,
+            'frames_captured': self.frame_count,
+            'frames_dropped': self.drop_count,
+            'queue_size': self.frame_queue.qsize(),
+            'running': self.running
+        }
+    
+    def stop(self):
+        """Arrête la capture."""
+        self.running = False
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=2.0)
+        if self.cap:
+            self.cap.release()
+            self.cap = None
+
+class AdaptiveFrameCompressor:
+    """Compresseur de frames adaptatif pour optimisation réseau."""
+    
+    def __init__(self):
+        self.quality_history = deque(maxlen=10)
+        self.size_history = deque(maxlen=10)
+        self.target_size = 50000  # 50KB par défaut
+        self.current_quality = 85
+        self.compression_stats = {
+            'frames_processed': 0,
+            'total_compression_time': 0,
+            'avg_size_reduction': 0,
+            'quality_adjustments': 0
+        }
+    
+    def compress_frame_adaptive(self, frame: np.ndarray, network_quality: str = "good") -> Tuple[np.ndarray, dict]:
+        """Compresse une frame selon la qualité réseau."""
+        start_time = time.perf_counter()
+        
+        # Adaptation qualité selon réseau
+        quality_map = {
+            "excellent": 95,
+            "good": 85,
+            "fair": 70,
+            "poor": 50
+        }
+        base_quality = quality_map.get(network_quality, 85)
+        
+        # Ajustement dynamique basé sur historique
+        if len(self.size_history) > 3:
+            avg_size = np.mean(self.size_history)
+            if avg_size > self.target_size * 1.2:  # Trop gros
+                self.current_quality = max(30, self.current_quality - 10)
+                self.compression_stats['quality_adjustments'] += 1
+            elif avg_size < self.target_size * 0.8:  # Trop petit
+                self.current_quality = min(95, self.current_quality + 5)
+        else:
+            self.current_quality = base_quality
+        
+        # Compression JPEG optimisée
+        original_size = frame.nbytes
+        
+        # Paramètres de compression adaptatifs
+        encode_params = [
+            cv2.IMWRITE_JPEG_QUALITY, int(self.current_quality),
+            cv2.IMWRITE_JPEG_OPTIMIZE, 1,
+            cv2.IMWRITE_JPEG_PROGRESSIVE, 1 if network_quality in ["excellent", "good"] else 0
+        ]
+        
+        # Compression avec gestion d'erreur
+        try:
+            success, compressed_data = cv2.imencode('.jpg', frame, encode_params)
+            if success:
+                compressed_size = len(compressed_data)
+                
+                # Décompression pour frame utilisable
+                frame_compressed = cv2.imdecode(compressed_data, cv2.IMREAD_COLOR)
+                
+                # Mise à jour statistiques
+                compression_time = time.perf_counter() - start_time
+                compression_ratio = original_size / compressed_size if compressed_size > 0 else 1.0
+                
+                self.size_history.append(compressed_size)
+                self.quality_history.append(self.current_quality)
+                
+                self.compression_stats.update({
+                    'frames_processed': self.compression_stats['frames_processed'] + 1,
+                    'total_compression_time': self.compression_stats['total_compression_time'] + compression_time,
+                    'avg_size_reduction': np.mean([original_size / s for s in self.size_history if s > 0])
+                })
+                
+                # Métriques de retour
+                metrics = {
+                    'original_size': original_size,
+                    'compressed_size': compressed_size,
+                    'compression_ratio': compression_ratio,
+                    'quality_used': self.current_quality,
+                    'processing_time': compression_time,
+                    'network_quality': network_quality
+                }
+                
+                return frame_compressed, metrics
+            else:
+                # Échec compression, retourne frame originale
+                return frame, {'error': 'compression_failed', 'original_size': original_size}
+                
+        except Exception as e:
+            print(f"❌ Erreur compression adaptative: {e}")
+            return frame, {'error': str(e), 'original_size': original_size}
+    
+    def get_compression_stats(self) -> dict:
+        """Retourne les statistiques de compression."""
+        avg_time = (self.compression_stats['total_compression_time'] / 
+                   max(1, self.compression_stats['frames_processed']))
+        
+        return {
+            'frames_processed': self.compression_stats['frames_processed'],
+            'avg_processing_time_ms': avg_time * 1000,
+            'current_quality': self.current_quality,
+            'avg_size_reduction': self.compression_stats['avg_size_reduction'],
+            'quality_adjustments': self.compression_stats['quality_adjustments'],
+            'target_size_kb': self.target_size / 1024
+        }
+    
+    def set_target_size(self, size_kb: int):
+        """Définit la taille cible en KB."""
+        self.target_size = size_kb * 1024
+        print(f"🎯 Taille cible de compression: {size_kb}KB")
+
+class ThreadedMJPEGCapture:
+    """Capture MJPEG HTTP ULTRA-OPTIMISÉE avec compression adaptative."""
+    
+    def __init__(self, url, width=640, height=480, buffer_size=3):
+        self.url = url
+        self.width = width
+        self.height = height
+        self.buffer_size = buffer_size
+        self.frame_queue = queue.Queue(maxsize=buffer_size)
+        self.running = False
+        self.thread = None
+        self.session = requests.Session()
+        self.session.headers.update({'User-Agent': 'Mozilla/5.0'})
+        self.fps_counter = 0
+        self.last_fps_time = time.time()
+        self.actual_fps = 0
+        self.frame_count = 0
+        self.drop_count = 0
+        
+        # NOUVEAU: Compression adaptative intégrée
+        self.compressor = AdaptiveFrameCompressor()
+        self.compression_enabled = True
+        self.compression_stats = {}
+    
+    def start(self):
+        """Démarre la capture MJPEG."""
+        if self.running:
+            return True
+        
+        self.running = True
+        self.thread = threading.Thread(target=self._mjpeg_loop, daemon=True)
+        self.thread.start()
+        return True
+    
+    def _mjpeg_loop(self):
+        """Boucle de capture MJPEG optimisée."""
+        while self.running:
+            try:
+                with self.session.get(self.url, stream=True, timeout=5) as response:
+                    if response.status_code == 200:
+                        content_buffer = b""
+                        
+                        for chunk in response.iter_content(chunk_size=8192):
+                            if not self.running:
+                                break
+                                
+                            content_buffer += chunk
+                            
+                            # Recherche et traitement frames JPEG
+                            while True:
+                                start_marker = content_buffer.find(b'\xff\xd8')
+                                if start_marker == -1:
+                                    break
+                                
+                                end_marker = content_buffer.find(b'\xff\xd9', start_marker)
+                                if end_marker == -1:
+                                    content_buffer = content_buffer[start_marker:]
+                                    break
+                                
+                                jpeg_data = content_buffer[start_marker:end_marker + 2]
+                                
+                                if len(jpeg_data) > 5000:  # Frame valide
+                                    try:
+                                        img = Image.open(io.BytesIO(jpeg_data))
+                                        if img.width >= 320 and img.height >= 240:
+                                            frame = np.array(img)
+                                            
+                                            # Conversion couleur
+                                            if len(frame.shape) == 3 and frame.shape[2] == 3:
+                                                frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                                            elif len(frame.shape) == 2:
+                                                frame = cv2.cvtColor(frame, cv2.COLOR_GRAY2BGR)
+                                            
+                                            # Redimensionnement
+                                            if frame.shape[:2] != (self.height, self.width):
+                                                frame = cv2.resize(frame, (self.width, self.height))
+                                            
+                                            # Calcul FPS
+                                            current_time = time.time()
+                                            self.fps_counter += 1
+                                            self.frame_count += 1
+                                            
+                                            if current_time - self.last_fps_time >= 1.0:
+                                                self.actual_fps = self.fps_counter
+                                                self.fps_counter = 0
+                                                self.last_fps_time = current_time
+                                            
+                                            # Ajout à la queue
+                                            try:
+                                                while not self.frame_queue.empty():
+                                                    try:
+                                                        self.frame_queue.get_nowait()
+                                                        self.drop_count += 1
+                                                    except queue.Empty:
+                                                        break
+                                                
+                                                self.frame_queue.put_nowait(frame)
+                                            except queue.Full:
+                                                self.drop_count += 1
+                                    
+                                    except Exception:
+                                        pass
+                                
+                                content_buffer = content_buffer[end_marker + 2:]
+                            
+                            # Limite buffer
+                            if len(content_buffer) > 100000:
+                                content_buffer = content_buffer[-50000:]
+                    else:
+                        time.sleep(1)
+                        
+            except Exception as e:
+                print(f"Erreur MJPEG thread: {e}")
+                time.sleep(2)
+    
+    def get_latest_frame(self):
+        """Récupère la frame la plus récente."""
+        frame = None
+        try:
+            while not self.frame_queue.empty():
+                frame = self.frame_queue.get_nowait()
+        except queue.Empty:
+            pass
+        return frame
+    
+    def get_stats(self):
+        """Statistiques de performance."""
+        return {
+            'fps': self.actual_fps,
+            'frames_captured': self.frame_count,
+            'frames_dropped': self.drop_count,
+            'queue_size': self.frame_queue.qsize(),
+            'running': self.running
+        }
+    
+    def stop(self):
+        """Arrête la capture."""
+        self.running = False
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=2.0)
+
+def get_or_create_threaded_capture(camera_id: str, camera_config: dict):
+    """Récupère ou crée une capture threadée ULTRA-OPTIMISÉE pour une caméra."""
+    
+    # Initialise les systèmes adaptatifs
+    initialize_adaptive_systems()
+    
+    # Nettoie les captures inactives
+    to_remove = []
+    for cam_id, capture in st.session_state.threaded_captures.items():
+        if not capture.running:
+            to_remove.append(cam_id)
+    
+    for cam_id in to_remove:
+        del st.session_state.threaded_captures[cam_id]
+        print(f"🧹 Capture inactive supprimée: {cam_id}")
+    
+    # Récupère le monitoring réseau pour cette caméra
+    network_monitor = get_network_monitor(camera_id)
+    adaptive_params = network_monitor.get_adaptive_parameters()
+    
+    # Création nouvelle capture si nécessaire
+    if camera_id not in st.session_state.threaded_captures:
+        source = camera_config['source']
+        
+        # Utilise les nouveaux composants optimisés
+        try:
+            # Détermine le type de backend optimal
+            if source.isdigit():
+                backend = cv2.CAP_V4L2  # Optimal pour webcam Linux
+            elif source.startswith('rtsp'):
+                backend = cv2.CAP_FFMPEG  # Optimal pour RTSP
+                # Ajoute TCP si pas présent
+                if 'tcp' not in source.lower():
+                    separator = '&' if '?' in source else '?'
+                    source = f"{source}{separator}tcp"
+            else:
+                backend = cv2.CAP_ANY  # Fallback générique
+            
+            # Crée la capture avec paramètres adaptatifs
+            capture = ThreadedVideoCapture(source, backend, 
+                                         buffer_size=adaptive_params.get('buffer_size', 1))
+            
+            if capture.start():
+                st.session_state.threaded_captures[camera_id] = capture
+                print(f"✅ Capture threadée optimisée créée pour {camera_id} "
+                      f"(qualité: {network_monitor.current_quality})")
+            else:
+                print(f"❌ Échec création capture pour {camera_id}")
+                return None
+                
+        except Exception as e:
+            print(f"❌ Erreur création capture {camera_id}: {e}")
+            return None
+    
+    return st.session_state.threaded_captures.get(camera_id)
+
+def capture_frame_threaded(camera_config: dict, width: int = 640, height: int = 480):
+    """Capture threadée ULTRA-OPTIMISÉE avec compression adaptative."""
+    camera_id = camera_config.get('id', camera_config.get('source', 'unknown'))
+    
+    # Récupère ou crée la capture threadée optimisée
+    capture = get_or_create_threaded_capture(camera_id, camera_config)
+    
+    if capture:
+        frame = capture.get_latest_frame()
+        
+        if frame is not None:
+            # Récupère le monitoring réseau et compresseur adaptatif
+            network_monitor = get_network_monitor(camera_id)
+            compressor = get_adaptive_compressor()
+            
+            # Redimensionne selon paramètres adaptatifs
+            adaptive_params = network_monitor.get_adaptive_parameters()
+            target_width, target_height = adaptive_params['resolution']
+            
+            if frame.shape[:2] != (target_height, target_width):
+                frame = cv2.resize(frame, (target_width, target_height), 
+                                 interpolation=cv2.INTER_LINEAR)
+            
+            # Compression adaptative selon qualité réseau
+            frame_compressed, compression_metrics = compressor.compress_frame_adaptive(
+                frame, network_monitor.current_quality
+            )
+            
+            # Overlays avec informations réseau et performance
+            timestamp = datetime.now().strftime("%H:%M:%S")
+            stats = capture.get_stats()
+            
+            # Overlay principal
+            cv2.putText(frame_compressed, f"{camera_config.get('name', 'Camera')}", (10, 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            
+            # Overlay timing et performance
+            cv2.putText(frame_compressed, f"ADAPTIVE | {timestamp}", (10, target_height - 15), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+            
+            # Overlay statistiques réseau
+            cv2.putText(frame_compressed, 
+                       f"FPS: {stats['fps']:.1f} | Net: {network_monitor.current_quality}", 
+                       (10, target_height - 35), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 255, 0), 1)
+            
+            # Overlay compression (si disponible)
+            if 'compression_ratio' in compression_metrics:
+                cv2.putText(frame_compressed, 
+                           f"Compress: {compression_metrics['compression_ratio']:.1f}x | "
+                           f"Q: {compression_metrics['quality_used']}", 
+                           (10, target_height - 55), cv2.FONT_HERSHEY_SIMPLEX, 0.3, (128, 255, 128), 1)
+            
+            return frame_compressed
+    
+    # Fallback vers méthode simple en cas d'échec
+    return capture_real_frame_simple(camera_config, width, height)
+
+def cleanup_threaded_captures():
+    """Nettoie toutes les captures threadées actives."""
+    try:
+        # Arrête toutes les captures threadées
+        for camera_id, capture in list(st.session_state.threaded_captures.items()):
+            try:
+                print(f"🧹 Arrêt capture threadée {camera_id}")
+                capture.stop()
+            except Exception as e:
+                print(f"❌ Erreur arrêt capture {camera_id}: {e}")
+        
+        # Vide le dictionnaire
+        st.session_state.threaded_captures.clear()
+        print("✅ Toutes les captures threadées arrêtées")
+        
+    except Exception as e:
+        print(f"❌ Erreur cleanup global: {e}")
+
+def get_threaded_capture_stats():
+    """Retourne les statistiques de toutes les captures threadées."""
+    stats = {}
+    
+    for camera_id, capture in st.session_state.threaded_captures.items():
+        try:
+            stats[camera_id] = capture.get_stats()
+        except Exception as e:
+            stats[camera_id] = {'error': str(e)}
+    
+    return stats
+
+def get_fluid_frame(camera_id: str, camera_config: dict, max_age_ms: int = 33):
+    """Cache ULTRA-RAPIDE avec double buffering - élimine les coupures."""
+    current_time = time.time() * 1000
+    
+    # Tentative récupération frame fraîche via threading
+    capture = st.session_state.threaded_captures.get(camera_id)
+    fresh_frame = None
+    
+    if capture and capture.running:
+        # Essaie frame fraîche du double buffer directement
+        fresh_frame = capture.get_latest_frame()
+        
+        if fresh_frame is not None:
+            # Mise à jour cache avec frame fraîche
+            st.session_state.fluid_cache[camera_id] = {
+                'frame': fresh_frame,
+                'timestamp': current_time,
+                'backup_frame': st.session_state.fluid_cache.get(camera_id, {}).get('frame'),  # Garde backup
+            }
+            return fresh_frame
+    
+    # Fallback 1: Cache récent
+    if camera_id in st.session_state.fluid_cache:
+        cached_data = st.session_state.fluid_cache[camera_id]
+        age = current_time - cached_data['timestamp']
+        
+        if age < max_age_ms:
+            return cached_data['frame']
+        elif age < max_age_ms * 3 and cached_data.get('backup_frame') is not None:
+            # Fallback 2: Frame de backup si cache pas trop ancien
+            return cached_data['backup_frame']
+    
+    # Fallback 3: Capture forcée en cas d'échec total
+    frame = capture_frame_threaded(camera_config, 640, 480)
+    
+    if frame is not None:
+        # Sauvegarde avec backup
+        old_frame = st.session_state.fluid_cache.get(camera_id, {}).get('frame')
+        st.session_state.fluid_cache[camera_id] = {
+            'frame': frame,
+            'timestamp': current_time,
+            'backup_frame': old_frame
+        }
+    else:
+        # Fallback 4: Dernière frame connue si TOUT échoue
+        if camera_id in st.session_state.fluid_cache:
+            return st.session_state.fluid_cache[camera_id].get('frame') or \
+                   st.session_state.fluid_cache[camera_id].get('backup_frame')
+    
+    return frame
+
+class NetworkQualityMonitor:
+    """Moniteur de qualité réseau adaptatif pour optimisation automatique."""
+    
+    def __init__(self, camera_id: str):
+        self.camera_id = camera_id
+        self.latency_history = deque(maxlen=20)
+        self.success_rate_history = deque(maxlen=50)
+        self.bandwidth_history = deque(maxlen=10)
+        self.last_quality_check = 0
+        self.current_quality = "good"  # poor, fair, good, excellent
+        self.adaptive_params = {
+            "resolution": (640, 480),
+            "fps": 30,
+            "compression": 85,
+            "timeout": 5
+        }
+    
+    def measure_network_latency(self, url: str) -> float:
+        """Mesure la latence réseau vers la source."""
+        import requests
+        try:
+            start_time = time.time()
+            
+            if url.startswith('http'):
+                # Test ping HTTP simple
+                response = requests.head(url, timeout=3)
+                latency = (time.time() - start_time) * 1000
+                return latency if response.status_code == 200 else 9999
+            else:
+                # Pour RTSP/webcam, simulation basée sur performances
+                return 50  # Latence locale simulée
+                
+        except Exception:
+            return 9999  # Très mauvaise latence en cas d'erreur
+    
+    def update_quality_metrics(self, capture_success: bool, capture_time: float, frame_size: int = 0):
+        """Met à jour les métriques de qualité réseau."""
+        current_time = time.time()
+        
+        # Historique des succès/échecs
+        self.success_rate_history.append(1 if capture_success else 0)
+        
+        if capture_success:
+            # Temps de capture (proxy pour latence)
+            self.latency_history.append(capture_time * 1000)
+            
+            # Estimation bandwidth si taille frame disponible
+            if frame_size > 0:
+                bandwidth = frame_size / max(capture_time, 0.001)  # bytes/sec
+                self.bandwidth_history.append(bandwidth)
+        
+        # Réévaluation qualité toutes les 5 secondes
+        if current_time - self.last_quality_check > 5:
+            self._evaluate_network_quality()
+            self.last_quality_check = current_time
+    
+    def _evaluate_network_quality(self):
+        """Évalue la qualité réseau et ajuste les paramètres."""
+        if not self.success_rate_history:
+            return
+        
+        # Calcul métriques
+        success_rate = sum(self.success_rate_history) / len(self.success_rate_history)
+        avg_latency = sum(self.latency_history) / len(self.latency_history) if self.latency_history else 100
+        
+        # Détermination qualité
+        if success_rate > 0.95 and avg_latency < 50:
+            new_quality = "excellent"
+        elif success_rate > 0.85 and avg_latency < 100:
+            new_quality = "good"
+        elif success_rate > 0.7 and avg_latency < 200:
+            new_quality = "fair"
+        else:
+            new_quality = "poor"
+        
+        # Ajustement paramètres si qualité change
+        if new_quality != self.current_quality:
+            self.current_quality = new_quality
+            self._adapt_parameters()
+            print(f"📡 Qualité réseau {self.camera_id}: {new_quality} (Succès: {success_rate:.1%}, Latence: {avg_latency:.0f}ms)")
+    
+    def _adapt_parameters(self):
+        """Adapte automatiquement les paramètres selon la qualité."""
+        if self.current_quality == "excellent":
+            # Qualité parfaite - paramètres maximaux
+            self.adaptive_params.update({
+                "resolution": (1280, 720),
+                "fps": 30,
+                "compression": 95,
+                "timeout": 3,
+                "buffer_size": 1,
+                "retry_count": 2
+            })
+        elif self.current_quality == "good":
+            # Bonne qualité - paramètres standards
+            self.adaptive_params.update({
+                "resolution": (640, 480),
+                "fps": 30,
+                "compression": 85,
+                "timeout": 5,
+                "buffer_size": 1,
+                "retry_count": 3
+            })
+        elif self.current_quality == "fair":
+            # Qualité moyenne - réduction légère
+            self.adaptive_params.update({
+                "resolution": (640, 480),
+                "fps": 20,
+                "compression": 75,
+                "timeout": 8,
+                "buffer_size": 2,
+                "retry_count": 4
+            })
+        else:  # poor
+            # Mauvaise qualité - mode survie
+            self.adaptive_params.update({
+                "resolution": (320, 240),
+                "fps": 15,
+                "compression": 60,
+                "timeout": 10,
+                "buffer_size": 3,
+                "retry_count": 5
+            })
+    
+    def get_adaptive_params(self) -> dict:
+        """Retourne les paramètres adaptés à la qualité réseau."""
+        return self.adaptive_params.copy()
+    
+    def get_quality_info(self) -> dict:
+        """Retourne informations sur la qualité réseau."""
+        success_rate = sum(self.success_rate_history) / len(self.success_rate_history) if self.success_rate_history else 0
+        avg_latency = sum(self.latency_history) / len(self.latency_history) if self.latency_history else 0
+        
+        return {
+            "quality": self.current_quality,
+            "success_rate": success_rate,
+            "avg_latency": avg_latency,
+            "adaptive_params": self.adaptive_params
+        }
+
+def get_network_monitor(camera_id: str) -> NetworkQualityMonitor:
+    """Récupère ou crée un moniteur réseau pour une caméra."""
+    if camera_id not in st.session_state.network_monitor:
+        st.session_state.network_monitor[camera_id] = NetworkQualityMonitor()
+        st.session_state.network_monitor[camera_id].start_monitoring()
+    return st.session_state.network_monitor[camera_id]
+
+def get_threaded_capture(camera_id: str, source_url: str) -> ThreadedVideoCapture:
+    """Récupère ou crée une capture threadée pour une caméra."""
+    if camera_id not in st.session_state.threaded_captures:
+        capture = ThreadedVideoCapture(source_url)
+        if capture.start():
+            st.session_state.threaded_captures[camera_id] = capture
+            print(f"✅ Capture threadée démarrée pour {camera_id}")
+        else:
+            print(f"❌ Échec démarrage capture threadée pour {camera_id}")
+            return None
+    return st.session_state.threaded_captures.get(camera_id)
+
+def cleanup_threaded_captures():
+    """Nettoie toutes les captures threadées."""
+    for camera_id, capture in st.session_state.threaded_captures.items():
+        if capture:
+            capture.stop()
+    st.session_state.threaded_captures.clear()
+    print("🧹 Captures threadées nettoyées")
+
+def get_adaptive_compressor() -> AdaptiveFrameCompressor:
+    """Récupère le compresseur adaptatif global."""
+    if 'adaptive_compressor' not in st.session_state:
+        st.session_state.adaptive_compressor = AdaptiveFrameCompressor()
+    return st.session_state.adaptive_compressor
+
+def initialize_adaptive_systems():
+    """Initialise tous les systèmes adaptatifs."""
+    # Démarre le monitoring global si pas déjà fait
+    if 'global_network_monitor' not in st.session_state:
+        st.session_state.global_network_monitor = NetworkQualityMonitor()
+        st.session_state.global_network_monitor.start_monitoring()
+        print("🌐 Système de monitoring adaptatif initialisé")
+    
+    # Initialise le compresseur adaptatif
+    get_adaptive_compressor()
+    
+    # Nettoyage automatique périodique
+    current_time = time.time()
+    if not hasattr(st.session_state, 'last_cleanup') or current_time - st.session_state.last_cleanup > 300:  # 5 min
+        # Nettoie les captures inactives
+        inactive_captures = []
+        for camera_id, capture in st.session_state.threaded_captures.items():
+            if capture and not capture.running:
+                inactive_captures.append(camera_id)
+        
+        for camera_id in inactive_captures:
+            del st.session_state.threaded_captures[camera_id]
+            print(f"🧹 Capture inactive supprimée: {camera_id}")
+        
+        st.session_state.last_cleanup = current_time
+
 def capture_mjpeg_frame_simple(url: str, width: int = 640, height: int = 480):
     """Capture MJPEG simple et robuste."""
     try:
@@ -778,8 +1963,9 @@ def capture_real_frame_simple(camera_config: dict, width: int = 640, height: int
     return error_frame
 
 def capture_real_frame(camera_config: dict, width: int = 640, height: int = 480):
-    """Wrapper qui utilise la méthode simplifiée."""
-    return capture_real_frame_simple(camera_config, width, height)
+    """Wrapper principal - utilise capture threadée optimisée avec fallback."""
+    # Priorité 1: Capture threadée pour fluidité optimale
+    return capture_frame_threaded(camera_config, width, height)
     
     # OpenCV pour RTSP/locaux uniquement (PAS HTTP)
     if not source_url.startswith('http'):
@@ -1121,9 +2307,9 @@ def render_surveillance_tab():
                     camera_id = camera['id']
                     
                     try:
-                        print(f"DEBUG: Capture directe pour caméra {camera_id}")
-                        # Capture directe de frame
-                        frame = capture_real_frame_simple(camera, width=640, height=480)
+                        print(f"DEBUG: Capture FLUIDE pour caméra {camera_id}")
+                        # NOUVEAU: Capture avec cache ultrarapide pour fluidité maximale
+                        frame = get_fluid_frame(camera_id, camera, max_age_ms=50)
                         
                         if frame is not None:
                             st.image(frame, channels="BGR", caption=f"🔴 LIVE - {camera['name']}")
@@ -2443,6 +3629,9 @@ def main():
     """Application principale avec pipeline VLM réelle."""
     render_header()
     
+    # Initialise les systèmes adaptatifs en arrière-plan
+    initialize_adaptive_systems()
+    
     # Sidebar avec contrôles VLM
     with st.sidebar:
         st.header("⚙️ Contrôles Pipeline VLM")
@@ -2478,6 +3667,110 @@ def main():
             stats = st.session_state.real_pipeline.get_performance_stats()
             st.metric("Frames VLM", stats.get('frames_processed', 0))
             st.metric("Performance", f"{stats.get('current_performance_score', 0):.2f}")
+        
+        # Statistiques captures threadées
+        if st.session_state.threaded_captures:
+            st.divider()
+            st.subheader("🧵 Performance Captures Threadées")
+            
+            capture_stats = get_threaded_capture_stats()
+            
+            total_fps = 0
+            total_dropped = 0
+            active_captures = 0
+            
+            for camera_id, stat in capture_stats.items():
+                if not stat.get('error') and stat.get('running'):
+                    active_captures += 1
+                    total_fps += stat.get('fps', 0)
+                    total_dropped += stat.get('frames_dropped', 0)
+            
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Captures Actives", active_captures)
+            with col2:
+                st.metric("FPS Total", f"{total_fps:.1f}")
+            with col3:
+                st.metric("Frames Perdues", total_dropped)
+            
+            # Détails par caméra
+            if st.checkbox("Détails captures"):
+                for camera_id, stat in capture_stats.items():
+                    with st.expander(f"📹 {camera_id}"):
+                        if stat.get('error'):
+                            st.error(f"Erreur: {stat['error']}")
+                        else:
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("FPS", f"{stat.get('fps', 0):.1f}")
+                            with col2:
+                                st.metric("Frames OK", stat.get('frames_captured', 0))
+                            with col3:
+                                st.metric("Dropped", stat.get('frames_dropped', 0))
+                            
+                            status = "🟢 Active" if stat.get('running') else "🔴 Arrêtée"
+                            st.write(f"Statut: {status}")
+                            st.write(f"Queue: {stat.get('queue_size', 0)}")
+        else:
+            st.info("Aucune capture threadée active")
+        
+        # Monitoring réseau adaptatif
+        st.divider()
+        st.subheader("🌐 Monitoring Réseau Adaptatif")
+        
+        # Affiche les métriques réseau si disponibles
+        if 'network_metrics' in st.session_state and st.session_state.network_metrics:
+            metrics = st.session_state.network_metrics
+            current_time = time.time()
+            
+            # Vérifie si les métriques sont récentes (moins de 30s)
+            if current_time - metrics.get('last_update', 0) < 30:
+                # Icône de qualité réseau
+                quality_icons = {
+                    "excellent": "🟢",
+                    "good": "🟡", 
+                    "fair": "🟠",
+                    "poor": "🔴"
+                }
+                quality_icon = quality_icons.get(metrics['quality'], "⚫")
+                
+                st.write(f"**Qualité réseau:** {quality_icon} {metrics['quality'].title()}")
+                
+                # Métriques principales
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Latence", f"{metrics['latency']:.0f}ms")
+                with col2:
+                    st.metric("Vitesse", f"{metrics['speed']:.0f}KB/s")
+                with col3:
+                    st.metric("Stabilité", f"{metrics['stability_score']:.0f}%")
+                
+                # Paramètres adaptatifs actuels
+                if st.checkbox("Paramètres adaptatifs"):
+                    params = metrics.get('params', {})
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Résolution:** {params.get('resolution', 'N/A')}")
+                        st.write(f"**FPS:** {params.get('fps', 'N/A')}")
+                        st.write(f"**Compression:** {params.get('compression', 'N/A')}%")
+                    with col2:
+                        st.write(f"**Timeout:** {params.get('timeout', 'N/A')}s")
+                        st.write(f"**Buffer:** {params.get('buffer_size', 'N/A')}")
+                        st.write(f"**Retry:** {params.get('retry_count', 'N/A')}")
+                
+                # Statistiques compression
+                if 'adaptive_compressor' in st.session_state:
+                    compressor_stats = st.session_state.adaptive_compressor.get_compression_stats()
+                    if compressor_stats['frames_processed'] > 0:
+                        if st.checkbox("Stats compression"):
+                            st.write(f"**Frames traitées:** {compressor_stats['frames_processed']}")
+                            st.write(f"**Temps moyen:** {compressor_stats['avg_processing_time_ms']:.1f}ms")
+                            st.write(f"**Qualité actuelle:** {compressor_stats['current_quality']}")
+                            st.write(f"**Réduction taille:** {compressor_stats['avg_size_reduction']:.1f}x")
+            else:
+                st.warning("⏳ Métriques réseau obsolètes")
+        else:
+            st.info("🌐 Monitoring réseau en cours d'initialisation...")
         
         # Contrôles surveillance
         st.divider()
@@ -2515,7 +3808,8 @@ def main():
             st.session_state.real_alerts.clear()
             st.session_state.real_detections.clear()
             st.session_state.optimization_results.clear()
-            st.success("🧹 Données VLM vidées!")
+            cleanup_threaded_captures()  # Nettoie aussi les captures
+            st.success("🧹 Données VLM et captures vidées!")
             st.rerun()
     
     # Onglets principaux
@@ -2541,13 +3835,15 @@ def main():
             else:
                 refresh_time = 3
             
-            # Auto-refresh avec indicateur
-            time.sleep(refresh_time)
+            # Auto-refresh MAXIMAL - élimination des coupures
+            time.sleep(0.1)  # Refresh ultra-rapide - 10 FPS UI
             st.rerun()
         else:
             # Pas de surveillance active - arrête tous les streams
             if st.session_state.streaming_manager:
                 st.session_state.streaming_manager.stop_all()
+            # Arrête aussi les captures threadées
+            cleanup_threaded_captures()
     
     with tab2:
         render_video_upload_tab()

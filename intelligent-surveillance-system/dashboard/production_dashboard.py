@@ -47,8 +47,14 @@ st.set_page_config(
     page_icon="🔒"
 )
 
+# Configuration du logging pour debug VLM
+import logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
+logger = logging.getLogger(__name__)
+
 # Imports de la pipeline réelle
 try:
+    logger.info("🔄 Chargement des modules VLM...")
     from real_pipeline_integration import (
         RealVLMPipeline, 
         RealAnalysisResult,
@@ -59,7 +65,9 @@ try:
     from camera_manager import CameraConfig, MultiCameraManager, FrameData
     from vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
     PIPELINE_AVAILABLE = True
+    logger.info("✅ Modules VLM chargés avec succès")
 except ImportError as e:
+    logger.error(f"❌ Erreur import pipeline VLM: {e}")
     st.error(f"❌ Impossible d'importer la pipeline VLM: {e}")
     PIPELINE_AVAILABLE = False
 
@@ -274,19 +282,29 @@ def render_pipeline_status():
 async def initialize_pipeline():
     """Initialise la pipeline VLM réelle."""
     if not PIPELINE_AVAILABLE:
+        logger.error("❌ PIPELINE_AVAILABLE = False")
+        st.error("❌ Modules pipeline non disponibles")
         return False
     
     try:
+        logger.info("🔄 Début initialisation pipeline VLM")
         with st.spinner("🔄 Initialisation de la pipeline VLM..."):
-            # Initialisation de la pipeline
+            # Initialisation de la pipeline  
+            logger.info("📞 Appel initialize_real_pipeline...")
             success = initialize_real_pipeline(
                 vlm_model_name="Qwen/Qwen2.5-VL-7B-Instruct",
-                enable_optimization=True,
-                max_concurrent_analysis=2
+                enable_optimization=True
             )
+            logger.info(f"📈 Résultat initialize_real_pipeline: {success}")
             
             if success:
+                logger.info("✅ Pipeline initialisée, récupération instance...")
                 st.session_state.real_pipeline = get_real_pipeline()
+                logger.info(f"🔍 Pipeline récupérée: {st.session_state.real_pipeline is not None}")
+                
+                if st.session_state.real_pipeline:
+                    logger.info(f"🔧 Pipeline state: initialized={st.session_state.real_pipeline.initialized}")
+                    logger.info(f"🔧 Pipeline model: {st.session_state.real_pipeline.vlm_model_name}")
                 
                 # Callbacks pour intégration dashboard
                 def on_analysis_result(result):
@@ -324,10 +342,14 @@ async def initialize_pipeline():
                     st.success("✅ Pipeline VLM initialisée et démarrée!")
                     return True
             
+            logger.error("❌ Échec de l'initialisation de la pipeline")
             st.error("❌ Échec de l'initialisation de la pipeline")
             return False
             
     except Exception as e:
+        logger.error(f"❌ Exception initialisation: {e}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         st.error(f"❌ Erreur initialisation: {e}")
         return False
 

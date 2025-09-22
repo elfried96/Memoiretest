@@ -41,8 +41,8 @@ class DynamicVisionLanguageModel:
     - Gestion d'erreurs robuste avec fallbacks optionnels
     
     Modèles supportés:
-    - kimi-vl-a3b-thinking: Modèle principal pour surveillance
-    - kimi-vl-a3b-thinking-2506: Version améliorée
+    - Qwen/Qwen2.5-VL-7B-Instruct: Modèle principal pour surveillance
+    - Qwen/Qwen2.5-VL-7B-Instruct-2506: Version améliorée
     - qwen2-vl-7b-instruct: Fallback robuste
     - qwen2.5-vl-32b-instruct: Version haute performance
     
@@ -54,7 +54,7 @@ class DynamicVisionLanguageModel:
         
     Example:
         >>> vlm = DynamicVisionLanguageModel(
-        ...     default_model="kimi-vl-a3b-thinking",
+        ...     default_model="Qwen/Qwen2.5-VL-7B-Instruct",
         ...     device="cuda",
         ...     enable_fallback=True
         ... )
@@ -127,7 +127,7 @@ class DynamicVisionLanguageModel:
             bool: True si le chargement réussit, False sinon.
             
         Example:
-            >>> success = await vlm.load_model("kimi-vl-a3b-thinking")
+            >>> success = await vlm.load_model("Qwen/Qwen2.5-VL-7B-Instruct")
             >>> if success:
             ...     print("Modèle chargé avec succès")
         """

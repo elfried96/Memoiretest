@@ -280,7 +280,7 @@ async def initialize_pipeline():
         with st.spinner("🔄 Initialisation de la pipeline VLM..."):
             # Initialisation de la pipeline
             success = initialize_real_pipeline(
-                vlm_model_name="kimi-vl-a3b-thinking",
+                vlm_model_name="Qwen/Qwen2.5-VL-7B-Instruct",
                 enable_optimization=True,
                 max_concurrent_analysis=2
             )

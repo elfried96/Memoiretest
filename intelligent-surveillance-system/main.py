@@ -372,11 +372,6 @@ class IntelligentSurveillanceSystem:
             logger.error(f"❌ Erreur génération résumé cumulatif: {e}")
         return None
     
-    def encode_frame_to_base64(self, frame: np.ndarray) -> str:
-        """Encode un frame en base64."""
-        frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        _, buffer = cv2.imencode('.jpg', frame_rgb, [cv2.IMWRITE_JPEG_QUALITY, 85])
-        return base64.b64encode(buffer).decode('utf-8')
     
     async def process_frame(self, frame: np.ndarray) -> SurveillanceFrame:
         """Traite un frame complet : détection → tracking → VLM → décisions."""

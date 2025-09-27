@@ -1,1 +1,0 @@
-"""Tests unitaires du système de surveillance intelligente."""

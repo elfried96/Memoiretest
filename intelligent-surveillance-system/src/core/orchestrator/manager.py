@@ -21,7 +21,7 @@ from ..types import (
     Frame
 )
 from ..vlm.model import VisionLanguageModel
-from ...detection.yolo.detector import YOLODetector
+from ...detection.yolo_detector import YOLODetector
 from ...detection.tracking.tracker import MultiObjectTracker
 from ...utils.exceptions import OrchestrationError, ToolError
 

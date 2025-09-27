@@ -21,17 +21,24 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from loguru import logger
 
+# Configuration du PYTHONPATH
+import sys
+from pathlib import Path
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 # Imports pipeline VLM
 try:
-    from real_pipeline_integration import (
+    from .real_pipeline_integration import (
         RealVLMPipeline, 
         RealAnalysisResult,
         get_real_pipeline
     )
     from src.core.types import AnalysisRequest, AnalysisResponse
     from src.core.vlm.prompt_builder import PromptBuilder
-    from vlm_chatbot_optimizations import get_performance_optimizer
-    from vlm_chatbot_advanced_features import get_advanced_features
+    from .vlm_chatbot_optimizations import get_performance_optimizer
+    from .vlm_chatbot_advanced_features import get_advanced_features
     VLM_AVAILABLE = True
 except ImportError as e:
     logger.warning(f"Pipeline VLM non disponible pour chatbot: {e}")

@@ -19,12 +19,14 @@ import json
 import logging
 
 # Configuration du PYTHONPATH
-sys.path.append(str(Path(__file__).parent.parent / "src"))
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Imports du système core
 try:
     from src.core.vlm.model import VisionLanguageModel
-    from src.core.orchestrator.adaptive_orchestrator import AdaptiveOrchestrator
+    from src.core.orchestrator.adaptive_orchestrator import AdaptiveVLMOrchestrator
     from src.core.headless.frame_analyzer import FrameAnalyzer
     from src.core.headless.surveillance_system import HeadlessSurveillanceSystem
     from src.core.types import AnalysisRequest, SuspicionLevel, ActionType, DetectionStatus
@@ -34,7 +36,7 @@ except ImportError as e:
     print(f"⚠️ Core modules non disponibles: {e}")
     CORE_AVAILABLE = False
 
-from camera_manager import FrameData, CameraConfig
+from .camera_manager import FrameData, CameraConfig
 
 logger = logging.getLogger(__name__)
 
@@ -136,7 +138,7 @@ class RealTimeVLMProcessor:
             )
             
             # Initialisation de l'orchestrateur adaptatif
-            self.orchestrator = AdaptiveOrchestrator(
+            self.orchestrator = AdaptiveVLMOrchestrator(
                 vlm_model_name=self.vlm_model_name
             )
             

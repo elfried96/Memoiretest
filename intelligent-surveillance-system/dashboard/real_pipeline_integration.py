@@ -24,7 +24,9 @@ import time
 from dataclasses import dataclass, asdict
 
 # Configuration du PYTHONPATH
-sys.path.append(str(Path(__file__).parent.parent / "src"))
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
 
 # Imports du système core
 try:
@@ -45,7 +47,7 @@ except ImportError as e:
     logger.error(f"❌ Impossible d'importer les modules core: {e}")
     CORE_AVAILABLE = False
 
-from camera_manager import FrameData
+from .camera_manager import FrameData
 
 
 @dataclass

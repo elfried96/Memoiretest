@@ -23,14 +23,17 @@ logger = logging.getLogger(__name__)
 
 def setup_environment():
     """Configure l'environnement d'exécution."""
-    # Ajout du répertoire src au PYTHONPATH
+    # Ajout du répertoire racine du projet au PYTHONPATH
     current_dir = Path(__file__).parent
     project_root = current_dir.parent
-    src_path = project_root / "src"
+    
+    # Ajouter le répertoire racine au sys.path pour les imports
+    if str(project_root) not in sys.path:
+        sys.path.insert(0, str(project_root))
     
     current_pythonpath = os.environ.get('PYTHONPATH', '')
-    if str(src_path) not in current_pythonpath:
-        new_pythonpath = f"{src_path}:{current_pythonpath}" if current_pythonpath else str(src_path)
+    if str(project_root) not in current_pythonpath:
+        new_pythonpath = f"{project_root}:{current_pythonpath}" if current_pythonpath else str(project_root)
         os.environ['PYTHONPATH'] = new_pythonpath
         logger.info(f"📂 PYTHONPATH mis à jour: {new_pythonpath}")
 

@@ -33,7 +33,7 @@ import signal
 from collections import deque
 
 # Import contexte vidéo
-from video_context_integration import (
+from dashboard.video_context_integration import (
     VideoContextMetadata, 
     create_video_metadata_from_form,
     get_video_context_integration
@@ -52,18 +52,28 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s | %(levelname)s | %(message)s')
 logger = logging.getLogger(__name__)
 
+# Configuration du PYTHONPATH pour les imports
+import sys
+from pathlib import Path
+dashboard_root = Path(__file__).parent
+project_root = dashboard_root.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+if str(dashboard_root) not in sys.path:
+    sys.path.insert(0, str(dashboard_root))
+
 # Imports de la pipeline réelle
 try:
     logger.info("🔄 Chargement des modules VLM...")
-    from real_pipeline_integration import (
+    from dashboard.real_pipeline_integration import (
         RealVLMPipeline, 
         RealAnalysisResult,
         initialize_real_pipeline,
         get_real_pipeline,
         is_real_pipeline_available
     )
-    from camera_manager import CameraConfig, MultiCameraManager, FrameData
-    from vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
+    from dashboard.camera_manager import CameraConfig, MultiCameraManager, FrameData
+    from dashboard.vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
     PIPELINE_AVAILABLE = True
     logger.info("✅ Modules VLM chargés avec succès")
 except ImportError as e:

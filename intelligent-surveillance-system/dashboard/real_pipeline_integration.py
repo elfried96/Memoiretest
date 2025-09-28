@@ -47,7 +47,7 @@ except ImportError as e:
     logger.error(f"❌ Impossible d'importer les modules core: {e}")
     CORE_AVAILABLE = False
 
-from .camera_manager import FrameData
+from dashboard.camera_manager import FrameData
 
 
 @dataclass

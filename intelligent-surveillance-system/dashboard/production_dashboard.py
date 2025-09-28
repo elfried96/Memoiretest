@@ -125,6 +125,14 @@ if 'network_monitor' not in st.session_state:
 if 'adaptive_settings' not in st.session_state:
     st.session_state.adaptive_settings = {}
 
+# 🚀 INITIALISATION AUTOMATIQUE DE LA VRAIE PIPELINE VLM
+if not st.session_state.pipeline_initialized and PIPELINE_AVAILABLE:
+    with st.spinner("🔄 Initialisation automatique de la pipeline VLM..."):
+        if initialize_pipeline_vlm():
+            st.success("✅ Pipeline VLM réelle initialisée automatiquement!")
+        else:
+            st.error("❌ Échec initialisation pipeline VLM - Dashboard en mode lecture seule")
+
 # CSS pour l'interface
 st.markdown("""
 <style>
@@ -364,77 +372,38 @@ async def initialize_pipeline():
         return False
 
 def generate_real_frame_analysis(frame_data: FrameData) -> Optional[RealAnalysisResult]:
-    """Analyse une frame avec la vraie pipeline ou simulation."""
-    if st.session_state.pipeline_initialized and st.session_state.real_pipeline:
-        # Utilisation de la vraie pipeline
-        try:
-            return asyncio.run(st.session_state.real_pipeline.analyze_frame(frame_data))
-        except Exception as e:
-            st.warning(f"⚠️ Erreur pipeline réelle, fallback simulation: {e}")
-    
-    # Fallback simulation si pipeline non disponible
-    return simulate_vlm_analysis(frame_data)
-
-def simulate_vlm_analysis(frame_data: FrameData) -> RealAnalysisResult:
-    """Simulation d'analyse VLM pour fallback."""
-    from real_pipeline_integration import RealAnalysisResult
-    
-    # Simulation de détections
-    detections = []
-    tools_used = []
-    
-    if random.random() > 0.3:
-        detections.append({
-            'type': random.choice(['person', 'bag', 'vehicle', 'suspicious_object']),
-            'confidence': random.uniform(0.7, 0.95),
-            'bbox': [
-                random.randint(0, frame_data.frame.shape[1]//2),
-                random.randint(0, frame_data.frame.shape[0]//2),
-                random.randint(frame_data.frame.shape[1]//2, frame_data.frame.shape[1]),
-                random.randint(frame_data.frame.shape[0]//2, frame_data.frame.shape[0])
-            ]
-        })
+    """Analyse une frame avec la vraie pipeline VLM uniquement."""
+    if not st.session_state.pipeline_initialized or not st.session_state.real_pipeline:
+        st.error("❌ Pipeline VLM non initialisée - Veuillez initialiser la pipeline d'abord")
+        return None
         
-        # Outils utilisés selon le type de détection
-        tools_used = random.sample([
-            'sam2_segmentator', 'dino_features', 'pose_estimator',
-            'trajectory_analyzer', 'multimodal_fusion'
-        ], random.randint(2, 4))
-    
-    # Niveau de suspicion
-    if any('suspicious' in str(d['type']) for d in detections):
-        suspicion_level = random.choice(['HIGH', 'CRITICAL'])
-    elif detections:
-        suspicion_level = random.choice(['LOW', 'MEDIUM'])
-    else:
-        suspicion_level = 'LOW'
-    
-    # Import dynamique pour éviter les erreurs circulaires
+    # Utilisation EXCLUSIVE de la vraie pipeline
     try:
-        from src.core.types import SuspicionLevel, ActionType
-        suspicion_enum = getattr(SuspicionLevel, suspicion_level, SuspicionLevel.LOW)
-        action_enum = ActionType.NORMAL_SHOPPING
-    except:
-        suspicion_enum = suspicion_level
-        action_enum = 'NORMAL_SHOPPING'
-    
-    return RealAnalysisResult(
-        frame_id=f"{frame_data.camera_id}_{frame_data.frame_number}",
-        camera_id=frame_data.camera_id,
-        timestamp=frame_data.timestamp,
-        suspicion_level=suspicion_enum,
-        action_type=action_enum,
-        confidence=random.uniform(0.7, 0.9),
-        description=f"Analyse {'simulée' if not st.session_state.pipeline_initialized else 'VLM'} - {len(detections)} détection(s)",
-        detections=detections,
-        tool_results={},
-        processing_time=random.uniform(0.5, 2.0),
-        tools_used=tools_used,
-        optimization_score=random.uniform(0.6, 0.9),
-        context_pattern=None,
-        risk_assessment={'risk_level': random.uniform(0.1, 0.8)},
-        bbox_annotations=detections
-    )
+        # Utiliser la même méthode async que pour l'initialisation
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            import concurrent.futures
+            
+            def run_analysis():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(st.session_state.real_pipeline.analyze_frame(frame_data))
+                finally:
+                    new_loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_analysis)
+                return future.result()  # Pas de timeout - attendre le temps nécessaire
+        else:
+            return asyncio.run(st.session_state.real_pipeline.analyze_frame(frame_data))
+            
+    except Exception as e:
+        st.error(f"❌ Erreur pipeline VLM réelle: {e}")
+        logger.error(f"❌ Erreur analyse VLM: {e}")
+        return None
+
+# FONCTION SUPPRIMÉE : Plus de simulation - VLM réelle uniquement
 
 class StreamingManager:
     """Gestionnaire de streaming en arrière-plan pour éviter les rechargements."""

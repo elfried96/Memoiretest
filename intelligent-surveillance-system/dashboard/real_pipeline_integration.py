@@ -166,7 +166,7 @@ class RealVLMPipeline:
                 mode=OrchestrationMode.THOROUGH,
                 confidence_threshold=0.7,
                 max_concurrent_tools=4,
-                timeout_seconds=30,
+                timeout_seconds=None,  # Pas de timeout - attendre jusqu'à la fin
                 enable_advanced_tools=True
             )
             
@@ -292,7 +292,7 @@ class RealVLMPipeline:
         while self.running:
             try:
                 # Récupération d'une requête d'analyse
-                analysis_request = self.analysis_queue.get(timeout=1.0)
+                analysis_request = self.analysis_queue.get(timeout=0.1)  # Timeout court pour réactivité
                 
                 # Traitement avec pipeline VLM
                 start_time = time.time()
@@ -614,9 +614,29 @@ def initialize_real_pipeline(**kwargs) -> bool:
         real_pipeline = RealVLMPipeline(**kwargs)
     
     try:
-        return asyncio.run(real_pipeline.initialize())
-    except RuntimeError:
-        # Si on est déjà dans une boucle asyncio
+        # Vérifier si une boucle asyncio existe déjà
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # Créer une nouvelle boucle dans un thread séparé
+            import concurrent.futures
+            import threading
+            
+            def run_in_thread():
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                try:
+                    return new_loop.run_until_complete(real_pipeline.initialize())
+                finally:
+                    new_loop.close()
+            
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(run_in_thread)
+                return future.result()  # Pas de timeout - attendre jusqu'à la fin
+        else:
+            # Pas de boucle en cours, utiliser asyncio.run normalement
+            return asyncio.run(real_pipeline.initialize())
+    except Exception as e:
+        logger.error(f"❌ Erreur initialisation pipeline: {e}")
         return False
 
 def is_real_pipeline_available() -> bool:

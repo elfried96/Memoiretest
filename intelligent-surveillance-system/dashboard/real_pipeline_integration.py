@@ -41,10 +41,10 @@ try:
     from src.core.monitoring.vlm_metrics import VLMMetricsCollector
     CORE_AVAILABLE = True
     logger = logging.getLogger(__name__)
-    logger.info("[SUCCESS] Modules VLM core chargés avec succès")
+    logger.info(" Modules VLM core chargés avec succès")
 except ImportError as e:
     logger = logging.getLogger(__name__)
-    logger.error(f"[ERROR] Impossible d'importer les modules core: {e}")
+    logger.error(f" Impossible d'importer les modules core: {e}")
     CORE_AVAILABLE = False
 
 from dashboard.camera_manager import FrameData
@@ -154,11 +154,11 @@ class RealVLMPipeline:
     async def initialize(self) -> bool:
         """Initialise la pipeline VLM complète."""
         if not CORE_AVAILABLE:
-            logger.error("[ERROR] Modules core VLM non disponibles")
+            logger.error(" Modules core VLM non disponibles")
             return False
         
         try:
-            logger.info("[LOADING] Initialisation de la pipeline VLM réelle...")
+            logger.info(" Initialisation de la pipeline VLM réelle...")
             
             # 1. Orchestrateur adaptatif
             logger.info("[INIT] Initialisation AdaptiveVLMOrchestrator...")
@@ -181,7 +181,7 @@ class RealVLMPipeline:
             self.tools_manager = AdvancedToolsManager()
             
             # 3. Modèle VLM
-            logger.info("🤖 Initialisation VisionLanguageModel...")
+            logger.info(" Initialisation VisionLanguageModel...")
             self.vlm_model = VisionLanguageModel(
                 model_name=self.vlm_model_name,
                 device="auto",
@@ -208,7 +208,7 @@ class RealVLMPipeline:
             await self._load_optimization_data()
             
             self.initialized = True
-            logger.info("[SUCCESS] Pipeline VLM réelle initialisée avec succès")
+            logger.info(" Pipeline VLM réelle initialisée avec succès")
             
             # 8. Démarrage de l'optimisation continue si activée
             if self.enable_optimization:
@@ -217,18 +217,18 @@ class RealVLMPipeline:
             return True
             
         except Exception as e:
-            logger.error(f"[ERROR] Erreur initialisation pipeline VLM: {e}")
+            logger.error(f" Erreur initialisation pipeline VLM: {e}")
             self._notify_error(e)
             return False
     
     def start_processing(self) -> bool:
         """Démarre le traitement temps réel."""
         if not self.initialized:
-            logger.error("[ERROR] Pipeline non initialisée")
+            logger.error(" Pipeline non initialisée")
             return False
         
         if self.running:
-            logger.warning("[WARNING] Pipeline déjà en cours d'exécution")
+            logger.warning(" Pipeline déjà en cours d'exécution")
             return True
         
         self.running = True
@@ -243,7 +243,7 @@ class RealVLMPipeline:
             worker.start()
             self.analysis_workers.append(worker)
         
-        logger.info(f"[SUCCESS] Pipeline VLM démarrée avec {self.max_concurrent_analysis} workers")
+        logger.info(f" Pipeline VLM démarrée avec {self.max_concurrent_analysis} workers")
         return True
     
     def stop_processing(self):
@@ -259,7 +259,7 @@ class RealVLMPipeline:
             self.optimization_worker.join(timeout=5.0)
         
         self.analysis_workers.clear()
-        logger.info("[STOPPED] Pipeline VLM arrêtée")
+        logger.info(" Pipeline VLM arrêtée")
     
     async def analyze_frame(self, frame_data: FrameData) -> Optional[RealAnalysisResult]:
         """Analyse une frame avec la pipeline complète."""
@@ -278,16 +278,16 @@ class RealVLMPipeline:
                 self.analysis_queue.put_nowait(analysis_request)
                 return True  # Mis en queue avec succès
             except queue.Full:
-                logger.warning("[WARNING] Queue d'analyse pleine, frame ignorée")
+                logger.warning(" Queue d'analyse pleine, frame ignorée")
                 return False
                 
         except Exception as e:
-            logger.error(f"[ERROR] Erreur ajout frame à l'analyse: {e}")
+            logger.error(f" Erreur ajout frame à l'analyse: {e}")
             return False
     
     def _analysis_worker(self, worker_name: str):
         """Worker thread pour analyse VLM."""
-        logger.info(f"[WORKER] Worker d'analyse {worker_name} démarré")
+        logger.info(f" Worker d'analyse {worker_name} démarré")
         
         while self.running:
             try:
@@ -324,10 +324,10 @@ class RealVLMPipeline:
             except queue.Empty:
                 continue
             except Exception as e:
-                logger.error(f"[ERROR] Erreur worker analyse {worker_name}: {e}")
+                logger.error(f" Erreur worker analyse {worker_name}: {e}")
                 self._notify_error(e)
         
-        logger.info(f"[STOPPED] Worker d'analyse {worker_name} arrêté")
+        logger.info(f" Worker d'analyse {worker_name} arrêté")
     
     async def _process_frame_with_vlm(self, analysis_request: Dict[str, Any]) -> Optional[RealAnalysisResult]:
         """Traite une frame avec la pipeline VLM complète."""
@@ -352,7 +352,7 @@ class RealVLMPipeline:
                 vlm_response = await self.orchestrator.analyze(vlm_request)
             
             if not vlm_response:
-                logger.warning(f"[WARNING] Pas de réponse VLM pour frame {frame_id}")
+                logger.warning(f" Pas de réponse VLM pour frame {frame_id}")
                 return None
             
             # Construction du résultat
@@ -377,7 +377,7 @@ class RealVLMPipeline:
             return result
             
         except Exception as e:
-            logger.error(f"[ERROR] Erreur traitement VLM: {e}")
+            logger.error(f" Erreur traitement VLM: {e}")
             return None
     
     def _start_background_optimization(self):
@@ -390,11 +390,11 @@ class RealVLMPipeline:
             daemon=True
         )
         self.optimization_worker.start()
-        logger.info("🚀 Optimisation continue démarrée")
+        logger.info(" Optimisation continue démarrée")
     
     def _optimization_worker(self):
         """Worker pour optimisation continue des outils."""
-        logger.info("🔧 Worker d'optimisation démarré")
+        logger.info(" Worker d'optimisation démarré")
         
         optimization_interval = 300  # 5 minutes
         last_optimization = time.time()
@@ -405,7 +405,7 @@ class RealVLMPipeline:
                 
                 # Optimisation périodique
                 if current_time - last_optimization >= optimization_interval:
-                    logger.info("🔄 Démarrage cycle d'optimisation...")
+                    logger.info(" Démarrage cycle d'optimisation...")
                     
                     # Exécution du benchmark
                     optimization_results = asyncio.run(self._run_optimization_cycle())
@@ -418,14 +418,14 @@ class RealVLMPipeline:
                         self._notify_optimization_result(optimization_results)
                         
                         self.stats['optimization_cycles'] += 1
-                        logger.info("✅ Cycle d'optimisation terminé")
+                        logger.info(" Cycle d'optimisation terminé")
                     
                     last_optimization = current_time
                 
                 time.sleep(60)  # Vérification chaque minute
                 
             except Exception as e:
-                logger.error(f"❌ Erreur worker optimisation: {e}")
+                logger.error(f" Erreur worker optimisation: {e}")
                 self._notify_error(e)
                 time.sleep(300)  # Attendre 5 min avant de reprendre
         
@@ -441,7 +441,7 @@ class RealVLMPipeline:
             benchmark_results = await self.benchmark.run_comprehensive_benchmark()
             
             if not benchmark_results:
-                logger.warning("⚠️ Aucun résultat de benchmark")
+                logger.warning(" Aucun résultat de benchmark")
                 return None
             
             # Analyse des résultats
@@ -456,7 +456,7 @@ class RealVLMPipeline:
             return optimization_data
             
         except Exception as e:
-            logger.error(f"❌ Erreur cycle d'optimisation: {e}")
+            logger.error(f" Erreur cycle d'optimisation: {e}")
             return None
     
     def _update_optimal_configuration(self, optimization_results: Dict[str, Any]):
@@ -472,10 +472,10 @@ class RealVLMPipeline:
                 if hasattr(self.orchestrator, 'update_optimal_tools'):
                     self.orchestrator.update_optimal_tools(best_combination)
                 
-                logger.info(f"📊 Configuration optimale mise à jour: {best_combination}")
+                logger.info(f" Configuration optimale mise à jour: {best_combination}")
             
         except Exception as e:
-            logger.error(f"❌ Erreur mise à jour configuration: {e}")
+            logger.error(f" Erreur mise à jour configuration: {e}")
     
     async def _load_optimization_data(self):
         """Charge les données d'optimisation existantes."""
@@ -486,7 +486,7 @@ class RealVLMPipeline:
             logger.info("📂 Données d'optimisation chargées")
             
         except Exception as e:
-            logger.warning(f"⚠️ Impossible de charger données d'optimisation: {e}")
+            logger.warning(f" Impossible de charger données d'optimisation: {e}")
     
     def get_latest_results(self, max_results: int = 20) -> List[RealAnalysisResult]:
         """Récupère les derniers résultats d'analyse."""
@@ -548,7 +548,7 @@ class RealVLMPipeline:
             try:
                 callback(result)
             except Exception as e:
-                logger.error(f"❌ Erreur callback analyse: {e}")
+                logger.error(f" Erreur callback analyse: {e}")
     
     def _notify_optimization_result(self, result: Dict[str, Any]):
         """Notifie les callbacks d'optimisation."""
@@ -556,7 +556,7 @@ class RealVLMPipeline:
             try:
                 callback(result)
             except Exception as e:
-                logger.error(f"❌ Erreur callback optimisation: {e}")
+                logger.error(f" Erreur callback optimisation: {e}")
     
     def _notify_error(self, error: Exception):
         """Notifie les callbacks d'erreur."""
@@ -564,7 +564,7 @@ class RealVLMPipeline:
             try:
                 callback(error)
             except Exception as e:
-                logger.error(f"❌ Erreur callback erreur: {e}")
+                logger.error(f" Erreur callback erreur: {e}")
     
     def _update_stats(self, result: RealAnalysisResult):
         """Met à jour les statistiques."""
@@ -636,7 +636,7 @@ def initialize_real_pipeline(**kwargs) -> bool:
             # Pas de boucle en cours, utiliser asyncio.run normalement
             return asyncio.run(real_pipeline.initialize())
     except Exception as e:
-        logger.error(f"❌ Erreur initialisation pipeline: {e}")
+        logger.error(f" Erreur initialisation pipeline: {e}")
         return False
 
 def is_real_pipeline_available() -> bool:

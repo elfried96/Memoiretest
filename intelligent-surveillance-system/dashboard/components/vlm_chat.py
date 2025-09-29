@@ -52,10 +52,10 @@ class VLMChatInterface:
     def render_chat_interface(self):
         """Affiche l'interface de chat complète."""
         
-        st.subheader("💬 Chat avec l'IA de Surveillance")
+        st.subheader("Chat avec l'IA de Surveillance")
         
         # Onglets pour organiser l'interface
-        tab1, tab2, tab3 = st.tabs(["💬 Conversation", "❓ Questions", "📊 Contexte"])
+        tab1, tab2, tab3 = st.tabs(["Conversation", "Questions", "Contexte"])
         
         with tab1:
             self._render_conversation_tab()
@@ -119,7 +119,7 @@ class VLMChatInterface:
                     
                     # Métadonnées si disponibles
                     if metadata:
-                        with st.expander("📊 Détails de l'analyse", expanded=False):
+                        with st.expander("Détails de l'analyse", expanded=False):
                             if 'confidence' in metadata:
                                 st.progress(metadata['confidence'], "Confiance")
                             
@@ -127,7 +127,7 @@ class VLMChatInterface:
                                 st.metric("Temps d'analyse", f"{metadata['analysis_time']:.2f}s")
                             
                             if 'tools_used' in metadata:
-                                st.write("🔧 Outils utilisés:", ", ".join(metadata['tools_used']))
+                                st.write("Outils utilisés:", ", ".join(metadata['tools_used']))
                 
                 with col2:
                     if time_str:
@@ -161,19 +161,19 @@ class VLMChatInterface:
         col1, col2, col3, col4 = st.columns(4)
         
         with col1:
-            if st.button("🔍 Analyser maintenant", use_container_width=True):
+            if st.button("Analyser maintenant", use_container_width=True):
                 self._quick_analyze()
         
         with col2:
-            if st.button("⚠️ Quelles alertes ?", use_container_width=True):
+            if st.button("Quelles alertes ?", use_container_width=True):
                 user_input = "Quelles sont les alertes actives et leur niveau de priorité ?"
         
         with col3:
-            if st.button("📊 État système", use_container_width=True):
+            if st.button("État système", use_container_width=True):
                 user_input = "Quel est l'état actuel du système de surveillance ?"
         
         with col4:
-            if st.button("🧹 Effacer chat", use_container_width=True, type="secondary"):
+            if st.button("Effacer chat", use_container_width=True, type="secondary"):
                 self._clear_chat()
         
         # Traitement de l'input
@@ -202,16 +202,16 @@ class VLMChatInterface:
                     st.write(f"**{i+1}.** {question}")
                 
                 with col2:
-                    if st.button("▶️", key=f"ask_{selected_category}_{i}"):
+                    if st.button("▶", key=f"ask_{selected_category}_{i}"):
                         self._process_user_input(question)
                         st.rerun()
         
         # Section questions personnalisées
-        with st.expander("➕ Ajouter une question personnalisée"):
+        with st.expander("Ajouter une question personnalisée"):
             new_category = st.text_input("Nouvelle catégorie (optionnel)")
             new_question = st.text_input("Question personnalisée")
             
-            if st.button("💾 Sauvegarder"):
+            if st.button("Sauvegarder"):
                 if new_question:
                     category = new_category or "Personnalisées"
                     if category not in self.predefined_questions:
@@ -229,7 +229,7 @@ class VLMChatInterface:
         # Analyses vidéo récentes
         video_analyses = self.session.get_all_video_analyses()
         if video_analyses:
-            st.write("📹 **Analyses vidéo disponibles:**")
+            st.write("**Analyses vidéo disponibles:**")
             for video_id, analysis in video_analyses.items():
                 with st.expander(f"Vidéo {video_id[:8]}..."):
                     st.json(analysis)
@@ -237,34 +237,34 @@ class VLMChatInterface:
         # État des caméras
         cameras_state = self.session.get_all_cameras_state()
         if cameras_state:
-            st.write("🎥 **État des caméras:**")
+            st.write("**État des caméras:**")
             for cam_id, state in cameras_state.items():
                 st.write(f"- **{state.get('name', cam_id)}**: "
-                        f"{'🟢 Actif' if state.get('enabled', False) else '🔴 Inactif'}")
+                        f"{'Actif' if state.get('enabled', False) else 'Inactif'}")
         
         # Alertes récentes
         alerts = self.session.get_active_alerts()
         if alerts:
-            st.write("🚨 **Alertes actives:**")
+            st.write("**Alertes actives:**")
             for alert in alerts[-5:]:  # 5 dernières
                 level_emoji = {
-                    'LOW': '🔵',
-                    'MEDIUM': '🟡', 
-                    'HIGH': '🟠',
-                    'CRITICAL': '🔴'
-                }.get(alert.get('level', 'LOW'), '⚪')
+                    'LOW': '',
+                    'MEDIUM': '', 
+                    'HIGH': '',
+                    'CRITICAL': ''
+                }.get(alert.get('level', 'LOW'), '')
                 
                 st.write(f"{level_emoji} {alert.get('message', 'N/A')}")
         
         # Contexte personnalisé
-        with st.expander("⚙️ Contexte personnalisé"):
+        with st.expander("Contexte personnalisé"):
             custom_context = st.text_area(
                 "Informations additionnelles pour l'IA",
                 value=self.context_data.get('custom', ''),
                 placeholder="Ex: Nous surveillons un magasin ouvert de 9h à 21h..."
             )
             
-            if st.button("💾 Sauvegarder contexte"):
+            if st.button("Sauvegarder contexte"):
                 self.context_data['custom'] = custom_context
                 st.success("Contexte sauvegardé !")
     
@@ -293,7 +293,7 @@ class VLMChatInterface:
                 )
                 
             except Exception as e:
-                error_msg = f"❌ Erreur lors de l'analyse: {str(e)}"
+                error_msg = f"Erreur lors de l'analyse: {str(e)}"
                 self.session.add_chat_message("assistant", error_msg)
                 st.error(error_msg)
         
@@ -354,7 +354,7 @@ class VLMChatInterface:
         else:
             # Réponse simulée en mode démo
             return {
-                'content': f"🤖 Réponse simulée à: {question}\n\nEn mode démo, le VLM n'est pas connecté. Voici ce que je vois dans le contexte:\n- {len(context.get('video_analyses', {}))} analyses vidéo disponibles\n- {len(context.get('cameras_state', {}))} caméras configurées\n- {len(context.get('active_alerts', []))} alertes actives",
+                'content': f" Réponse simulée à: {question}\n\nEn mode démo, le VLM n'est pas connecté. Voici ce que je vois dans le contexte:\n- {len(context.get('video_analyses', {}))} analyses vidéo disponibles\n- {len(context.get('cameras_state', {}))} caméras configurées\n- {len(context.get('active_alerts', []))} alertes actives",
                 'metadata': {
                     'analysis_time': 0.5,
                     'demo_mode': True,
@@ -369,7 +369,7 @@ class VLMChatInterface:
     def _clear_chat(self):
         """Efface l'historique du chat."""
         self.session.clear_chat_history()
-        st.success("💬 Historique effacé")
+        st.success("Historique effacé")
         st.rerun()
     
     def _rate_message(self, message_id: str, rating: str):
@@ -385,13 +385,13 @@ class VLMChatInterface:
         """Ajoute un message système."""
         
         level_prefixes = {
-            'info': '💡',
-            'warning': '⚠️',
-            'error': '❌',
-            'success': '✅'
+            'info': '',
+            'warning': '',
+            'error': '',
+            'success': ''
         }
         
-        prefix = level_prefixes.get(level, '💡')
+        prefix = level_prefixes.get(level, '')
         formatted_content = f"{prefix} **Système**: {content}"
         
         self.session.add_chat_message(
@@ -438,7 +438,7 @@ def render_chat_sidebar():
     chat = get_vlm_chat()
     
     with st.sidebar:
-        st.subheader("💬 Chat Rapide")
+        st.subheader("Chat Rapide")
         
         # Derniers messages
         messages = chat.session.get_chat_history()
@@ -470,17 +470,17 @@ def render_quick_questions_bar():
     chat = get_vlm_chat()
     
     with col1:
-        if st.button("🔍 Que se passe-t-il ?", use_container_width=True):
+        if st.button("Que se passe-t-il ?", use_container_width=True):
             chat._process_user_input("Analysez la situation actuelle et résumez les événements.")
     
     with col2:
-        if st.button("⚠️ Niveau de risque ?", use_container_width=True):
+        if st.button("Niveau de risque ?", use_container_width=True):
             chat._process_user_input("Quel est le niveau de risque actuel ?")
     
     with col3:
-        if st.button("👥 Combien de personnes ?", use_container_width=True):
+        if st.button("Combien de personnes ?", use_container_width=True):
             chat._process_user_input("Combien de personnes sont visibles sur les caméras ?")
     
     with col4:
-        if st.button("🚨 Alertes actives ?", use_container_width=True):
+        if st.button("Alertes actives ?", use_container_width=True):
             chat._process_user_input("Quelles sont les alertes actives et leur priorité ?")

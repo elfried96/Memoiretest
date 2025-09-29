@@ -10,7 +10,7 @@ class DashboardConfig:
     """Configuration principale du dashboard."""
     
     # Interface
-    page_title: str = "🔒 Surveillance Intelligente"
+    page_title: str = " Surveillance Intelligente"
     layout: str = "wide"
     initial_sidebar_state: str = "expanded"
     

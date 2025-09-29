@@ -70,7 +70,7 @@ class CameraStream:
                         self.cap.open(self.config.source)
             
             if not self.cap.isOpened():
-                st.error(f"[ERROR] Impossible d'ouvrir {self.config.source}")
+                st.error(f" Impossible d'ouvrir {self.config.source}")
                 return False
             
             # Configuration
@@ -213,7 +213,7 @@ class MultiCameraGrid:
         """Affiche la grille de caméras."""
         
         if not self.cameras:
-            st.info("🎥 Aucune caméra configurée")
+            st.info(" Aucune caméra configurée")
             return
         
         # Taille de grille par défaut
@@ -252,15 +252,15 @@ class MultiCameraGrid:
             col1, col2 = st.columns([3, 1])
             
             with col1:
-                st.subheader(f"📹 {camera_stream.config.name}")
+                st.subheader(f" {camera_stream.config.name}")
             
             with col2:
                 # Statut
                 stats = camera_stream.get_stats()
                 if camera_stream.is_running:
-                    st.success(f"🟢 {stats['fps_actual']} FPS")
+                    st.success(f" {stats['fps_actual']} FPS")
                 else:
-                    st.error("🔴 Arrêtée")
+                    st.error(" Arrêtée")
             
             # Frame vidéo
             frame = camera_stream.get_latest_frame()
@@ -277,7 +277,7 @@ class MultiCameraGrid:
                     self._run_detection(camera_id, frame)
                 
             else:
-                st.error("[ERROR] Aucune image")
+                st.error(" Aucune image")
             
             # Contrôles caméra
             self._render_camera_controls(camera_id, camera_stream.config)
@@ -322,26 +322,26 @@ class MultiCameraGrid:
                 })
             
             # Zones de détection
-            if st.button("[ZONES] Définir zones", key=f"zones_{camera_id}"):
+            if st.button(" Définir zones", key=f"zones_{camera_id}"):
                 self._show_zone_editor(camera_id)
             
             # Actions
             col1, col2 = st.columns(2)
             
             with col1:
-                if st.button("[PAUSE] Pause", key=f"pause_{camera_id}"):
+                if st.button(" Pause", key=f"pause_{camera_id}"):
                     # TODO: Implémenter pause
                     pass
             
             with col2:
-                if st.button("[DELETE] Supprimer", key=f"remove_{camera_id}"):
+                if st.button(" Supprimer", key=f"remove_{camera_id}"):
                     self.remove_camera(camera_id)
                     st.rerun()
     
     def _show_zone_editor(self, camera_id: str):
         """Affiche l'éditeur de zones de détection."""
         # TODO: Implémenter éditeur de zones interactif
-        st.info("🚧 Éditeur de zones en développement")
+        st.info("Éditeur de zones en développement")
     
     def _run_detection(self, camera_id: str, frame: np.ndarray):
         """Lance la détection sur une frame."""
@@ -400,7 +400,7 @@ class MultiCameraGrid:
 def render_camera_configuration_panel():
     """Panneau de configuration des caméras."""
     
-    st.subheader("➕ Ajouter une caméra")
+    st.subheader(" Ajouter une caméra")
     
     with st.form("add_camera"):
         col1, col2 = st.columns(2)
@@ -417,7 +417,7 @@ def render_camera_configuration_panel():
             )
             fps = st.number_input("FPS", min_value=1, max_value=60, value=30)
         
-        if st.form_submit_button("🎥 Ajouter caméra"):
+        if st.form_submit_button(" Ajouter caméra"):
             if name and source:
                 # Parse résolution
                 width, height = map(int, resolution.split('x'))
@@ -436,10 +436,10 @@ def render_camera_configuration_panel():
                     st.session_state.camera_grid = MultiCameraGrid()
                 
                 if st.session_state.camera_grid.add_camera(config):
-                    st.success(f"[SUCCESS] Caméra {name} ajoutée")
+                    st.success(f" Caméra {name} ajoutée")
                     st.rerun()
                 else:
-                    st.error(f"[ERROR] Impossible d'ajouter la caméra {name}")
+                    st.error(f" Impossible d'ajouter la caméra {name}")
             else:
                 st.error("Veuillez remplir tous les champs")
 

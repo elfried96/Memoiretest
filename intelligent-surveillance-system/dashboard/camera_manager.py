@@ -1,5 +1,5 @@
 """
-[CAMERAS] Gestionnaire de Caméras Temps Réel
+ Gestionnaire de Caméras Temps Réel
 ====================================
 
 Gestion des flux RTSP, webcam et streaming vidéo pour le dashboard.
@@ -68,10 +68,10 @@ class CameraStream:
             self.running = True
             self.thread = threading.Thread(target=self._capture_loop, daemon=True)
             self.thread.start()
-            logger.info(f"[SUCCESS] Caméra {self.config.id} démarrée")
+            logger.info(f" Caméra {self.config.id} démarrée")
             return True
         else:
-            logger.error(f"[ERROR] Impossible de démarrer la caméra {self.config.id}")
+            logger.error(f" Impossible de démarrer la caméra {self.config.id}")
             return False
     
     def stop(self):
@@ -82,7 +82,7 @@ class CameraStream:
         if self.cap:
             self.cap.release()
             self.cap = None
-        logger.info(f"[STOPPED] Caméra {self.config.id} arrêtée")
+        logger.info(f" Caméra {self.config.id} arrêtée")
     
     def _initialize_capture(self) -> bool:
         """Initialise la capture vidéo."""
@@ -111,11 +111,11 @@ class CameraStream:
             if not ret:
                 raise Exception("Impossible de lire depuis la source")
             
-            logger.info(f"📹 Caméra {self.config.id} initialisée: {self.config.width}x{self.config.height}@{self.config.fps}fps")
+            logger.info(f" Caméra {self.config.id} initialisée: {self.config.width}x{self.config.height}@{self.config.fps}fps")
             return True
             
         except Exception as e:
-            logger.error(f"[ERROR] Erreur initialisation caméra {self.config.id}: {e}")
+            logger.error(f" Erreur initialisation caméra {self.config.id}: {e}")
             if self.cap:
                 self.cap.release()
                 self.cap = None
@@ -128,7 +128,7 @@ class CameraStream:
                 ret, frame = self.cap.read()
                 
                 if not ret:
-                    logger.warning(f"[WARNING] Perte de signal caméra {self.config.id}")
+                    logger.warning(f" Perte de signal caméra {self.config.id}")
                     if self._attempt_reconnection():
                         continue
                     else:
@@ -166,13 +166,13 @@ class CameraStream:
                     try:
                         self.frame_callback(frame_data)
                     except Exception as e:
-                        logger.error(f"[ERROR] Erreur callback frame: {e}")
+                        logger.error(f" Erreur callback frame: {e}")
                 
                 # Contrôle du framerate
                 time.sleep(1.0 / self.config.fps)
                 
             except Exception as e:
-                logger.error(f"[ERROR] Erreur capture caméra {self.config.id}: {e}")
+                logger.error(f" Erreur capture caméra {self.config.id}: {e}")
                 if self._attempt_reconnection():
                     continue
                 else:
@@ -183,10 +183,10 @@ class CameraStream:
         self.connection_attempts += 1
         
         if self.connection_attempts > self.max_connection_attempts:
-            logger.error(f"[ERROR] Nombre max de tentatives de reconnexion dépassé pour {self.config.id}")
+            logger.error(f" Nombre max de tentatives de reconnexion dépassé pour {self.config.id}")
             return False
         
-        logger.info(f"[RECONNECT] Tentative de reconnexion {self.connection_attempts}/{self.max_connection_attempts} pour {self.config.id}")
+        logger.info(f" Tentative de reconnexion {self.connection_attempts}/{self.max_connection_attempts} pour {self.config.id}")
         
         if self.cap:
             self.cap.release()
@@ -227,7 +227,7 @@ class MultiCameraManager:
     def add_camera(self, config: CameraConfig) -> bool:
         """Ajoute une nouvelle caméra."""
         if config.id in self.cameras:
-            logger.warning(f"[WARNING] Caméra {config.id} existe déjà")
+            logger.warning(f" Caméra {config.id} existe déjà")
             return False
         
         try:
@@ -237,7 +237,7 @@ class MultiCameraManager:
                     try:
                         callback(frame_data)
                     except Exception as e:
-                        logger.error(f"[ERROR] Erreur callback frame: {e}")
+                        logger.error(f" Erreur callback frame: {e}")
             
             camera_stream = CameraStream(config, frame_handler)
             self.cameras[config.id] = camera_stream
@@ -245,11 +245,11 @@ class MultiCameraManager:
             if self.running:
                 return camera_stream.start()
             
-            logger.info(f"📹 Caméra {config.id} ajoutée")
+            logger.info(f" Caméra {config.id} ajoutée")
             return True
             
         except Exception as e:
-            logger.error(f"[ERROR] Erreur ajout caméra {config.id}: {e}")
+            logger.error(f" Erreur ajout caméra {config.id}: {e}")
             return False
     
     def remove_camera(self, camera_id: str) -> bool:
@@ -274,7 +274,7 @@ class MultiCameraManager:
                 results[camera_id] = camera.start()
             else:
                 results[camera_id] = False
-                logger.info(f"[DISABLED] Caméra {camera_id} désactivée")
+                logger.info(f" Caméra {camera_id} désactivée")
         
         return results
     
@@ -285,7 +285,7 @@ class MultiCameraManager:
         for camera in self.cameras.values():
             camera.stop()
         
-        logger.info("[STOPPED] Toutes les caméras arrêtées")
+        logger.info(" Toutes les caméras arrêtées")
     
     def start_camera(self, camera_id: str) -> bool:
         """Démarre une caméra spécifique."""

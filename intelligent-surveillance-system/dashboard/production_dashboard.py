@@ -1,5 +1,5 @@
 """
-[SECURE] Dashboard de Surveillance Intelligent - VERSION PRODUCTION
+ Dashboard de Surveillance Intelligent - VERSION PRODUCTION
 ============================================================
 
 Version finale avec vraie intégration VLM :
@@ -41,36 +41,50 @@ from dashboard.video_context_integration import (
 
 # Configuration de la page
 st.set_page_config(
-    page_title="[SECURE] Surveillance Intelligente - Production",
+    page_title=" Surveillance Intelligente - Production",
     layout="wide",
     initial_sidebar_state="expanded",
-    page_icon="🔒"
+    page_icon=""
 )
 
-# Style CSS pour icônes remplaçant les emojis
+# Style CSS avec icônes vectorielles propres
 st.markdown("""
 <style>
-/* Icônes CSS pour remplacer les emojis */
-.icon-success::before { content: "✓"; color: #28a745; font-weight: bold; }
-.icon-error::before { content: "✗"; color: #dc3545; font-weight: bold; }
-.icon-warning::before { content: "⚠"; color: #ffc107; font-weight: bold; }
-.icon-info::before { content: "ℹ"; color: #17a2b8; font-weight: bold; }
-.icon-loading::before { content: "⟲"; color: #6c757d; animation: spin 1s linear infinite; }
-.icon-camera::before { content: "📷"; }
-.icon-settings::before { content: "⚙"; }
-.icon-chart::before { content: "📊"; }
-.icon-target::before { content: "🎯"; }
-.icon-secure::before { content: "🛡"; }
+/* Status indicators avec couleurs uniquement */
+.status-active { color: #28a745; font-weight: 600; }
+.status-inactive { color: #dc3545; font-weight: 600; }
+.status-warning { color: #ffc107; font-weight: 600; }
+.status-info { color: #17a2b8; font-weight: 600; }
 
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+/* Indicateurs de statut simples avec points colorés */
+.status-dot-active::before {
+    content: "●";
+    color: #28a745;
+    margin-right: 6px;
+}
+.status-dot-inactive::before {
+    content: "●";
+    color: #dc3545;
+    margin-right: 6px;
+}
+.status-dot-warning::before {
+    content: "●";
+    color: #ffc107;
+    margin-right: 6px;
 }
 
-/* Status indicators */
-.status-active { color: #28a745; font-weight: bold; }
-.status-inactive { color: #dc3545; font-weight: bold; }
-.status-warning { color: #ffc107; font-weight: bold; }
+/* Animation de chargement simple */
+.loading-dots::after {
+    content: "...";
+    animation: dots 1.5s steps(4, end) infinite;
+}
+
+@keyframes dots {
+    0%, 20% { content: ""; }
+    40% { content: "."; }
+    60% { content: ".."; }
+    80%, 100% { content: "..."; }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -91,7 +105,7 @@ if str(dashboard_root) not in sys.path:
 
 # Imports de la pipeline réelle
 try:
-    logger.info("[LOADING] Chargement des modules VLM...")
+    logger.info(" Chargement des modules VLM...")
     from dashboard.real_pipeline_integration import (
         RealVLMPipeline, 
         RealAnalysisResult,
@@ -102,10 +116,10 @@ try:
     from dashboard.camera_manager import CameraConfig, MultiCameraManager, FrameData
     from dashboard.vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
     PIPELINE_AVAILABLE = True
-    logger.info("[SUCCESS] Modules VLM chargés avec succès")
+    logger.info(" Modules VLM chargés avec succès")
 except ImportError as e:
-    logger.error(f"[ERROR] Erreur import pipeline VLM: {e}")
-    st.error(f"[ERROR] Impossible d'importer la pipeline VLM: {e}")
+    logger.error(f" Erreur import pipeline VLM: {e}")
+    st.error(f" Impossible d'importer la pipeline VLM: {e}")
     PIPELINE_AVAILABLE = False
 
 # Initialisation des variables de session
@@ -152,24 +166,24 @@ if 'network_monitor' not in st.session_state:
 if 'adaptive_settings' not in st.session_state:
     st.session_state.adaptive_settings = {}
 
-# [START] INITIALISATION AUTOMATIQUE DE LA VRAIE PIPELINE VLM (Mode optionnel)
+#  INITIALISATION AUTOMATIQUE DE LA VRAIE PIPELINE VLM (Mode optionnel)
 # Ajout variable d'environnement pour bypass si problème
 import os
 AUTO_INIT_VLM = os.getenv('AUTO_INIT_VLM', 'true').lower() == 'true'
 
 if AUTO_INIT_VLM and not st.session_state.pipeline_initialized and PIPELINE_AVAILABLE:
     try:
-        with st.spinner("[LOADING] Initialisation automatique de la pipeline VLM..."):
+        with st.spinner(" Initialisation automatique de la pipeline VLM..."):
             if initialize_real_pipeline(
                 vlm_model_name="Qwen/Qwen2.5-VL-7B-Instruct",
                 enable_optimization=True
             ):
-                st.success("[SUCCESS] Pipeline VLM réelle initialisée automatiquement!")
+                st.success(" Pipeline VLM réelle initialisée automatiquement!")
             else:
-                st.warning("[WARNING] Échec initialisation pipeline VLM - Mode manuel disponible")
+                st.warning(" Échec initialisation pipeline VLM - Mode manuel disponible")
     except Exception as e:
-        st.error(f"[ERROR] Erreur initialisation auto: {e}")
-        st.info("[INFO] Pour bypasser: définir AUTO_INIT_VLM=false")
+        st.error(f" Erreur initialisation auto: {e}")
+        st.info(" Pour bypasser: définir AUTO_INIT_VLM=false")
 
 # CSS pour l'interface
 st.markdown("""
@@ -299,7 +313,7 @@ def render_header():
     """Affiche l'en-tête principal."""
     st.markdown("""
     <div class="main-header">
-        <h1>🔒 Dashboard de Surveillance Intelligente - PRODUCTION</h1>
+        <h1> Dashboard de Surveillance Intelligente - PRODUCTION</h1>
         <p>Pipeline VLM Réelle • 8 Outils Avancés • Optimisation Adaptative</p>
     </div>
     """, unsafe_allow_html=True)
@@ -313,7 +327,7 @@ def render_pipeline_status():
             
             st.markdown(f"""
             <div class="pipeline-status pipeline-active">
-                <h4>[SUCCESS] Pipeline VLM Active</h4>
+                <h4> Pipeline VLM Active</h4>
                 <p><strong>Frames traitées:</strong> {stats.get('frames_processed', 0)}</p>
                 <p><strong>Temps moyen:</strong> {stats.get('average_processing_time', 0):.2f}s</p>
                 <p><strong>Outils optimaux:</strong> {len(stats.get('current_optimal_tools', []))}</p>
@@ -330,7 +344,7 @@ def render_pipeline_status():
     else:
         st.markdown("""
         <div class="pipeline-status pipeline-inactive">
-            <h4>[ERROR] Pipeline VLM Non Disponible</h4>
+            <h4> Pipeline VLM Non Disponible</h4>
             <p>Mode simulation activé - Vérifiez l'installation du système core</p>
         </div>
         """, unsafe_allow_html=True)
@@ -338,29 +352,29 @@ def render_pipeline_status():
 async def initialize_pipeline():
     """Initialise la pipeline VLM réelle."""
     if not PIPELINE_AVAILABLE:
-        logger.error("[ERROR] PIPELINE_AVAILABLE = False")
-        st.error("[ERROR] Modules pipeline non disponibles")
+        logger.error(" PIPELINE_AVAILABLE = False")
+        st.error(" Modules pipeline non disponibles")
         return False
     
     try:
-        logger.info("[LOADING] Début initialisation pipeline VLM")
-        with st.spinner("[LOADING] Initialisation de la pipeline VLM..."):
+        logger.info(" Début initialisation pipeline VLM")
+        with st.spinner(" Initialisation de la pipeline VLM..."):
             # Initialisation de la pipeline  
             logger.info("📞 Appel initialize_real_pipeline...")
             success = initialize_real_pipeline(
                 vlm_model_name="Qwen/Qwen2.5-VL-7B-Instruct",
                 enable_optimization=True
             )
-            logger.info(f"[INFO] Résultat initialize_real_pipeline: {success}")
+            logger.info(f" Résultat initialize_real_pipeline: {success}")
             
             if success:
-                logger.info("[SUCCESS] Pipeline initialisée, récupération instance...")
+                logger.info(" Pipeline initialisée, récupération instance...")
                 st.session_state.real_pipeline = get_real_pipeline()
-                logger.info(f"[INFO] Pipeline récupérée: {st.session_state.real_pipeline is not None}")
+                logger.info(f" Pipeline récupérée: {st.session_state.real_pipeline is not None}")
                 
                 if st.session_state.real_pipeline:
-                    logger.info(f"[INFO] Pipeline state: initialized={st.session_state.real_pipeline.initialized}")
-                    logger.info(f"[INFO] Pipeline model: {st.session_state.real_pipeline.vlm_model_name}")
+                    logger.info(f" Pipeline state: initialized={st.session_state.real_pipeline.initialized}")
+                    logger.info(f" Pipeline model: {st.session_state.real_pipeline.vlm_model_name}")
                 
                 # Callbacks pour intégration dashboard
                 def on_analysis_result(result):
@@ -385,7 +399,7 @@ async def initialize_pipeline():
                     st.session_state.optimization_results.append(result)
                 
                 def on_error(error):
-                    st.error(f"[ERROR] Erreur pipeline: {error}")
+                    st.error(f" Erreur pipeline: {error}")
                 
                 # Enregistrement des callbacks
                 st.session_state.real_pipeline.add_analysis_callback(on_analysis_result)
@@ -395,24 +409,24 @@ async def initialize_pipeline():
                 # Démarrage du traitement
                 if st.session_state.real_pipeline.start_processing():
                     st.session_state.pipeline_initialized = True
-                    st.success("[SUCCESS] Pipeline VLM initialisée et démarrée!")
+                    st.success(" Pipeline VLM initialisée et démarrée!")
                     return True
             
-            logger.error("[ERROR] Échec de l'initialisation de la pipeline")
-            st.error("[ERROR] Échec de l'initialisation de la pipeline")
+            logger.error(" Échec de l'initialisation de la pipeline")
+            st.error(" Échec de l'initialisation de la pipeline")
             return False
             
     except Exception as e:
-        logger.error(f"[ERROR] Exception initialisation: {e}")
+        logger.error(f" Exception initialisation: {e}")
         import traceback
-        logger.error(f"[ERROR] Traceback: {traceback.format_exc()}")
-        st.error(f"[ERROR] Erreur initialisation: {e}")
+        logger.error(f" Traceback: {traceback.format_exc()}")
+        st.error(f" Erreur initialisation: {e}")
         return False
 
 def generate_real_frame_analysis(frame_data: FrameData) -> Optional[RealAnalysisResult]:
     """Analyse une frame avec la vraie pipeline VLM uniquement."""
     if not st.session_state.pipeline_initialized or not st.session_state.real_pipeline:
-        st.error("[ERROR] Pipeline VLM non initialisée - Veuillez initialiser la pipeline d'abord")
+        st.error(" Pipeline VLM non initialisée - Veuillez initialiser la pipeline d'abord")
         return None
         
     # Utilisation EXCLUSIVE de la vraie pipeline
@@ -437,8 +451,8 @@ def generate_real_frame_analysis(frame_data: FrameData) -> Optional[RealAnalysis
             return asyncio.run(st.session_state.real_pipeline.analyze_frame(frame_data))
             
     except Exception as e:
-        st.error(f"[ERROR] Erreur pipeline VLM réelle: {e}")
-        logger.error(f"[ERROR] Erreur analyse VLM: {e}")
+        st.error(f" Erreur pipeline VLM réelle: {e}")
+        logger.error(f" Erreur analyse VLM: {e}")
         return None
 
 # FONCTION SUPPRIMÉE : Plus de simulation - VLM réelle uniquement
@@ -717,7 +731,7 @@ class NetworkQualityMonitor:
                             if i == 0:  # Premier test réussi, pas besoin d'autres
                                 break
                     except Exception as e:
-                        print(f"[WARNING] Test latence serveur {i+1} échoué: {e}")
+                        print(f" Test latence serveur {i+1} échoué: {e}")
                         continue
                 
                 # === Calcul latence finale ===
@@ -767,7 +781,7 @@ class NetworkQualityMonitor:
                             self.jitter = np.std(chunk_times) * 1000
                             
                 except Exception as e:
-                    print(f"[WARNING] Test vitesse échoué: {e}")
+                    print(f" Test vitesse échoué: {e}")
                     speed_kbps = 30  # Vitesse très dégradée
                     consecutive_errors += 1
                 
@@ -809,12 +823,12 @@ class NetworkQualityMonitor:
                 # === Adaptation paramètres si changement qualité ===
                 if previous_quality != self.current_quality:
                     self._adapt_parameters_advanced()
-                    print(f"[CHANGE] Qualité réseau: {previous_quality} -> {self.current_quality}")
+                    print(f" Qualité réseau: {previous_quality} -> {self.current_quality}")
                 
                 # === Logging informatif périodique ===
                 if test_iteration % 8 == 0:  # Toutes les 8 itérations
                     stability = "stable" if self.jitter < 50 else "variable" if self.jitter < 150 else "instable"
-                    print(f"[INFO] Réseau: {self.current_quality} ({stability}) | "
+                    print(f" Réseau: {self.current_quality} ({stability}) | "
                           f"Latence: {self.current_latency:.0f}ms (moy: {self.avg_latency:.0f}ms) | "
                           f"Vitesse: {self.current_speed:.0f}KB/s | "
                           f"Jitter: {self.jitter:.1f}ms | Errors: {consecutive_errors}")
@@ -841,13 +855,13 @@ class NetworkQualityMonitor:
                 
             except Exception as e:
                 consecutive_errors += 1
-                print(f"[WARNING] Erreur monitoring réseau critique: {e}")
+                print(f" Erreur monitoring réseau critique: {e}")
                 
                 # Dégradation progressive selon erreurs
                 if consecutive_errors >= max_consecutive_errors:
                     self.current_quality = "poor"
                     self._adapt_parameters_advanced()
-                    print(f"🔴 Connexion très instable, mode dégradé activé")
+                    print(f" Connexion très instable, mode dégradé activé")
             
             # === Fréquence adaptative intelligente ===
             base_intervals = {"excellent": 20, "good": 15, "fair": 10, "poor": 6}
@@ -960,7 +974,7 @@ class NetworkQualityMonitor:
                 "stream_optimization": "survival"
             })
         
-        print(f"[CONFIG] Paramètres adaptés pour qualité '{self.current_quality}': "
+        print(f" Paramètres adaptés pour qualité '{self.current_quality}': "
               f"{self.adaptive_params['resolution']} @ {self.adaptive_params['fps']}fps")
     
     def get_adaptive_parameters(self) -> dict:
@@ -1256,7 +1270,7 @@ class AdaptiveFrameCompressor:
                 return frame, {'error': 'compression_failed', 'original_size': original_size}
                 
         except Exception as e:
-            print(f"[ERROR] Erreur compression adaptative: {e}")
+            print(f" Erreur compression adaptative: {e}")
             return frame, {'error': str(e), 'original_size': original_size}
     
     def get_compression_stats(self) -> dict:
@@ -1276,7 +1290,7 @@ class AdaptiveFrameCompressor:
     def set_target_size(self, size_kb: int):
         """Définit la taille cible en KB."""
         self.target_size = size_kb * 1024
-        print(f"[TARGET] Taille cible de compression: {size_kb}KB")
+        print(f" Taille cible de compression: {size_kb}KB")
 
 class ThreadedMJPEGCapture:
     """Capture MJPEG HTTP ULTRA-OPTIMISÉE avec compression adaptative."""
@@ -1433,7 +1447,7 @@ def get_or_create_threaded_capture(camera_id: str, camera_config: dict):
     
     for cam_id in to_remove:
         del st.session_state.threaded_captures[cam_id]
-        print(f"🧹 Capture inactive supprimée: {cam_id}")
+        print(f" Capture inactive supprimée: {cam_id}")
     
     # Récupère le monitoring réseau pour cette caméra
     network_monitor = get_network_monitor(camera_id)
@@ -1463,14 +1477,14 @@ def get_or_create_threaded_capture(camera_id: str, camera_config: dict):
             
             if capture.start():
                 st.session_state.threaded_captures[camera_id] = capture
-                print(f"[SUCCESS] Capture threadée optimisée créée pour {camera_id} "
+                print(f" Capture threadée optimisée créée pour {camera_id} "
                       f"(qualité: {network_monitor.current_quality})")
             else:
-                print(f"[ERROR] Échec création capture pour {camera_id}")
+                print(f" Échec création capture pour {camera_id}")
                 return None
                 
         except Exception as e:
-            print(f"[ERROR] Erreur création capture {camera_id}: {e}")
+            print(f" Erreur création capture {camera_id}: {e}")
             return None
     
     return st.session_state.threaded_captures.get(camera_id)
@@ -1538,17 +1552,17 @@ def cleanup_threaded_captures():
         # Arrête toutes les captures threadées
         for camera_id, capture in list(st.session_state.threaded_captures.items()):
             try:
-                print(f"🧹 Arrêt capture threadée {camera_id}")
+                print(f" Arrêt capture threadée {camera_id}")
                 capture.stop()
             except Exception as e:
-                print(f"[ERROR] Erreur arrêt capture {camera_id}: {e}")
+                print(f" Erreur arrêt capture {camera_id}: {e}")
         
         # Vide le dictionnaire
         st.session_state.threaded_captures.clear()
-        print("[SUCCESS] Toutes les captures threadées arrêtées")
+        print(" Toutes les captures threadées arrêtées")
         
     except Exception as e:
-        print(f"[ERROR] Erreur cleanup global: {e}")
+        print(f" Erreur cleanup global: {e}")
 
 def get_threaded_capture_stats():
     """Retourne les statistiques de toutes les captures threadées."""
@@ -1766,9 +1780,9 @@ def get_threaded_capture(camera_id: str, source_url: str) -> ThreadedVideoCaptur
         capture = ThreadedVideoCapture(source_url)
         if capture.start():
             st.session_state.threaded_captures[camera_id] = capture
-            print(f"[SUCCESS] Capture threadée démarrée pour {camera_id}")
+            print(f" Capture threadée démarrée pour {camera_id}")
         else:
-            print(f"[ERROR] Échec démarrage capture threadée pour {camera_id}")
+            print(f" Échec démarrage capture threadée pour {camera_id}")
             return None
     return st.session_state.threaded_captures.get(camera_id)
 
@@ -1778,7 +1792,7 @@ def cleanup_threaded_captures():
         if capture:
             capture.stop()
     st.session_state.threaded_captures.clear()
-    print("🧹 Captures threadées nettoyées")
+    print(" Captures threadées nettoyées")
 
 def get_adaptive_compressor() -> AdaptiveFrameCompressor:
     """Récupère le compresseur adaptatif global."""
@@ -1808,7 +1822,7 @@ def initialize_adaptive_systems():
         
         for camera_id in inactive_captures:
             del st.session_state.threaded_captures[camera_id]
-            print(f"🧹 Capture inactive supprimée: {camera_id}")
+            print(f" Capture inactive supprimée: {camera_id}")
         
         st.session_state.last_cleanup = current_time
 
@@ -2155,7 +2169,7 @@ def render_integrated_chat(chat_type: str, context_data: Dict = None):
     if chat_key not in st.session_state:
         st.session_state[chat_key] = []
     
-    st.markdown("### 💬 Chat IA avec Vraies Données VLM")
+    st.markdown("###  Chat IA avec Vraies Données VLM")
     
     # Questions prédéfinies selon le contexte
     if chat_type == "surveillance":
@@ -2183,10 +2197,10 @@ def render_integrated_chat(chat_type: str, context_data: Dict = None):
             "Détaille les scores de confiance par outil",
             "Recommande la meilleure configuration d'outils"
         ]
-        context_info = f"🎥 {len(st.session_state.uploaded_videos)} vidéos analysées avec pipeline VLM"
+        context_info = f" {len(st.session_state.uploaded_videos)} vidéos analysées avec pipeline VLM"
     
     # Affichage du contexte
-    st.info(f"[INFO] Contexte: {context_info}")
+    st.info(f" Contexte: {context_info}")
     
     # Zone de chat
     with st.container():
@@ -2202,7 +2216,7 @@ def render_integrated_chat(chat_type: str, context_data: Dict = None):
             else:
                 st.markdown(f"""
                 <div class="chat-ai">
-                    <strong>🤖 IA VLM:</strong> {message['content']}
+                    <strong> IA VLM:</strong> {message['content']}
                 </div>
                 """, unsafe_allow_html=True)
         
@@ -2242,7 +2256,7 @@ def render_integrated_chat(chat_type: str, context_data: Dict = None):
         })
         
         # Générer réponse avec VLM thinking/reasoning
-        with st.spinner("🧠 Analyse VLM avec thinking..."):
+        with st.spinner(" Analyse VLM avec thinking..."):
             ai_response = asyncio.run(generate_real_vlm_response(message_to_send, chat_type, context_data))
         
         st.session_state[chat_key].append({
@@ -2257,7 +2271,7 @@ async def generate_real_vlm_response(question: str, chat_type: str, context_data
     """Génère une réponse VLM intelligente avec thinking/reasoning."""
     
     if not PIPELINE_AVAILABLE:
-        return "🤖 Pipeline VLM non disponible - Mode simulation basique."
+        return " Pipeline VLM non disponible - Mode simulation basique."
     
     # Récupération des vraies données pour contexte VLM
     vlm_context = {}
@@ -2271,7 +2285,7 @@ async def generate_real_vlm_response(question: str, chat_type: str, context_data
         }
     
     try:
-        # 🧠 APPEL VLM CHATBOT AVEC THINKING/REASONING
+        #  APPEL VLM CHATBOT AVEC THINKING/REASONING
         response_data = await process_vlm_chat_query(
             question=question,
             chat_type=chat_type, 
@@ -2281,7 +2295,7 @@ async def generate_real_vlm_response(question: str, chat_type: str, context_data
         # Formatage pour interface chat Streamlit
         if response_data.get("type") == "vlm_thinking":
             # Réponse VLM complète avec thinking
-            response_text = f"""🧠 **Analyse VLM avec Thinking:**
+            response_text = f""" **Analyse VLM avec Thinking:**
 
 **💭 Processus de Raisonnement:**
 {response_data.get('thinking', 'Thinking non disponible')[:300]}...
@@ -2304,23 +2318,23 @@ async def generate_real_vlm_response(question: str, chat_type: str, context_data
             
         else:
             # Fallback ou réponse basique
-            return response_data.get("response", "🤖 Réponse VLM générée.")
+            return response_data.get("response", " Réponse VLM générée.")
             
     except Exception as e:
         # Fallback sur ancien système si erreur VLM
         logger.error(f"Erreur chatbot VLM: {e}")
-        return f"[WARNING] Erreur VLM chatbot: {str(e)}. Utilisant fallback basique."
+        return f" Erreur VLM chatbot: {str(e)}. Utilisant fallback basique."
 
 def render_surveillance_tab():
     """Onglet surveillance avec vraie intégration VLM."""
-    st.subheader("🎥 Surveillance Temps Réel avec Pipeline VLM")
+    st.subheader(" Surveillance Temps Réel avec Pipeline VLM")
     
     # Statut de la pipeline
     render_pipeline_status()
     
     # Grille des caméras
     if not st.session_state.cameras:
-        st.info("📹 Aucune caméra configurée. Ajoutez une caméra dans l'onglet Configuration.")
+        st.info(" Aucune caméra configurée. Ajoutez une caméra dans l'onglet Configuration.")
     else:
         cameras = list(st.session_state.cameras.values())
         
@@ -2337,7 +2351,7 @@ def render_surveillance_tab():
             with cols[i % len(cols)]:
                 st.markdown(f"""
                 <div class="camera-card">
-                    <h4>📹 {camera['name']}</h4>
+                    <h4> {camera['name']}</h4>
                 </div>
                 """, unsafe_allow_html=True)
                 
@@ -2351,16 +2365,16 @@ def render_surveillance_tab():
                         frame = get_fluid_frame(camera_id, camera, max_age_ms=50)
                         
                         if frame is not None:
-                            st.image(frame, channels="BGR", caption=f"🔴 LIVE - {camera['name']}")
+                            st.image(frame, channels="BGR", caption=f" LIVE - {camera['name']}")
                             st.caption(f"[ACTIVE] Flux actif à {datetime.now().strftime('%H:%M:%S')}")
                         else:
-                            st.error(f"[ERROR] Flux {camera['name']} indisponible")
+                            st.error(f" Flux {camera['name']} indisponible")
                             # Fallback vers dummy  
                             frame = generate_dummy_frame(camera['id'])
                             st.image(frame, channels="BGR", caption=f"[FALLBACK] Fallback - {camera['name']}")
                             
                     except Exception as e:
-                        st.error(f"[ERROR] Erreur capture {camera['name']}: {str(e)}")
+                        st.error(f" Erreur capture {camera['name']}: {str(e)}")
                         print(f"DEBUG: Exception capture {camera_id}: {e}")
                         # Test direct disponible en cas d'erreur
                         if st.button(f"🧪 Test Direct", key=f"test_direct_{camera_id}"):
@@ -2368,33 +2382,33 @@ def render_surveillance_tab():
                                 try:
                                     test_frame = capture_real_frame_simple(camera, width=320, height=240)
                                     if test_frame is not None:
-                                        st.success("[SUCCESS] Test direct réussi !")
+                                        st.success(" Test direct réussi !")
                                         st.image(test_frame, channels="BGR", caption="Frame test")
                                     else:
-                                        st.error("[ERROR] Test direct échoué")
+                                        st.error(" Test direct échoué")
                                         st.info(f"Source: {camera.get('source')}")
                                 except Exception as te:
                                     st.error(f"Test échoué: {te}")
                 
                 elif camera.get('active', False):
                     # Caméra active mais surveillance inactive
-                    st.info(f"📹 {camera['name']} prête - Démarrez la surveillance")
+                    st.info(f" {camera['name']} prête - Démarrez la surveillance")
                     
                     col1, col2 = st.columns(2)
                     with col1:
-                        if st.button("[PAUSE] Pause", key=f"pause_{camera['id']}"):
+                        if st.button(" Pause", key=f"pause_{camera['id']}"):
                             st.session_state.cameras[camera['id']]['active'] = False
                             st.rerun()
                     
                     with col2:
-                        if st.button("[CONFIG] Config", key=f"config_{camera['id']}"):
+                        if st.button(" Config", key=f"config_{camera['id']}"):
                             st.info(f"Configuration de {camera['name']}")
                 
                 else:
                     st.image("https://via.placeholder.com/320x240/cccccc/666666?text=Camera+Offline", 
                             caption=f"Caméra hors ligne - {camera['name']}")
                     
-                    if st.button("[START] Start", key=f"start_{camera['id']}"):
+                    if st.button(" Start", key=f"start_{camera['id']}"):
                         st.session_state.cameras[camera['id']]['active'] = True
                         st.rerun()
     
@@ -2429,7 +2443,7 @@ def render_surveillance_tab():
 
 def render_video_upload_tab():
     """Onglet upload vidéo avec vraie analyse VLM."""
-    st.subheader("🎥 Upload & Analyse Vidéo avec Pipeline VLM")
+    st.subheader(" Upload & Analyse Vidéo avec Pipeline VLM")
     
     # Statut pipeline
     render_pipeline_status()
@@ -2508,7 +2522,7 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
     )
     
     # Configuration analyse avancée
-    st.markdown("### [CONFIG] Configuration Analyse VLM")
+    st.markdown("###  Configuration Analyse VLM")
     
     col3, col4 = st.columns(2)
     with col3:
@@ -2568,7 +2582,7 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
         if st.button(analyze_button_text, type="primary"):
             # Validation formulaire
             if not video_title.strip():
-                st.error("[WARNING] Veuillez saisir un titre pour la vidéo")
+                st.error(" Veuillez saisir un titre pour la vidéo")
                 return
             
             # Construction métadonnées enrichies pour VLM avec VideoContextMetadata
@@ -2687,7 +2701,7 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                 })
                 
                 progress_bar.progress(1.0)
-                st.success("[SUCCESS] Analyse VLM terminée avec succès!")
+                st.success(" Analyse VLM terminée avec succès!")
     
     # Affichage des résultats d'analyse VLM
     if st.session_state.video_analysis_results:
@@ -2775,7 +2789,7 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
             # Export des résultats VLM
             if st.button("📥 Exporter Résultats VLM"):
                 st.download_button(
-                    label="💾 Télécharger Analyse VLM JSON",
+                    label=" Télécharger Analyse VLM JSON",
                     data=json.dumps(results, indent=2, default=str),
                     file_name=f"vlm_analysis_{selected_video}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
                     mime="application/json"
@@ -3173,9 +3187,9 @@ def test_camera_connection(source_url: str, timeout: int = 15) -> Dict[str, Any]
 
 def render_camera_config():
     """Configuration des caméras avec tests de connexion renforcés."""
-    st.subheader("📹 Configuration des Caméras")
+    st.subheader(" Configuration des Caméras")
     
-    with st.expander("➕ Ajouter une nouvelle caméra", expanded=len(st.session_state.cameras) == 0):
+    with st.expander(" Ajouter une nouvelle caméra", expanded=len(st.session_state.cameras) == 0):
         col1, col2 = st.columns(2)
         
         with col1:
@@ -3202,9 +3216,9 @@ def render_camera_config():
                     with st.spinner("Détection complète en cours..."):
                         available_cams = detect_available_cameras()
                         if available_cams:
-                            st.success(f"[SUCCESS] Webcams fonctionnelles: {available_cams}")
+                            st.success(f" Webcams fonctionnelles: {available_cams}")
                         else:
-                            st.error("[ERROR] Aucune webcam fonctionnelle détectée")
+                            st.error(" Aucune webcam fonctionnelle détectée")
             
             with col_detect2:
                 if st.button("[DIAGNOSTIC] Diagnostic système vidéo"):
@@ -3244,14 +3258,14 @@ def render_camera_config():
                                 if device['capabilities']:
                                     st.write(f"   └── Capacités: {', '.join(device['capabilities'])}")
                         else:
-                            st.error("[ERROR] Aucun dispositif /dev/video* trouvé")
+                            st.error(" Aucun dispositif /dev/video* trouvé")
                         
                         # Vérification permissions
                         st.write("**Permissions:**")
                         if permissions['permissions_ok']:
                             st.write("[OK] Permissions OK")
                         else:
-                            st.write("[ERROR] Problèmes de permissions")
+                            st.write(" Problèmes de permissions")
                             for rec in permissions['recommendations']:
                                 st.write(f"   • {rec}")
                         
@@ -3279,21 +3293,21 @@ def render_camera_config():
             
             if matching_device:
                 if matching_device['accessible']:
-                    st.success(f"[SUCCESS] Dispositif trouvé: {matching_device['path']} - {matching_device['name']}")
+                    st.success(f" Dispositif trouvé: {matching_device['path']} - {matching_device['name']}")
                 else:
-                    st.error(f"[ERROR] Dispositif trouvé mais non accessible: {matching_device['path']}")
-                    st.write("[INFO] Solution: Vérifiez les permissions ou ajoutez l'utilisateur au groupe 'video'")
+                    st.error(f" Dispositif trouvé mais non accessible: {matching_device['path']}")
+                    st.write(" Solution: Vérifiez les permissions ou ajoutez l'utilisateur au groupe 'video'")
             else:
-                st.warning(f"[WARNING] Aucun dispositif /dev/video{webcam_index} détecté sur le système")
-                st.write("[INFO] Le test tentera quand même la connexion avec les backends disponibles")
+                st.warning(f" Aucun dispositif /dev/video{webcam_index} détecté sur le système")
+                st.write(" Le test tentera quand même la connexion avec les backends disponibles")
             
-            st.info(f"[INFO] Test utilisera l'index {webcam_index} avec backends: DEFAULT, V4L2, GSTREAMER")
+            st.info(f" Test utilisera l'index {webcam_index} avec backends: DEFAULT, V4L2, GSTREAMER")
         elif cam_source_type == "Caméra IP (RTSP)":
             source_url = st.text_input("URL RTSP", "rtsp://192.168.1.100:554/stream")
-            st.info("[INFO] Format: rtsp://user:pass@ip:port/stream")
+            st.info(" Format: rtsp://user:pass@ip:port/stream")
         elif cam_source_type == "Flux MJPEG (HTTP)":
             source_url = st.text_input("URL MJPEG", "http://192.168.1.100/mjpeg")
-            st.info("[INFO] Exemple: http://38.79.156.188/CgiStart/nphMotionJpeg?Resolution=640x480")
+            st.info(" Exemple: http://38.79.156.188/CgiStart/nphMotionJpeg?Resolution=640x480")
         elif cam_source_type == "Fichier vidéo":
             video_file = st.file_uploader("Sélectionner vidéo", type=['mp4', 'avi', 'mov'])
             if video_file:
@@ -3328,17 +3342,17 @@ def render_camera_config():
                 test_result = test_camera_connection(source_url, connection_timeout)
                 
                 if test_result['success']:
-                    st.success(f"[SUCCESS] Connexion réussie!")
-                    st.info(f"[INFO] Backend: {test_result['backend_used']}")
+                    st.success(f" Connexion réussie!")
+                    st.info(f" Backend: {test_result['backend_used']}")
                     st.info(f"📐 Résolution détectée: {test_result['resolution']}")
                     st.info(f"[TIME] Temps de test: {test_result['test_duration']:.1f}s")
                 else:
-                    st.error("[ERROR] Impossible de se connecter")
+                    st.error(" Impossible de se connecter")
                     with st.expander("Détails des erreurs"):
                         for error in test_result['error_messages']:
                             st.write(f"• {error}")
         
-        if st.button("➕ Ajouter Caméra"):
+        if st.button(" Ajouter Caméra"):
             if not source_url:
                 st.error("Veuillez configurer la source de la caméra")
                 return
@@ -3365,11 +3379,11 @@ def render_camera_config():
                         'active': False,
                         'created': datetime.now()
                     }
-                    st.success(f"[SUCCESS] Caméra '{cam_name}' ajoutée avec succès!")
-                    st.info(f"[INFO] Backend optimal: {test_result['backend_used']}")
+                    st.success(f" Caméra '{cam_name}' ajoutée avec succès!")
+                    st.info(f" Backend optimal: {test_result['backend_used']}")
                     st.rerun()
                 else:
-                    st.error("[ERROR] Impossible d'ajouter la caméra - connexion échouée")
+                    st.error(" Impossible d'ajouter la caméra - connexion échouée")
                     with st.expander("Diagnostics d'erreur détaillés"):
                         for error in test_result['error_messages']:
                             st.write(f"• {error}")
@@ -3378,7 +3392,7 @@ def render_camera_config():
                         st.write("**Solutions par type:**")
                         
                         if cam_source_type == "Webcam locale":
-                            st.write("🎥 **Webcam:**")
+                            st.write(" **Webcam:**")
                             st.write("• Vérifiez que la webcam n'est pas utilisée par une autre app")
                             st.write("• Essayez des indices différents (0, 1, 2)")
                             st.write("• Utilisez 'Détecter webcams disponibles'")
@@ -3399,16 +3413,16 @@ def render_camera_config():
                         st.write("**Diagnostic système:**")
                         available_cams = detect_available_cameras()
                         if available_cams:
-                            st.write(f"[SUCCESS] Webcams détectées: {available_cams}")
+                            st.write(f" Webcams détectées: {available_cams}")
                         else:
-                            st.write("[ERROR] Aucune webcam système détectée")
+                            st.write(" Aucune webcam système détectée")
     
     # Liste des caméras existantes
     if st.session_state.cameras:
-        st.subheader("[CAMERAS] Caméras Configurées")
+        st.subheader(" Caméras Configurées")
         
         for camera_id, camera in st.session_state.cameras.items():
-            with st.expander(f"📹 {camera['name']} ({camera_id})"):
+            with st.expander(f" {camera['name']} ({camera_id})"):
                 col1, col2, col3 = st.columns(3)
                 
                 with col1:
@@ -3423,7 +3437,7 @@ def render_camera_config():
                         st.write(f"**Timeout:** {camera['timeout']}s")
                 
                 with col3:
-                    status = "🟢 Active" if camera.get('active') else "⭕ Inactive"
+                    status = " Active" if camera.get('active') else "⭕ Inactive"
                     st.write(f"**Statut:** {status}")
                     
                     if 'backend_tested' in camera:
@@ -3435,7 +3449,7 @@ def render_camera_config():
                         if refresh_rate == 1:
                             perf_icon = "[FAST]"
                         elif refresh_rate <= 2:
-                            perf_icon = "[BOOST]"
+                            perf_icon = ""
                         elif refresh_rate <= 3:
                             perf_icon = "[OK]"
                         else:
@@ -3468,16 +3482,16 @@ def render_camera_config():
                                     st.session_state.cameras[camera_id]['backend_tested'] = test_result['backend_used']
                                     st.rerun()
                                 else:
-                                    st.error("[ERROR] Connexion échouée")
+                                    st.error(" Connexion échouée")
                     
                     with col_delete:
-                        if st.button("[DELETE] Supprimer", key=f"delete_{camera_id}"):
+                        if st.button(" Supprimer", key=f"delete_{camera_id}"):
                             del st.session_state.cameras[camera_id]
                             st.success(f"Caméra {camera['name']} supprimée")
                             st.rerun()
                 
                 # Affichage d'informations détaillées
-                if st.button("[INFO] Détails techniques", key=f"details_{camera_id}"):
+                if st.button(" Détails techniques", key=f"details_{camera_id}"):
                     st.json({
                         'configuration': camera,
                         'created': camera.get('created', 'N/A').isoformat() if camera.get('created') else 'N/A'
@@ -3677,7 +3691,7 @@ def main():
         
         # Initialisation de la pipeline
         if not st.session_state.pipeline_initialized:
-            if st.button("[START] Initialiser Pipeline VLM", type="primary"):
+            if st.button(" Initialiser Pipeline VLM", type="primary"):
                 success = asyncio.run(initialize_pipeline())
                 if success:
                     st.rerun()
@@ -3689,7 +3703,7 @@ def main():
                     st.session_state.real_pipeline.stop_processing()
                 st.session_state.pipeline_initialized = False
                 st.session_state.real_pipeline = None
-                st.info("[STOPPED] Pipeline arrêtée")
+                st.info(" Pipeline arrêtée")
                 st.rerun()
         
         # Statut général
@@ -3735,7 +3749,7 @@ def main():
             # Détails par caméra
             if st.checkbox("Détails captures"):
                 for camera_id, stat in capture_stats.items():
-                    with st.expander(f"📹 {camera_id}"):
+                    with st.expander(f" {camera_id}"):
                         if stat.get('error'):
                             st.error(f"Erreur: {stat['error']}")
                         else:
@@ -3747,7 +3761,7 @@ def main():
                             with col3:
                                 st.metric("Dropped", stat.get('frames_dropped', 0))
                             
-                            status = "🟢 Active" if stat.get('running') else "🔴 Arrêtée"
+                            status = " Active" if stat.get('running') else " Arrêtée"
                             st.write(f"Statut: {status}")
                             st.write(f"Queue: {stat.get('queue_size', 0)}")
         else:
@@ -3766,10 +3780,10 @@ def main():
             if current_time - metrics.get('last_update', 0) < 30:
                 # Icône de qualité réseau
                 quality_icons = {
-                    "excellent": "🟢",
-                    "good": "🟡", 
-                    "fair": "🟠",
-                    "poor": "🔴"
+                    "excellent": "",
+                    "good": "", 
+                    "fair": "",
+                    "poor": ""
                 }
                 quality_icon = quality_icons.get(metrics['quality'], "⚫")
                 
@@ -3815,12 +3829,12 @@ def main():
         st.divider()
         st.subheader("[SURVEILLANCE] Surveillance")
         
-        if st.button("[START] Démarrer Surveillance" if not st.session_state.surveillance_active else "[STOP] Arrêter Surveillance"):
+        if st.button(" Démarrer Surveillance" if not st.session_state.surveillance_active else "[STOP] Arrêter Surveillance"):
             st.session_state.surveillance_active = not st.session_state.surveillance_active
             if st.session_state.surveillance_active:
                 st.success("[STARTED] Surveillance démarrée!")
             else:
-                st.info("[STOPPED] Surveillance arrêtée")
+                st.info(" Surveillance arrêtée")
             st.rerun()
         
         # Paramètres VLM
@@ -3839,23 +3853,23 @@ def main():
             if st.session_state.pipeline_initialized:
                 st.info("[RUNNING] Cycle d'optimisation lancé...")
             else:
-                st.warning("[WARNING] Pipeline non initialisée")
+                st.warning(" Pipeline non initialisée")
         
-        if st.button("🧹 Vider Données VLM"):
+        if st.button(" Vider Données VLM"):
             st.session_state.surveillance_chat.clear()
             st.session_state.video_chat.clear()
             st.session_state.real_alerts.clear()
             st.session_state.real_detections.clear()
             st.session_state.optimization_results.clear()
             cleanup_threaded_captures()  # Nettoie aussi les captures
-            st.success("🧹 Données VLM et captures vidées!")
+            st.success(" Données VLM et captures vidées!")
             st.rerun()
     
     # Onglets principaux
     tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "🎥 Surveillance VLM", 
+        " Surveillance VLM", 
         "📤 Upload Vidéo VLM",
-        "📹 Configuration", 
+        " Configuration", 
         "[ANALYTICS] Analytics VLM", 
         "[ALERTS] Alertes VLM"
     ])

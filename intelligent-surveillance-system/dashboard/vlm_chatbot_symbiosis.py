@@ -54,17 +54,17 @@ except ImportError as e:
 # Import des fonctionnalités optionnelles (ne bloquent pas VLM_AVAILABLE)
 try:
     from .vlm_chatbot_optimizations import get_performance_optimizer
-    logger.info("[SUCCESS] Optimisations chatbot chargées")
+    logger.info("Optimisations chatbot chargées")
 except ImportError as e:
-    logger.warning(f"[WARNING] Optimisations chatbot non disponibles: {e}")
+    logger.warning(f"Optimisations chatbot non disponibles: {e}")
     def get_performance_optimizer():
         return None
 
 try:
     from .vlm_chatbot_advanced_features import get_advanced_features
-    logger.info("[SUCCESS] Features avancées chatbot chargées")
+    logger.info("Features avancées chatbot chargées")
 except ImportError as e:
-    logger.warning(f"[WARNING] Features avancées chatbot non disponibles: {e}")
+    logger.warning(f"Features avancées chatbot non disponibles: {e}")
     def get_advanced_features():
         return None
 
@@ -72,9 +72,9 @@ except ImportError as e:
 import os
 if os.getenv('FORCE_REAL_PIPELINE', 'false').lower() == 'true':
     if VLM_AVAILABLE:
-        logger.info("[START] Mode pipeline VLM forcé activé")
+        logger.info("Mode pipeline VLM forcé activé")
     else:
-        logger.warning("[WARNING] FORCE_REAL_PIPELINE activé mais pipeline non disponible")
+        logger.warning("FORCE_REAL_PIPELINE activé mais pipeline non disponible")
 
 
 class VLMChatbotSymbiosis:
@@ -111,7 +111,7 @@ class VLMChatbotSymbiosis:
                 expertise_level="intermediate"
             )
         
-        logger.info("🧠 VLM Chatbot Symbiosis initialisé avec optimisations et features avancées")
+        logger.info("Chatbot Symbiosis initialisé avec optimisations et features avancées")
         
     async def process_chat_query(
         self, 
@@ -161,19 +161,19 @@ class VLMChatbotSymbiosis:
             try:
                 self.pipeline = get_real_pipeline()
                 if self.pipeline:
-                    logger.info("[CONNECTED] Pipeline VLM récupérée pour chatbot")
+                    logger.info("Pipeline VLM récupérée pour chatbot")
             except Exception as e:
-                logger.warning(f"[WARNING] Échec récupération pipeline pour chatbot: {e}")
+                logger.warning(f"Échec récupération pipeline pour chatbot: {e}")
         
         # Vérification forcée via variable d'environnement
         force_real_pipeline = os.getenv('FORCE_REAL_PIPELINE', 'false').lower() == 'true'
         
         if not self.pipeline or not VLM_AVAILABLE:
             if force_real_pipeline:
-                logger.error("[ERROR] FORCE_REAL_PIPELINE activé mais pipeline non accessible")
+                logger.error("FORCE_REAL_PIPELINE activé mais pipeline non accessible")
                 return {
                     "type": "error",
-                    "response": "[ERROR] Pipeline VLM forcée mais non disponible. Vérifiez l'initialisation.",
+                    "response": "Pipeline VLM forcée mais non disponible. Vérifiez l'initialisation.",
                     "error": "Pipeline VLM requise mais non accessible"
                 }
             return await self._fallback_response(question, vlm_context)
@@ -235,7 +235,7 @@ class VLMChatbotSymbiosis:
             return structured_response
             
         except Exception as e:
-            logger.error(f"[ERROR] Erreur chatbot VLM symbiosis: {e}")
+            logger.error(f"Erreur chatbot VLM symbiosis: {e}")
             return await self._fallback_response(question, vlm_context, error=str(e))
     
     async def _build_enriched_context(
@@ -287,7 +287,7 @@ class VLMChatbotSymbiosis:
         """
         
         fig, ((ax1, ax2), (ax3, ax4)) = plt.subplots(2, 2, figsize=(12, 8))
-        fig.suptitle("🧠 Contexte Pipeline VLM - Dashboard État", fontsize=16)
+        fig.suptitle("CONTEXTE Pipeline VLM - Dashboard État", fontsize=16)
         
         # 1. Performance pipeline
         stats = context.get("pipeline_stats", {})
@@ -295,46 +295,46 @@ class VLMChatbotSymbiosis:
         score = stats.get("current_performance_score", 0)
         
         ax1.bar(["Frames", "Performance"], [frames, score * 100])
-        ax1.set_title("[PERFORMANCE] Performance Pipeline")
+        ax1.set_title("Performance Pipeline")
         ax1.set_ylabel("Valeur")
         
         # 2. Outils optimaux
         optimal_tools = stats.get("current_optimal_tools", [])
         if optimal_tools:
             ax2.pie([1] * len(optimal_tools), labels=optimal_tools[:6], autopct='')
-            ax2.set_title("[TOOLS] Outils Optimaux")
+            ax2.set_title("Outils Optimaux")
         else:
             ax2.text(0.5, 0.5, "Aucun outil\noptimisé", ha='center', va='center')
-            ax2.set_title("[TOOLS] Outils en Optimisation")
+            ax2.set_title("Outils en Optimisation")
         
         # 3. Détections récentes
         detections = context.get("detections", [])
         if detections:
             confidence_scores = [d.confidence for d in detections[-10:]]
             ax3.plot(confidence_scores, marker='o')
-            ax3.set_title("[CONFIDENCE] Confiance Détections")
+            ax3.set_title("Confiance Détections")
             ax3.set_ylabel("Confiance")
             ax3.set_xlabel("Détection #")
         else:
             ax3.text(0.5, 0.5, "Aucune détection\nrécente", ha='center', va='center')
-            ax3.set_title("[INFO] Pas de Détections")
+            ax3.set_title("Pas de Détections")
         
         # 4. État système
         system_status = [
-            ("Pipeline", "🟢" if context.get("pipeline_active") else "🔴"),
-            ("VLM", "🟢" if context.get("pipeline_initialized") else "🔴"),
-            ("Optimisation", "🟢" if len(optimal_tools) > 0 else "🟡"),
-            ("Détections", "🟢" if len(detections) > 0 else "🟡")
+            ("Pipeline", "ACTIVE" if context.get("pipeline_active") else "INACTIVE"),
+            ("VLM", "ACTIVE" if context.get("pipeline_initialized") else "INACTIVE"),
+            ("Optimisation", "ACTIVE" if len(optimal_tools) > 0 else "PENDING"),
+            ("Détections", "ACTIVE" if len(detections) > 0 else "PENDING")
         ]
         
         y_pos = np.arange(len(system_status))
         statuses = [s[1] for s in system_status]
         labels = [s[0] for s in system_status]
         
-        ax4.barh(y_pos, [1] * len(system_status), color=['green' if '🟢' in s else 'red' if '🔴' in s else 'orange' for s in statuses])
+        ax4.barh(y_pos, [1] * len(system_status), color=['green' if 'ACTIVE' in s else 'red' if 'INACTIVE' in s else 'orange' for s in statuses])
         ax4.set_yticks(y_pos)
         ax4.set_yticklabels(labels)
-        ax4.set_title("[STATUS] État Système")
+        ax4.set_title("État Système")
         
         plt.tight_layout()
         
@@ -369,35 +369,35 @@ class VLMChatbotSymbiosis:
         
         return f"""Tu es un assistant IA expert en surveillance vidéo avec symbiose complète à une pipeline VLM temps réel.
 
-🧠 CAPACITÉS THINKING & REASONING:
+CAPACITÉS THINKING & REASONING:
 Tu possèdes les mêmes capacités de raisonnement avancé que le système de surveillance:
 - Chain-of-thought méthodologique 5 étapes
 - Analyse contextuelle profonde des données VLM
 - Corrélation multi-dimensionnelle des métriques
 - Recommendations expertes basées sur patterns réels
 
-🔬 CONTEXTE PIPELINE TEMPS RÉEL:
-[STATUS] Pipeline Status: {"[ACTIVE]" if context.get("pipeline_active") else "[INACTIVE]"}
-[FRAMES] Frames Analysées: {stats.get("frames_processed", 0)}
-[PERF] Performance Score: {stats.get("current_performance_score", 0):.3f}
-[TOOLS] Outils Optimaux: {", ".join(stats.get("current_optimal_tools", [])[:5]) or "En cours d'optimisation"}
-[TIME] Temps Moyen: {stats.get("average_processing_time", 0):.2f}s
-[CYCLES] Cycles Optimisation: {stats.get("optimization_cycles", 0)}
-[DETECTIONS] Détections Totales: {stats.get("total_detections", 0)}
+CONTEXTE PIPELINE TEMPS RÉEL:
+Pipeline Status: {"" if context.get("pipeline_active") else ""}
+Frames Analysées: {stats.get("frames_processed", 0)}
+Performance Score: {stats.get("current_performance_score", 0):.3f}
+Outils Optimaux: {", ".join(stats.get("current_optimal_tools", [])[:5]) or "En cours d'optimisation"}
+Temps Moyen: {stats.get("average_processing_time", 0):.2f}s
+Cycles Optimisation: {stats.get("optimization_cycles", 0)}
+Détections Totales: {stats.get("total_detections", 0)}
 
-[RECENT] DÉTECTIONS RÉCENTES ({len(detections)} dernières):
+DÉTECTIONS RÉCENTES ({len(detections)} dernières):
 {self._format_recent_detections(detections[-5:]) if detections else "Aucune détection récente"}
 
-[OPTIMIZATIONS] OPTIMISATIONS ADAPTATIVES:
+OPTIMISATIONS ADAPTATIVES:
 {self._format_optimization_results(optimizations[-3:]) if optimizations else "Système d'apprentissage en cours"}
 
-[TYPE] TYPE CHAT: {chat_type.upper()}
-[HISTORY] HISTORIQUE: {len(self.conversation_history)} échanges précédents
+TYPE CHAT: {chat_type.upper()}
+HISTORIQUE: {len(self.conversation_history)} échanges précédents
 
-👤 QUESTION UTILISATEUR:
+QUESTION UTILISATEUR:
 "{question}"
 
-🧠 INSTRUCTIONS THINKING AVANCÉ:
+INSTRUCTIONS THINKING AVANCÉ:
 Applique la même méthodologie rigoureuse que l'analyse surveillance:
 
 1. **OBSERVATION SYSTÉMATIQUE**:
@@ -426,11 +426,11 @@ Applique la même méthodologie rigoureuse que l'analyse surveillance:
    - Limitations et incertitudes à mentionner
 
 CONTRAINTES IMPORTANTES:
-[WARNING] Base tes réponses UNIQUEMENT sur les données temps réel fournies
-[WARNING] Si données insuffisantes, mentionne explicitement les limitations
-[WARNING] Privilégie précision technique sur généralités
-[WARNING] Inclus thinking process visible pour transparence
-[WARNING] Recommandations doivent être actionables et spécifiques
+Base tes réponses UNIQUEMENT sur les données temps réel fournies
+Si données insuffisantes, mentionne explicitement les limitations
+Privilégie précision technique sur généralités
+Inclus thinking process visible pour transparence
+Recommandations doivent être actionables et spécifiques
 
 FORMAT RÉPONSE JSON STRUCTURÉ:
 {{
@@ -513,8 +513,23 @@ Réponds maintenant en utilisant ton intelligence VLM complète avec thinking/re
                     recommendations=parsed_response.get("recommendations", [])
                 )
             else:
-                # Fallback orchestrateur standard
-                return await self.pipeline.orchestrator.analyze(vlm_request)
+                # Fallback orchestrateur standard - conversion vers AnalysisRequest
+                import cv2
+                import base64
+                
+                if context_image is not None:
+                    _, buffer = cv2.imencode('.jpg', context_image)
+                    frame_data = base64.b64encode(buffer).decode('utf-8')
+                else:
+                    dummy_image = np.zeros((480, 640, 3), dtype=np.uint8)
+                    _, buffer = cv2.imencode('.jpg', dummy_image)
+                    frame_data = base64.b64encode(buffer).decode('utf-8')
+                
+                return await self.pipeline.orchestrator.analyze_surveillance_frame(
+                    frame_data=frame_data,
+                    detections=[],
+                    context={"chat_mode": True, "prompt": chat_prompt}
+                )
                 
         except Exception as e:
             logger.error(f"Erreur symbiose VLM: {e}")
@@ -665,7 +680,7 @@ Réponds maintenant en utilisant ton intelligence VLM complète avec thinking/re
         base_response = {
             "type": "fallback",
             "question": question,
-            "response": "🤖 Mode simulation: Pipeline VLM non disponible pour symbiose complète.",
+            "response": "Mode simulation: Pipeline VLM non disponible pour symbiose complète.",
             "confidence": 0.3,
             "limitations": ["VLM non accessible", "Mode simulation basique"],
             "timestamp": datetime.now().isoformat()

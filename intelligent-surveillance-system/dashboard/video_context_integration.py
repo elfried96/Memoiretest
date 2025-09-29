@@ -1,5 +1,5 @@
 """
-🎥 Video Context Integration - Métadonnées pour VLM
+ Video Context Integration - Métadonnées pour VLM
 ==================================================
 
 Intégration des descriptions et métadonnées vidéo dans le contexte VLM
@@ -122,7 +122,7 @@ class VideoContextPromptBuilder:
         
         context_enhancement = f"""
 
-🎥 CONTEXTE VIDÉO SPÉCIFIQUE - INFORMATIONS UTILISATEUR:
+ CONTEXTE VIDÉO SPÉCIFIQUE - INFORMATIONS UTILISATEUR:
 =====================================================
 
 📋 IDENTIFICATION:
@@ -131,7 +131,7 @@ class VideoContextPromptBuilder:
 - Contexte temporel: {video_metadata.time_context}
 - Angle caméra: {video_metadata.camera_angle}
 
-📊 CARACTÉRISTIQUES ENVIRONNEMENT {video_metadata.location_type.upper()}:
+ CARACTÉRISTIQUES ENVIRONNEMENT {video_metadata.location_type.upper()}:
 - Comportements typiques: {', '.join(location_info['typical_behaviors'])}
 - Patterns risque connus: {', '.join(location_info['risk_patterns'])}
 - Zones critiques: {', '.join(location_info['key_zones'])}
@@ -143,22 +143,22 @@ class VideoContextPromptBuilder:
 - Flux clients: {temporal_info['customer_flow']}
 - Sensibilité alertes: {temporal_info['alert_sensitivity']}
 
-✅ ACTIVITÉS NORMALES ATTENDUES:
+ ACTIVITÉS NORMALES ATTENDUES:
 {self._format_list_for_prompt(video_metadata.expected_activities)}
 
-🚨 FOCUS SURVEILLANCE PRIORITAIRE:
+ FOCUS SURVEILLANCE PRIORITAIRE:
 {self._format_list_for_prompt(video_metadata.suspicious_focus)}
 
 📝 DESCRIPTION DÉTAILLÉE UTILISATEUR:
 "{video_metadata.detailed_description}"
 
-🎯 PRIORITÉ ANALYSE: {video_metadata.analysis_priority}
-📊 ÉCHANTILLONNAGE: {video_metadata.frame_sampling}
+ PRIORITÉ ANALYSE: {video_metadata.analysis_priority}
+ ÉCHANTILLONNAGE: {video_metadata.frame_sampling}
 
 INSTRUCTIONS CONTEXTUALISÉES:
 =============================
 
-🔍 ADAPTATION SELON ENVIRONNEMENT:
+ ADAPTATION SELON ENVIRONNEMENT:
 - Calibre tes seuils de suspicion selon le type "{video_metadata.location_type}"
 - Prends en compte le contexte "{video_metadata.time_context}" pour évaluer normalité
 - Perspective caméra "{video_metadata.camera_angle}" influence interprétation spatiale
@@ -168,13 +168,13 @@ INSTRUCTIONS CONTEXTUALISÉES:
 - SUSPECTS à prioriser: {', '.join(video_metadata.suspicious_focus)}
 - Distinguer activité normale vs comportement inhabituel selon contexte temporel
 
-🎯 OBJECTIFS SPÉCIFIQUES:
+ OBJECTIFS SPÉCIFIQUES:
 - Focus principal: détection patterns listés en "Focus surveillance"
 - Ignorer ou minimiser activités normales listées sauf si vraiment suspectes  
 - Adapter confiance selon qualité description utilisateur
 - Corréler avec description détaillée fournie
 
-⚠️ CONTRAINTES CONTEXTUELLES:
+ CONTRAINTES CONTEXTUELLES:
 - Environnement "{video_metadata.location_type}" a des patterns comportementaux spécifiques
 - Période "{video_metadata.time_context}" influence normalité des activités
 - Description utilisateur doit primer sur assumptions générales

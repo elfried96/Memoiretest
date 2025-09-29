@@ -52,7 +52,7 @@ class StreamlitVLMService:
         """Initialise le système VLM de manière asynchrone."""
         
         if not VLM_AVAILABLE:
-            st.warning("🚧 VLM non disponible - Mode simulation activé")
+            st.warning(" VLM non disponible - Mode simulation activé")
             return False
         
         if self.is_initialized and not force_reload:
@@ -64,7 +64,7 @@ class StreamlitVLMService:
                 status_placeholder = st.empty()
                 progress_bar = st.progress(0)
                 
-                status_placeholder.info("🚀 Initialisation du modèle VLM...")
+                status_placeholder.info(" Initialisation du modèle VLM...")
                 progress_bar.progress(20)
                 
                 # Chargement VLM
@@ -75,12 +75,12 @@ class StreamlitVLMService:
                         load_in_4bit=True
                     )
                 
-                status_placeholder.info("⚙️ Chargement du modèle...")
+                status_placeholder.info(" Chargement du modèle...")
                 progress_bar.progress(50)
                 
                 await self.vlm_model.load_model()
                 
-                status_placeholder.info("🔧 Initialisation orchestrateur...")
+                status_placeholder.info(" Initialisation orchestrateur...")
                 progress_bar.progress(80)
                 
                 # Chargement orchestrateur
@@ -89,7 +89,7 @@ class StreamlitVLMService:
                     # TODO: Initialiser orchestrateur si nécessaire
                 
                 progress_bar.progress(100)
-                status_placeholder.success("✅ VLM initialisé avec succès!")
+                status_placeholder.success(" VLM initialisé avec succès!")
                 
                 self.is_initialized = True
                 
@@ -102,7 +102,7 @@ class StreamlitVLMService:
                 return True
                 
             except Exception as e:
-                st.error(f"❌ Erreur initialisation VLM: {str(e)}")
+                st.error(f" Erreur initialisation VLM: {str(e)}")
                 return False
     
     async def analyze_video_file(self, video_file, options: Dict[str, Any]) -> Dict[str, Any]:
@@ -434,19 +434,19 @@ class StreamlitVLMService:
         video_analyses = context.get('video_analyses', {})
         
         if not alerts:
-            return "🔒 **Statut sécurité: NORMAL**\n\nAucune alerte active détectée. Le système de surveillance fonctionne normalement."
+            return " **Statut sécurité: NORMAL**\n\nAucune alerte active détectée. Le système de surveillance fonctionne normalement."
         
         critical_alerts = [a for a in alerts if a.get('level') == 'CRITICAL']
         high_alerts = [a for a in alerts if a.get('level') == 'HIGH']
         
         if critical_alerts:
-            return f"🚨 **ALERTE CRITIQUE DÉTECTÉE**\n\n{len(critical_alerts)} alerte(s) critique(s) nécessitent une intervention immédiate."
+            return f" **ALERTE CRITIQUE DÉTECTÉE**\n\n{len(critical_alerts)} alerte(s) critique(s) nécessitent une intervention immédiate."
         
         elif high_alerts:
-            return f"⚠️ **Surveillance renforcée recommandée**\n\n{len(high_alerts)} alerte(s) de niveau élevé détectée(s)."
+            return f" **Surveillance renforcée recommandée**\n\n{len(high_alerts)} alerte(s) de niveau élevé détectée(s)."
         
         else:
-            return f"🔍 **Surveillance normale**\n\n{len(alerts)} alerte(s) mineures en cours de surveillance."
+            return f" **Surveillance normale**\n\n{len(alerts)} alerte(s) mineures en cours de surveillance."
     
     def _analyze_people_detection(self, context: Dict[str, Any]) -> str:
         """Analyse les détections de personnes."""
@@ -454,10 +454,10 @@ class StreamlitVLMService:
         video_analyses = context.get('video_analyses', {})
         
         if not video_analyses:
-            return "👥 Aucune analyse récente disponible pour compter les personnes. Uploadez une vidéo pour obtenir des détections précises."
+            return " Aucune analyse récente disponible pour compter les personnes. Uploadez une vidéo pour obtenir des détections précises."
         
         # Simulation basée sur les analyses
-        return "👥 **Détection de personnes:**\n\nBasé sur les analyses récentes, 2-4 personnes sont généralement détectées dans les zones surveillées. Mouvements normaux observés."
+        return " **Détection de personnes:**\n\nBasé sur les analyses récentes, 2-4 personnes sont généralement détectées dans les zones surveillées. Mouvements normaux observés."
     
     def _analyze_alerts_status(self, context: Dict[str, Any]) -> str:
         """Analyse le statut des alertes."""
@@ -465,14 +465,14 @@ class StreamlitVLMService:
         alerts = context.get('active_alerts', [])
         
         if not alerts:
-            return "✅ **Aucune alerte active**\n\nTous les systèmes fonctionnent normalement."
+            return " **Aucune alerte active**\n\nTous les systèmes fonctionnent normalement."
         
-        response = f"🚨 **{len(alerts)} alerte(s) active(s):**\n\n"
+        response = f" **{len(alerts)} alerte(s) active(s):**\n\n"
         
         for alert in alerts[-3:]:  # 3 dernières
             level = alert.get('level', 'INFO')
             message = alert.get('message', 'N/A')
-            emoji = {'LOW': '🔵', 'MEDIUM': '🟡', 'HIGH': '🟠', 'CRITICAL': '🔴'}.get(level, '⚪')
+            emoji = {'LOW': '', 'MEDIUM': '', 'HIGH': '', 'CRITICAL': ''}.get(level, '')
             response += f"{emoji} {message}\n"
         
         return response
@@ -487,15 +487,15 @@ class StreamlitVLMService:
         active_cameras = sum(1 for cam in cameras.values() if cam.get('enabled', False))
         
         response = "🖥️ **État du système de surveillance:**\n\n"
-        response += f"📹 Caméras: {active_cameras}/{len(cameras)} actives\n"
-        response += f"🤖 IA: {'🟢 Opérationnelle' if self.is_initialized else '🟡 En cours d\'initialisation'}\n"
-        response += f"📊 Analyses: {len(analyses)} vidéos traitées\n"
-        response += f"🚨 Alertes: {len(alerts)} actives\n\n"
+        response += f" Caméras: {active_cameras}/{len(cameras)} actives\n"
+        response += f" IA: {' Opérationnelle' if self.is_initialized else ' En cours d\'initialisation'}\n"
+        response += f" Analyses: {len(analyses)} vidéos traitées\n"
+        response += f" Alertes: {len(alerts)} actives\n\n"
         
         if self.stats['last_activity']:
             response += f"⏱️ Dernière activité: {self.stats['last_activity'].strftime('%H:%M:%S')}\n"
         
-        response += "✅ Système opérationnel"
+        response += " Système opérationnel"
         
         return response
     
@@ -537,7 +537,7 @@ class StreamlitVLMService:
         """Simulation de réponse chat."""
         
         return {
-            'content': f"🤖 Simulation de réponse à: {question}\n\nContexte: {len(context)} éléments analysés.",
+            'content': f" Simulation de réponse à: {question}\n\nContexte: {len(context)} éléments analysés.",
             'metadata': {
                 'simulation_mode': True,
                 'analysis_time': 0.8,

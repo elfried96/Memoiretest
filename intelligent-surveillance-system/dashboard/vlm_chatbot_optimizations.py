@@ -175,7 +175,7 @@ class VLMChatbotCache:
             self.stats['cache_size'] = len(self.cache)
             
             if expired_keys:
-                logger.info(f"🧹 Cache cleanup: {len(expired_keys)} entrées expirées supprimées")
+                logger.info(f" Cache cleanup: {len(expired_keys)} entrées expirées supprimées")
     
     def get_stats(self) -> Dict[str, Any]:
         """Statistiques du cache."""
@@ -430,11 +430,11 @@ class VLMChatbotPerformanceOptimizer:
             
         except Exception as e:
             processing_time = time.time() - start_time
-            logger.error(f"❌ Erreur optimization chatbot: {e}")
+            logger.error(f" Erreur optimization chatbot: {e}")
             
             return {
                 'type': 'optimization_error',
-                'response': f"⚠️ Erreur optimisation: {str(e)}",
+                'response': f" Erreur optimisation: {str(e)}",
                 'confidence': 0.0,
                 '_performance': {
                     'cache_hit': False,

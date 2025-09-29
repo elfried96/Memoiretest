@@ -192,9 +192,9 @@ class AudioAlertSystem:
         # Affichage notification visuelle
         if message:
             if level == "CRITICAL":
-                st.error(f"🚨 CRITIQUE: {message}")
+                st.error(f" CRITIQUE: {message}")
             elif level == "HIGH":
-                st.error(f"⚠️ ALERTE: {message}")
+                st.error(f" ALERTE: {message}")
             elif level == "MEDIUM":
                 st.warning(f"🔶 ATTENTION: {message}")
             else:
@@ -240,17 +240,17 @@ class AudioAlertSystem:
         
         with col1:
             st.write("**Niveaux d'alerte:**")
-            if st.button("🔵 LOW", use_container_width=True):
+            if st.button(" LOW", use_container_width=True):
                 self.play_alert("LOW", "Test alerte faible", force=True)
             
-            if st.button("🟡 MEDIUM", use_container_width=True):
+            if st.button(" MEDIUM", use_container_width=True):
                 self.play_alert("MEDIUM", "Test alerte modérée", force=True)
         
         with col2:
-            if st.button("🟠 HIGH", use_container_width=True):
+            if st.button(" HIGH", use_container_width=True):
                 self.play_alert("HIGH", "Test alerte élevée", force=True)
             
-            if st.button("🔴 CRITICAL", use_container_width=True):
+            if st.button(" CRITICAL", use_container_width=True):
                 self.play_alert("CRITICAL", "Test alerte critique", force=True)
         
         with col3:

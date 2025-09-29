@@ -125,13 +125,24 @@ if 'network_monitor' not in st.session_state:
 if 'adaptive_settings' not in st.session_state:
     st.session_state.adaptive_settings = {}
 
-# 🚀 INITIALISATION AUTOMATIQUE DE LA VRAIE PIPELINE VLM
-if not st.session_state.pipeline_initialized and PIPELINE_AVAILABLE:
-    with st.spinner("🔄 Initialisation automatique de la pipeline VLM..."):
-        if initialize_pipeline_vlm():
-            st.success("✅ Pipeline VLM réelle initialisée automatiquement!")
-        else:
-            st.error("❌ Échec initialisation pipeline VLM - Dashboard en mode lecture seule")
+# 🚀 INITIALISATION AUTOMATIQUE DE LA VRAIE PIPELINE VLM (Mode optionnel)
+# Ajout variable d'environnement pour bypass si problème
+import os
+AUTO_INIT_VLM = os.getenv('AUTO_INIT_VLM', 'true').lower() == 'true'
+
+if AUTO_INIT_VLM and not st.session_state.pipeline_initialized and PIPELINE_AVAILABLE:
+    try:
+        with st.spinner("🔄 Initialisation automatique de la pipeline VLM..."):
+            if initialize_real_pipeline(
+                vlm_model_name="Qwen/Qwen2.5-VL-7B-Instruct",
+                enable_optimization=True
+            ):
+                st.success("✅ Pipeline VLM réelle initialisée automatiquement!")
+            else:
+                st.warning("⚠️ Échec initialisation pipeline VLM - Mode manuel disponible")
+    except Exception as e:
+        st.error(f"❌ Erreur initialisation auto: {e}")
+        st.info("💡 Pour bypasser: définir AUTO_INIT_VLM=false")
 
 # CSS pour l'interface
 st.markdown("""

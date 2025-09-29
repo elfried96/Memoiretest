@@ -1,5 +1,5 @@
 """
-🚀 VLM Chatbot Advanced Features
+[ADVANCED] VLM Chatbot Advanced Features
 ===============================
 
 Fonctionnalités avancées pour le chatbot VLM:

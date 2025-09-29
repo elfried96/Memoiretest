@@ -1,5 +1,5 @@
 """
-🔬 Intégration Pipeline VLM Réelle pour Dashboard
+[INTEGRATION] Intégration Pipeline VLM Réelle pour Dashboard
 ==================================================
 
 Connecte le dashboard aux vrais composants du système :
@@ -41,10 +41,10 @@ try:
     from src.core.monitoring.vlm_metrics import VLMMetricsCollector
     CORE_AVAILABLE = True
     logger = logging.getLogger(__name__)
-    logger.info("✅ Modules VLM core chargés avec succès")
+    logger.info("[SUCCESS] Modules VLM core chargés avec succès")
 except ImportError as e:
     logger = logging.getLogger(__name__)
-    logger.error(f"❌ Impossible d'importer les modules core: {e}")
+    logger.error(f"[ERROR] Impossible d'importer les modules core: {e}")
     CORE_AVAILABLE = False
 
 from dashboard.camera_manager import FrameData
@@ -154,14 +154,14 @@ class RealVLMPipeline:
     async def initialize(self) -> bool:
         """Initialise la pipeline VLM complète."""
         if not CORE_AVAILABLE:
-            logger.error("❌ Modules core VLM non disponibles")
+            logger.error("[ERROR] Modules core VLM non disponibles")
             return False
         
         try:
-            logger.info("🔄 Initialisation de la pipeline VLM réelle...")
+            logger.info("[LOADING] Initialisation de la pipeline VLM réelle...")
             
             # 1. Orchestrateur adaptatif
-            logger.info("📋 Initialisation AdaptiveVLMOrchestrator...")
+            logger.info("[INIT] Initialisation AdaptiveVLMOrchestrator...")
             orchestration_config = OrchestrationConfig(
                 mode=OrchestrationMode.THOROUGH,
                 confidence_threshold=0.7,
@@ -177,7 +177,7 @@ class RealVLMPipeline:
             )
             
             # 2. Gestionnaire d'outils avancés  
-            logger.info("🛠️ Initialisation AdvancedToolsManager...")
+            logger.info("[TOOLS] Initialisation AdvancedToolsManager...")
             self.tools_manager = AdvancedToolsManager()
             
             # 3. Modèle VLM
@@ -198,7 +198,7 @@ class RealVLMPipeline:
                 )
             
             # 5. Monitoring de performance
-            logger.info("📊 Initialisation Performance Monitoring...")
+            logger.info("[MONITORING] Initialisation Performance Monitoring...")
             self.performance_monitor = PerformanceMonitor()
             self.metrics_collector = VLMMetricsCollector()
             
@@ -208,7 +208,7 @@ class RealVLMPipeline:
             await self._load_optimization_data()
             
             self.initialized = True
-            logger.info("✅ Pipeline VLM réelle initialisée avec succès")
+            logger.info("[SUCCESS] Pipeline VLM réelle initialisée avec succès")
             
             # 8. Démarrage de l'optimisation continue si activée
             if self.enable_optimization:
@@ -217,18 +217,18 @@ class RealVLMPipeline:
             return True
             
         except Exception as e:
-            logger.error(f"❌ Erreur initialisation pipeline VLM: {e}")
+            logger.error(f"[ERROR] Erreur initialisation pipeline VLM: {e}")
             self._notify_error(e)
             return False
     
     def start_processing(self) -> bool:
         """Démarre le traitement temps réel."""
         if not self.initialized:
-            logger.error("❌ Pipeline non initialisée")
+            logger.error("[ERROR] Pipeline non initialisée")
             return False
         
         if self.running:
-            logger.warning("⚠️ Pipeline déjà en cours d'exécution")
+            logger.warning("[WARNING] Pipeline déjà en cours d'exécution")
             return True
         
         self.running = True
@@ -243,7 +243,7 @@ class RealVLMPipeline:
             worker.start()
             self.analysis_workers.append(worker)
         
-        logger.info(f"✅ Pipeline VLM démarrée avec {self.max_concurrent_analysis} workers")
+        logger.info(f"[SUCCESS] Pipeline VLM démarrée avec {self.max_concurrent_analysis} workers")
         return True
     
     def stop_processing(self):
@@ -259,7 +259,7 @@ class RealVLMPipeline:
             self.optimization_worker.join(timeout=5.0)
         
         self.analysis_workers.clear()
-        logger.info("⏹️ Pipeline VLM arrêtée")
+        logger.info("[STOPPED] Pipeline VLM arrêtée")
     
     async def analyze_frame(self, frame_data: FrameData) -> Optional[RealAnalysisResult]:
         """Analyse une frame avec la pipeline complète."""
@@ -278,16 +278,16 @@ class RealVLMPipeline:
                 self.analysis_queue.put_nowait(analysis_request)
                 return True  # Mis en queue avec succès
             except queue.Full:
-                logger.warning("⚠️ Queue d'analyse pleine, frame ignorée")
+                logger.warning("[WARNING] Queue d'analyse pleine, frame ignorée")
                 return False
                 
         except Exception as e:
-            logger.error(f"❌ Erreur ajout frame à l'analyse: {e}")
+            logger.error(f"[ERROR] Erreur ajout frame à l'analyse: {e}")
             return False
     
     def _analysis_worker(self, worker_name: str):
         """Worker thread pour analyse VLM."""
-        logger.info(f"🔧 Worker d'analyse {worker_name} démarré")
+        logger.info(f"[WORKER] Worker d'analyse {worker_name} démarré")
         
         while self.running:
             try:
@@ -324,10 +324,10 @@ class RealVLMPipeline:
             except queue.Empty:
                 continue
             except Exception as e:
-                logger.error(f"❌ Erreur worker analyse {worker_name}: {e}")
+                logger.error(f"[ERROR] Erreur worker analyse {worker_name}: {e}")
                 self._notify_error(e)
         
-        logger.info(f"⏹️ Worker d'analyse {worker_name} arrêté")
+        logger.info(f"[STOPPED] Worker d'analyse {worker_name} arrêté")
     
     async def _process_frame_with_vlm(self, analysis_request: Dict[str, Any]) -> Optional[RealAnalysisResult]:
         """Traite une frame avec la pipeline VLM complète."""
@@ -352,7 +352,7 @@ class RealVLMPipeline:
                 vlm_response = await self.orchestrator.analyze(vlm_request)
             
             if not vlm_response:
-                logger.warning(f"⚠️ Pas de réponse VLM pour frame {frame_id}")
+                logger.warning(f"[WARNING] Pas de réponse VLM pour frame {frame_id}")
                 return None
             
             # Construction du résultat
@@ -377,7 +377,7 @@ class RealVLMPipeline:
             return result
             
         except Exception as e:
-            logger.error(f"❌ Erreur traitement VLM: {e}")
+            logger.error(f"[ERROR] Erreur traitement VLM: {e}")
             return None
     
     def _start_background_optimization(self):

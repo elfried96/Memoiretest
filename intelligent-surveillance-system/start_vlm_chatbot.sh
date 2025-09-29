@@ -8,6 +8,8 @@ echo "================================================"
 # Configuration environnement
 export PYTHONPATH="${PWD}/src:${PWD}/dashboard:${PYTHONPATH}"
 export TOKENIZERS_PARALLELISM=false
+export AUTO_INIT_VLM=true
+export FORCE_REAL_PIPELINE=true
 
 # Vérification GPU
 echo "🔍 Vérification GPU..."

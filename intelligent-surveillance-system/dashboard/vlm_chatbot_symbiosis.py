@@ -29,6 +29,14 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # Imports pipeline VLM
+# Import de base requis pour pipeline VLM
+VLM_AVAILABLE = False
+RealVLMPipeline = None
+get_real_pipeline = None
+AnalysisRequest = None
+AnalysisResponse = None
+PromptBuilder = None
+
 try:
     from .real_pipeline_integration import (
         RealVLMPipeline, 
@@ -37,12 +45,36 @@ try:
     )
     from src.core.types import AnalysisRequest, AnalysisResponse
     from src.core.vlm.prompt_builder import PromptBuilder
-    from .vlm_chatbot_optimizations import get_performance_optimizer
-    from .vlm_chatbot_advanced_features import get_advanced_features
     VLM_AVAILABLE = True
+    logger.info("✅ Pipeline VLM de base chargée pour chatbot")
 except ImportError as e:
-    logger.warning(f"Pipeline VLM non disponible pour chatbot: {e}")
+    logger.error(f"❌ Pipeline VLM de base non disponible pour chatbot: {e}")
     VLM_AVAILABLE = False
+
+# Import des fonctionnalités optionnelles (ne bloquent pas VLM_AVAILABLE)
+try:
+    from .vlm_chatbot_optimizations import get_performance_optimizer
+    logger.info("✅ Optimisations chatbot chargées")
+except ImportError as e:
+    logger.warning(f"⚠️ Optimisations chatbot non disponibles: {e}")
+    def get_performance_optimizer():
+        return None
+
+try:
+    from .vlm_chatbot_advanced_features import get_advanced_features
+    logger.info("✅ Features avancées chatbot chargées")
+except ImportError as e:
+    logger.warning(f"⚠️ Features avancées chatbot non disponibles: {e}")
+    def get_advanced_features():
+        return None
+
+# Vérification forcée si variables d'environnement définies
+import os
+if os.getenv('FORCE_REAL_PIPELINE', 'false').lower() == 'true':
+    if VLM_AVAILABLE:
+        logger.info("🚀 Mode pipeline VLM forcé activé")
+    else:
+        logger.warning("⚠️ FORCE_REAL_PIPELINE activé mais pipeline non disponible")
 
 
 class VLMChatbotSymbiosis:
@@ -124,7 +156,26 @@ class VLMChatbotSymbiosis:
     ) -> Dict[str, Any]:
         """Traitement VLM interne (utilisé par optimiseur ou directement)."""
         
+        # Tentative de récupération pipeline si pas disponible
+        if not self.pipeline and VLM_AVAILABLE and get_real_pipeline:
+            try:
+                self.pipeline = get_real_pipeline()
+                if self.pipeline:
+                    logger.info("🔗 Pipeline VLM récupérée pour chatbot")
+            except Exception as e:
+                logger.warning(f"⚠️ Échec récupération pipeline pour chatbot: {e}")
+        
+        # Vérification forcée via variable d'environnement
+        force_real_pipeline = os.getenv('FORCE_REAL_PIPELINE', 'false').lower() == 'true'
+        
         if not self.pipeline or not VLM_AVAILABLE:
+            if force_real_pipeline:
+                logger.error("❌ FORCE_REAL_PIPELINE activé mais pipeline non accessible")
+                return {
+                    "type": "error",
+                    "response": "❌ Pipeline VLM forcée mais non disponible. Vérifiez l'initialisation.",
+                    "error": "Pipeline VLM requise mais non accessible"
+                }
             return await self._fallback_response(question, vlm_context)
         
         try:
@@ -144,8 +195,14 @@ class VLMChatbotSymbiosis:
             )
             
             # 4. Requête VLM avec thinking/reasoning
+            # Fix: Proper handling of NumPy array to avoid ambiguous truth value
+            if context_image is None:
+                request_image = np.zeros((480, 640, 3), dtype=np.uint8)
+            else:
+                request_image = context_image
+                
             vlm_request = AnalysisRequest(
-                image=context_image or np.zeros((480, 640, 3), dtype=np.uint8),
+                image=request_image,
                 timestamp=datetime.now(),
                 context={
                     "chat_mode": True,

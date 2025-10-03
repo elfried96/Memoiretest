@@ -30,14 +30,51 @@ import queue
 import io
 from PIL import Image
 import signal
-from collections import deque
+from collections import deque, Counter
 
 # Import contexte vidéo
-from dashboard.video_context_integration import (
-    VideoContextMetadata, 
-    create_video_metadata_from_form,
-    get_video_context_integration
-)
+try:
+    from .video_context_integration import (
+        VideoContextMetadata, 
+        create_video_metadata_from_form,
+        get_video_context_integration
+    )
+except ImportError:
+    try:
+        from video_context_integration import (
+            VideoContextMetadata, 
+            create_video_metadata_from_form,
+            get_video_context_integration
+        )
+    except ImportError as e:
+        logger.warning(f"Contexte vidéo non disponible: {e}")
+        VideoContextMetadata = None
+        create_video_metadata_from_form = None
+        get_video_context_integration = None
+
+# Import système d'alertes audio
+try:
+    from .utils.audio_alerts import (
+        AudioAlertSystem, 
+        play_alert, 
+        play_behavior_alert,
+        play_detection_alert
+    )
+    AUDIO_AVAILABLE = True
+    logger.info("Système d'alertes audio chargé")
+except ImportError:
+    try:
+        from utils.audio_alerts import (
+            AudioAlertSystem, 
+            play_alert, 
+            play_behavior_alert,
+            play_detection_alert
+        )
+        AUDIO_AVAILABLE = True
+        logger.info("Système d'alertes audio chargé")
+    except ImportError as e:
+        logger.warning(f"Système audio non disponible: {e}")
+        AUDIO_AVAILABLE = False
 
 # Configuration de la page
 st.set_page_config(
@@ -106,15 +143,26 @@ if str(dashboard_root) not in sys.path:
 # Imports de la pipeline réelle
 try:
     logger.info(" Chargement des modules VLM...")
-    from dashboard.real_pipeline_integration import (
-        RealVLMPipeline, 
-        RealAnalysisResult,
-        initialize_real_pipeline,
-        get_real_pipeline,
-        is_real_pipeline_available
-    )
-    from dashboard.camera_manager import CameraConfig, MultiCameraManager, FrameData
-    from dashboard.vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
+    try:
+        from .real_pipeline_integration import (
+            RealVLMPipeline, 
+            RealAnalysisResult,
+            initialize_real_pipeline,
+            get_real_pipeline,
+            is_real_pipeline_available
+        )
+        from .camera_manager import CameraConfig, MultiCameraManager, FrameData
+        from .vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
+    except ImportError:
+        from real_pipeline_integration import (
+            RealVLMPipeline, 
+            RealAnalysisResult,
+            initialize_real_pipeline,
+            get_real_pipeline,
+            is_real_pipeline_available
+        )
+        from camera_manager import CameraConfig, MultiCameraManager, FrameData
+        from vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
     PIPELINE_AVAILABLE = True
     logger.info(" Modules VLM chargés avec succès")
 except ImportError as e:
@@ -133,6 +181,18 @@ if 'real_detections' not in st.session_state:
     st.session_state.real_detections = []
 if 'real_alerts' not in st.session_state:
     st.session_state.real_alerts = []
+if 'audio_system' not in st.session_state and AUDIO_AVAILABLE:
+    st.session_state.audio_system = AudioAlertSystem()
+    logger.info("Système audio initialisé")
+if 'auto_descriptions' not in st.session_state:
+    st.session_state.auto_descriptions = deque(maxlen=20)
+if 'alert_thresholds' not in st.session_state:
+    st.session_state.alert_thresholds = {
+        'confidence_threshold': 0.7,
+        'auto_description_threshold': 0.75,
+        'audio_enabled': True,
+        'auto_alerts_enabled': True
+    }
 if 'surveillance_active' not in st.session_state:
     st.session_state.surveillance_active = False
 if 'uploaded_videos' not in st.session_state:
@@ -165,6 +225,278 @@ if 'network_monitor' not in st.session_state:
     st.session_state.network_monitor = {}
 if 'adaptive_settings' not in st.session_state:
     st.session_state.adaptive_settings = {}
+
+# ========================================
+# NOUVELLES FONCTIONS INTÉGRÉES
+# ========================================
+
+def generate_auto_description(detection_result, frame_data=None):
+    """Génère automatiquement une description de scène lors des détections."""
+    if not st.session_state.alert_thresholds['auto_alerts_enabled']:
+        return
+    
+    try:
+        if detection_result.confidence > st.session_state.alert_thresholds['auto_description_threshold']:
+            # Description basée sur les données de détection
+            scene_desc = f"""DESCRIPTION AUTO - {detection_result.timestamp.strftime('%H:%M:%S')}
+            
+🎯 DÉTECTION: {detection_result.description}
+📊 CONFIANCE: {detection_result.confidence:.1%}
+⚠️ NIVEAU: {detection_result.suspicion_level}
+📍 CAMÉRA: {detection_result.camera_id}
+🔧 OUTILS: {', '.join(detection_result.tools_used[:3])}
+
+📝 CONTEXTE: {get_scene_context_description(detection_result)}"""
+            
+            description_entry = {
+                'timestamp': detection_result.timestamp,
+                'description': scene_desc,
+                'detection_trigger': detection_result.description,
+                'confidence': detection_result.confidence,
+                'suspicion_level': detection_result.suspicion_level,
+                'camera_id': detection_result.camera_id
+            }
+            
+            st.session_state.auto_descriptions.appendleft(description_entry)
+            logger.info(f"Description auto générée pour détection {detection_result.frame_id}")
+            
+    except Exception as e:
+        logger.error(f"Erreur génération description auto: {e}")
+
+def get_scene_context_description(detection_result):
+    """Génère un contexte de scène intelligent."""
+    context_parts = []
+    
+    # Analyse du niveau de suspicion
+    if detection_result.suspicion_level == "CRITICAL":
+        context_parts.append("🚨 SITUATION CRITIQUE - Investigation immédiate requise")
+    elif detection_result.suspicion_level == "HIGH":
+        context_parts.append("⚠️ ACTIVITÉ SUSPECTE - Surveillance renforcée recommandée")
+    elif detection_result.suspicion_level == "MEDIUM":
+        context_parts.append("🟡 COMPORTEMENT INHABITUEL - Observation continue")
+    else:
+        context_parts.append("ℹ️ ACTIVITÉ DÉTECTÉE - Niveau normal")
+    
+    # Analyse des outils utilisés
+    if 'pose_estimator' in detection_result.tools_used:
+        context_parts.append("• Analyse comportementale active")
+    if 'sam2_segmentator' in detection_result.tools_used:
+        context_parts.append("• Segmentation d'objets détectée")
+    if 'trajectory_analyzer' in detection_result.tools_used:
+        context_parts.append("• Mouvement anormal identifié")
+    
+    # Recommandations basées sur la confiance
+    if detection_result.confidence > 0.9:
+        context_parts.append("✅ CONFIANCE TRÈS ÉLEVÉE - Résultat fiable")
+    elif detection_result.confidence > 0.7:
+        context_parts.append("👍 CONFIANCE ÉLEVÉE - Résultat probable")
+    
+    return " | ".join(context_parts)
+
+def trigger_integrated_alert(detection_result):
+    """Déclenche les alertes intégrées (audio + visuel + description)."""
+    suspicion_str = str(detection_result.suspicion_level)
+    
+    # 1. Alerte audio si activée
+    if AUDIO_AVAILABLE and st.session_state.alert_thresholds['audio_enabled']:
+        try:
+            play_behavior_alert(suspicion_str, detection_result.description)
+            logger.info(f"Alerte audio déclenchée: {suspicion_str}")
+        except Exception as e:
+            logger.error(f"Erreur alerte audio: {e}")
+    
+    # 2. Description automatique
+    generate_auto_description(detection_result)
+    
+    # 3. Alerte visuelle (déjà existante)
+    alert = {
+        'level': suspicion_str,
+        'message': detection_result.description,
+        'camera': detection_result.camera_id,
+        'timestamp': detection_result.timestamp,
+        'resolved': False,
+        'confidence': detection_result.confidence,
+        'tools_used': detection_result.tools_used,
+        'auto_generated': True  # Marquer comme auto-générée
+    }
+    st.session_state.real_alerts.append(alert)
+    
+    # 4. Log pour debug
+    logger.info(f"Alerte intégrée déclenchée: {suspicion_str} - {detection_result.description}")
+
+def render_auto_descriptions():
+    """Affiche les descriptions automatiques de scènes."""
+    st.subheader("📝 Descriptions Automatiques de Scènes")
+    
+    if st.session_state.auto_descriptions:
+        st.write(f"**{len(st.session_state.auto_descriptions)} descriptions générées**")
+        
+        # Options de filtrage
+        col1, col2 = st.columns(2)
+        with col1:
+            show_count = st.selectbox("Afficher", [5, 10, 15, 20], index=0)
+        with col2:
+            level_filter = st.selectbox("Niveau", ["Tous", "CRITICAL", "HIGH", "MEDIUM", "LOW"])
+        
+        # Filtrage
+        descriptions_to_show = list(st.session_state.auto_descriptions)
+        if level_filter != "Tous":
+            descriptions_to_show = [d for d in descriptions_to_show if level_filter in str(d.get('suspicion_level', ''))]
+        
+        # Affichage
+        for i, desc in enumerate(descriptions_to_show[:show_count]):
+            with st.expander(
+                f"🕒 {desc['timestamp'].strftime('%H:%M:%S')} - {desc['detection_trigger'][:50]}...", 
+                expanded=(i == 0)  # Premier élément ouvert
+            ):
+                st.markdown(desc['description'])
+                
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Confiance", f"{desc['confidence']:.1%}")
+                with col2:
+                    st.metric("Niveau", desc['suspicion_level'])
+                with col3:
+                    st.metric("Caméra", desc['camera_id'])
+                    
+    else:
+        st.info("ℹ️ Aucune description automatique générée")
+        st.caption("Les descriptions sont générées automatiquement lors des détections avec confiance > 75%")
+
+def render_detection_timeline():
+    """Crée une timeline interactive des détections."""
+    st.subheader("📈 Timeline Interactive des Détections")
+    
+    if st.session_state.real_detections:
+        # Préparation des données
+        timeline_data = []
+        for detection in st.session_state.real_detections[-100:]:  # 100 dernières détections
+            timeline_data.append({
+                'timestamp': detection.timestamp,
+                'confidence': detection.confidence,
+                'suspicion': str(detection.suspicion_level),
+                'description': detection.description[:40] + "..." if len(detection.description) > 40 else detection.description,
+                'camera': detection.camera_id,
+                'tools_count': len(detection.tools_used)
+            })
+        
+        if timeline_data:
+            df = pd.DataFrame(timeline_data)
+            
+            # Graphique timeline principal
+            fig = px.scatter(
+                df,
+                x='timestamp',
+                y='confidence',
+                color='suspicion',
+                size='tools_count',
+                hover_data=['description', 'camera'],
+                title="Timeline des Détections VLM",
+                color_discrete_map={
+                    'CRITICAL': '#dc3545',
+                    'HIGH': '#fd7e14', 
+                    'MEDIUM': '#ffc107',
+                    'LOW': '#28a745'
+                }
+            )
+            
+            fig.update_layout(
+                height=400,
+                xaxis_title="Temps",
+                yaxis_title="Confiance",
+                showlegend=True
+            )
+            
+            st.plotly_chart(fig, use_container_width=True)
+            
+            # Statistiques rapides
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total", len(df))
+            with col2:
+                critical_count = len(df[df['suspicion'] == 'CRITICAL'])
+                st.metric("Critiques", critical_count)
+            with col3:
+                high_conf = len(df[df['confidence'] > 0.8])
+                st.metric("Haute confiance", high_conf)
+            with col4:
+                avg_conf = df['confidence'].mean()
+                st.metric("Confiance moy.", f"{avg_conf:.1%}")
+                
+        else:
+            st.info("Données de timeline indisponibles")
+    else:
+        st.info("📊 Aucune détection disponible pour la timeline")
+        st.caption("Les détections apparaîtront ici une fois la surveillance démarrée")
+
+def render_alert_controls():
+    """Contrôles pour la configuration des alertes."""
+    st.subheader("⚙️ Configuration Alertes & Descriptions")
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        st.markdown("**🎯 Seuils de Déclenchement**")
+        
+        new_conf_threshold = st.slider(
+            "Seuil confiance alertes",
+            0.1, 1.0,
+            st.session_state.alert_thresholds['confidence_threshold'],
+            step=0.05,
+            help="Confiance minimum pour déclencher une alerte"
+        )
+        
+        new_desc_threshold = st.slider(
+            "Seuil descriptions auto",
+            0.1, 1.0, 
+            st.session_state.alert_thresholds['auto_description_threshold'],
+            step=0.05,
+            help="Confiance minimum pour générer une description automatique"
+        )
+        
+        # Mise à jour des seuils
+        if new_conf_threshold != st.session_state.alert_thresholds['confidence_threshold']:
+            st.session_state.alert_thresholds['confidence_threshold'] = new_conf_threshold
+            st.success(f"✅ Seuil confiance mis à jour: {new_conf_threshold:.0%}")
+            
+        if new_desc_threshold != st.session_state.alert_thresholds['auto_description_threshold']:
+            st.session_state.alert_thresholds['auto_description_threshold'] = new_desc_threshold
+            st.success(f"✅ Seuil descriptions mis à jour: {new_desc_threshold:.0%}")
+    
+    with col2:
+        st.markdown("**🔊 Options Audio & Auto**")
+        
+        new_audio_enabled = st.checkbox(
+            "Alertes audio activées",
+            st.session_state.alert_thresholds['audio_enabled'],
+            help="Active/désactive les sons d'alerte"
+        )
+        
+        new_auto_enabled = st.checkbox(
+            "Alertes automatiques",
+            st.session_state.alert_thresholds['auto_alerts_enabled'],
+            help="Déclenche automatiquement alertes et descriptions"
+        )
+        
+        # Mise à jour des options
+        if new_audio_enabled != st.session_state.alert_thresholds['audio_enabled']:
+            st.session_state.alert_thresholds['audio_enabled'] = new_audio_enabled
+            st.success(f"✅ Audio {'activé' if new_audio_enabled else 'désactivé'}")
+            
+        if new_auto_enabled != st.session_state.alert_thresholds['auto_alerts_enabled']:
+            st.session_state.alert_thresholds['auto_alerts_enabled'] = new_auto_enabled
+            st.success(f"✅ Alertes auto {'activées' if new_auto_enabled else 'désactivées'}")
+        
+        # Test audio si disponible
+        if AUDIO_AVAILABLE:
+            st.markdown("**🎵 Test Audio**")
+            col_test1, col_test2 = st.columns(2)
+            with col_test1:
+                if st.button("🔊 Test Medium"):
+                    play_alert("MEDIUM", "Test alerte Medium", force=True)
+            with col_test2:
+                if st.button("🚨 Test Critical"):
+                    play_alert("CRITICAL", "Test alerte Critical", force=True)
 
 #  INITIALISATION AUTOMATIQUE DE LA VRAIE PIPELINE VLM (Mode optionnel)
 # Ajout variable d'environnement pour bypass si problème
@@ -380,20 +712,14 @@ async def initialize_pipeline():
                 def on_analysis_result(result):
                     st.session_state.real_detections.append(result)
                     
-                    # Génération d'alertes basées sur niveau de suspicion
-                    if hasattr(result, 'suspicion_level'):
+                    # Déclenchement intégré d'alertes (audio + visuel + description)
+                    if hasattr(result, 'suspicion_level') and st.session_state.alert_thresholds['auto_alerts_enabled']:
                         suspicion_str = str(result.suspicion_level)
-                        if 'HIGH' in suspicion_str or 'CRITICAL' in suspicion_str:
-                            alert = {
-                                'level': suspicion_str,
-                                'message': result.description,
-                                'camera': result.camera_id,
-                                'timestamp': result.timestamp,
-                                'resolved': False,
-                                'confidence': result.confidence,
-                                'tools_used': result.tools_used
-                            }
-                            st.session_state.real_alerts.append(alert)
+                        # Vérification du seuil de confiance
+                        if (result.confidence > st.session_state.alert_thresholds['confidence_threshold'] or 
+                            'HIGH' in suspicion_str or 'CRITICAL' in suspicion_str):
+                            # Utilise la nouvelle fonction intégrée
+                            trigger_integrated_alert(result)
                 
                 def on_optimization_result(result):
                     st.session_state.optimization_results.append(result)
@@ -2599,15 +2925,23 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
             }
             
             # Création de l'objet VideoContextMetadata structuré
-            video_metadata_obj = create_video_metadata_from_form(form_data)
-            video_metadata = video_metadata_obj.to_dict()
-            
-            # Intégration dans le système VLM
-            context_integration = get_video_context_integration()
-            base_chat_context = {'video_analysis_mode': True, 'timestamp': datetime.now()}
-            enhanced_context = context_integration.enhance_chat_context(
-                base_chat_context, video_metadata_obj
-            )
+            if create_video_metadata_from_form:
+                video_metadata_obj = create_video_metadata_from_form(form_data)
+                video_metadata = video_metadata_obj.to_dict()
+                
+                # Intégration dans le système VLM
+                if get_video_context_integration:
+                    context_integration = get_video_context_integration()
+                    base_chat_context = {'video_analysis_mode': True, 'timestamp': datetime.now()}
+                    enhanced_context = context_integration.enhance_chat_context(
+                        base_chat_context, video_metadata_obj
+                    )
+                else:
+                    enhanced_context = {'video_analysis_mode': True, 'timestamp': datetime.now()}
+            else:
+                # Fallback si contexte vidéo non disponible
+                video_metadata = form_data
+                enhanced_context = {'video_analysis_mode': True, 'timestamp': datetime.now()}
             
             with st.spinner("🔬 Analyse VLM contextualisée en cours..."):
                 progress_bar = st.progress(0)
@@ -2658,7 +2992,6 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                 for detection in analysis_results['detections']:
                     all_tools_used.extend(detection['tools_used'])
                 
-                from collections import Counter
                 tool_usage = Counter(all_tools_used)
                 
                 for tool, count in tool_usage.items():
@@ -3589,7 +3922,6 @@ def render_vlm_analytics():
         if st.session_state.real_detections:
             # Utilisation des vraies données
             detection_times = [d.timestamp.hour for d in st.session_state.real_detections]
-            from collections import Counter
             hourly_counts = Counter(detection_times)
             performance_scores = [hourly_counts.get(i, 0) for i in range(24)]
         else:
@@ -3845,6 +4177,28 @@ def main():
         confidence_threshold = st.slider("Seuil confiance VLM", 0.1, 1.0, 0.7)
         max_tools_per_analysis = st.slider("Max outils par analyse", 1, 8, 4)
         
+        # Section contrôles alertes intégrés
+        st.divider()
+        st.subheader("🚨 Contrôles Alertes Intégrées")
+        
+        # Contrôles rapides
+        col1, col2 = st.columns(2)
+        with col1:
+            audio_status = "✅" if st.session_state.alert_thresholds['audio_enabled'] and AUDIO_AVAILABLE else "❌"
+            st.write(f"**Audio:** {audio_status}")
+            
+            auto_status = "✅" if st.session_state.alert_thresholds['auto_alerts_enabled'] else "❌"
+            st.write(f"**Auto:** {auto_status}")
+        
+        with col2:
+            st.metric("Seuil", f"{st.session_state.alert_thresholds['confidence_threshold']:.0%}")
+            st.metric("Descriptions", len(st.session_state.auto_descriptions))
+        
+        # Test audio rapide
+        if AUDIO_AVAILABLE:
+            if st.button("🔊 Test Audio", key="sidebar_audio_test"):
+                play_alert("MEDIUM", "Test sidebar", force=True)
+        
         # Actions VLM
         st.divider()
         st.subheader("[ACTIONS] Actions VLM")
@@ -3866,12 +4220,13 @@ def main():
             st.rerun()
     
     # Onglets principaux
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         " Surveillance VLM", 
         "📤 Upload Vidéo VLM",
         " Configuration", 
         "[ANALYTICS] Analytics VLM", 
-        "[ALERTS] Alertes VLM"
+        "[ALERTS] Alertes VLM",
+        "🎯 Timeline & Descriptions"
     ])
     
     with tab1:
@@ -3909,6 +4264,24 @@ def main():
     
     with tab5:
         render_alerts_panel()
+    
+    with tab6:
+        st.header("🎯 Timeline & Descriptions Automatiques")
+        
+        # Configuration des alertes en haut
+        with st.expander("⚙️ Configuration Alertes", expanded=False):
+            render_alert_controls()
+        
+        # Deux colonnes principales
+        col1, col2 = st.columns([1, 1])
+        
+        with col1:
+            # Timeline interactive
+            render_detection_timeline()
+            
+        with col2:
+            # Descriptions automatiques
+            render_auto_descriptions()
 
 if __name__ == "__main__":
     main()

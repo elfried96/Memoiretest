@@ -1,0 +1,101 @@
+{
+  "client_scanner_compulsif": {
+    "title": "Client Scanner Compulsif",
+    "description": "Une personne dans une grande surface scanne methodiquement tous les codes-barres avec son telephone, prend des photos des prix, evite les vendeurs, consulte constamment des applications de comparaison de prix et reste plus d'une heure dans les rayons high-tech sans rien acheter.",
+    "expected_tools": ["yolo", "pose_estimator", "trajectory_analyzer", "multimodal_fusion"],
+    "context": "grande_distribution",
+    "difficulty": "medium",
+    "expected_suspicion": "LOW",
+    "expected_confidence": 0.15
+  },
+  
+  "vol_organise_distribution": {
+    "title": "Vol Organise en Grande Surface", 
+    "description": "Un individu bien habille entre dans un hypermarche, observe discretement les cameras de surveillance, fait systematiquement le tour des rayons electronique et parfumerie en prenant des notes, communique par oreillette, puis manipule plusieurs articles de valeur avant de les dissimuler dans un sac et se diriger vers la sortie sans passer en caisse.",
+    "expected_tools": ["yolo", "sam2_segmentator", "pose_estimator", "trajectory_analyzer"],
+    "context": "grande_distribution",
+    "difficulty": "high",
+    "expected_suspicion": "CRITICAL",
+    "expected_confidence": 0.94
+  },
+  
+  "ronde_nocturne_parking": {
+    "title": "Comportement Suspect Parking Nocturne",
+    "description": "Une personne se deplace de maniere erratique dans le parking d'un centre commercial ferme a 2h du matin, s'arrete pres de plusieurs vehicules, semble tester les poignees des portieres, regarde frequemment autour d'elle, puis s'approche des entrees de service du magasin.",
+    "expected_tools": ["yolo", "pose_estimator", "trajectory_analyzer"],
+    "context": "grande_distribution", 
+    "difficulty": "medium",
+    "expected_suspicion": "HIGH",
+    "expected_confidence": 0.78
+  },
+  
+  "maintenance_hypermarche": {
+    "title": "Maintenance Normale Hypermarche",
+    "description": "Un technicien en uniforme de l'enseigne avec badge employe visible effectue la maintenance des caisses automatiques. Il utilise des outils professionnels, consulte un manuel technique sur sa tablette, communique avec sa hierarchie via radio et respecte les procedures de securite.",
+    "expected_tools": ["yolo", "pose_estimator", "sam2_segmentator"],
+    "context": "grande_distribution",
+    "difficulty": "low", 
+    "expected_suspicion": "LOW",
+    "expected_confidence": 0.12
+  },
+  
+  "tentative_effraction_magasin": {
+    "title": "Tentative Effraction Centre Commercial",
+    "description": "Un individu cagoulle tente de forcer les grilles de securite d'une grande surface fermee, utilise des outils pour essayer d'ouvrir l'entree de service, regarde constamment par-dessus son epaule, teste plusieurs acces, puis s'enfuit rapidement en voyant les phares d'un vehicule de securite.",
+    "expected_tools": ["yolo", "pose_estimator", "trajectory_analyzer", "sam2_segmentator"],
+    "context": "grande_distribution",
+    "difficulty": "high",
+    "expected_suspicion": "CRITICAL",
+    "expected_confidence": 0.96
+  },
+  
+  "client_age_indecis": {
+    "title": "Client Age Indecis Grande Surface", 
+    "description": "Une personne agee fait ses courses dans un hypermarche, prend son temps pour examiner les produits alimentaires, lit attentivement les etiquettes, compare les prix, demande conseil au personnel des rayons, utilise une liste de courses manuscrite et hesite longuement entre plusieurs marques avant ses achats.",
+    "expected_tools": ["yolo", "pose_estimator", "trajectory_analyzer"],
+    "context": "grande_distribution",
+    "difficulty": "low",
+    "expected_suspicion": "LOW", 
+    "expected_confidence": 0.08
+  },
+  
+  "altercation_clients": {
+    "title": "Altercation Escalade Entre Clients",
+    "description": "Deux clients dans une grande surface commencent une dispute au rayon fruits et legumes a propos d'un produit en promotion. La discussion s'intensifie, les gestes deviennent agressifs, ils se rapprochent dangereusement, l'un pousse l'autre, et ils commencent a se battre physiquement jusqu'a l'intervention de la securite.",
+    "expected_tools": ["yolo", "pose_estimator", "trajectory_analyzer", "multimodal_fusion"],
+    "context": "grande_distribution",
+    "difficulty": "high",
+    "expected_suspicion": "CRITICAL", 
+    "expected_confidence": 0.91
+  },
+  
+  "livraison_suspecte_hypermarche": {
+    "title": "Livraison Suspecte Centre Commercial",
+    "description": "Un faux livreur arrive avec un camion sans logo d'entreprise connue au quai de dechargement d'un hypermarche a une heure inhabituelle (22h30), evite l'entree principale pour livraisons, refuse de montrer ses documents au responsable logistique, et tente de decharger des colis non declares.",
+    "expected_tools": ["yolo", "trajectory_analyzer", "sam2_segmentator"],
+    "context": "grande_distribution", 
+    "difficulty": "high",
+    "expected_suspicion": "HIGH",
+    "expected_confidence": 0.83
+  },
+  
+  "employe_normal_distribution": {
+    "title": "Employe Normal Grande Distribution",
+    "description": "Un employe d'hypermarche badge son arrivee a 6h pour l'ouverture, se rend aux vestiaires, enfile son uniforme, participe au briefing matinal en salle de pause, effectue la mise en rayon dans son secteur alimentaire, prend ses pauses reglementaires, puis termine son service a 14h.",
+    "expected_tools": ["yolo", "pose_estimator"],
+    "context": "grande_distribution",
+    "difficulty": "low",
+    "expected_suspicion": "LOW",
+    "expected_confidence": 0.03
+  },
+  
+  "vandalisme_centre_commercial": {
+    "title": "Vandalisme Progressif Centre Commercial", 
+    "description": "Un groupe d'adolescents traine d'abord normalement dans les allees d'un centre commercial, puis l'un d'eux commence a taguer discretement un mur pres des toilettes. Les autres font le guet, ils escaladent vers des degradations plus importantes sur les vitres des magasins, puis fuient en entendant l'alarme de securite.",
+    "expected_tools": ["yolo", "pose_estimator", "trajectory_analyzer", "multimodal_fusion"],
+    "context": "grande_distribution",
+    "difficulty": "medium", 
+    "expected_suspicion": "HIGH",
+    "expected_confidence": 0.79
+  }
+}

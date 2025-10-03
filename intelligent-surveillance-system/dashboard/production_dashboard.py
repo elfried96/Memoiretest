@@ -31,30 +31,28 @@ import io
 from PIL import Image
 import signal
 from collections import deque, Counter
+import logging
+
+# Configuration du logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Import contexte vidéo
 try:
-    from .video_context_integration import (
+    from video_context_integration import (
         VideoContextMetadata, 
         create_video_metadata_from_form,
         get_video_context_integration
     )
-except ImportError:
-    try:
-        from video_context_integration import (
-            VideoContextMetadata, 
-            create_video_metadata_from_form,
-            get_video_context_integration
-        )
-    except ImportError as e:
-        logger.warning(f"Contexte vidéo non disponible: {e}")
-        VideoContextMetadata = None
-        create_video_metadata_from_form = None
-        get_video_context_integration = None
+except ImportError as e:
+    logger.warning(f"Contexte vidéo non disponible: {e}")
+    VideoContextMetadata = None
+    create_video_metadata_from_form = None
+    get_video_context_integration = None
 
 # Import système d'alertes audio
 try:
-    from .utils.audio_alerts import (
+    from utils.audio_alerts import (
         AudioAlertSystem, 
         play_alert, 
         play_behavior_alert,
@@ -62,26 +60,16 @@ try:
     )
     AUDIO_AVAILABLE = True
     logger.info("Système d'alertes audio chargé")
-except ImportError:
-    try:
-        from utils.audio_alerts import (
-            AudioAlertSystem, 
-            play_alert, 
-            play_behavior_alert,
-            play_detection_alert
-        )
-        AUDIO_AVAILABLE = True
-        logger.info("Système d'alertes audio chargé")
-    except ImportError as e:
-        logger.warning(f"Système audio non disponible: {e}")
-        AUDIO_AVAILABLE = False
+except ImportError as e:
+    logger.warning(f"Système audio non disponible: {e}")
+    AUDIO_AVAILABLE = False
 
 # Configuration de la page
 st.set_page_config(
-    page_title=" Surveillance Intelligente - Production",
+    page_title="Surveillance Intelligente - Production",
     layout="wide",
     initial_sidebar_state="expanded",
-    page_icon=""
+    page_icon=None
 )
 
 # Style CSS avec icônes vectorielles propres
@@ -240,13 +228,13 @@ def generate_auto_description(detection_result, frame_data=None):
             # Description basée sur les données de détection
             scene_desc = f"""DESCRIPTION AUTO - {detection_result.timestamp.strftime('%H:%M:%S')}
             
-🎯 DÉTECTION: {detection_result.description}
-📊 CONFIANCE: {detection_result.confidence:.1%}
-⚠️ NIVEAU: {detection_result.suspicion_level}
+DÉTECTION: {detection_result.description}
+CONFIANCE: {detection_result.confidence:.1%}
+NIVEAU: {detection_result.suspicion_level}
 📍 CAMÉRA: {detection_result.camera_id}
-🔧 OUTILS: {', '.join(detection_result.tools_used[:3])}
+OUTILS: {', '.join(detection_result.tools_used[:3])}
 
-📝 CONTEXTE: {get_scene_context_description(detection_result)}"""
+CONTEXTE: {get_scene_context_description(detection_result)}"""
             
             description_entry = {
                 'timestamp': detection_result.timestamp,
@@ -269,13 +257,13 @@ def get_scene_context_description(detection_result):
     
     # Analyse du niveau de suspicion
     if detection_result.suspicion_level == "CRITICAL":
-        context_parts.append("🚨 SITUATION CRITIQUE - Investigation immédiate requise")
+        context_parts.append("SITUATION CRITIQUE - Investigation immédiate requise")
     elif detection_result.suspicion_level == "HIGH":
-        context_parts.append("⚠️ ACTIVITÉ SUSPECTE - Surveillance renforcée recommandée")
+        context_parts.append("ACTIVITÉ SUSPECTE - Surveillance renforcée recommandée")
     elif detection_result.suspicion_level == "MEDIUM":
-        context_parts.append("🟡 COMPORTEMENT INHABITUEL - Observation continue")
+        context_parts.append("COMPORTEMENT INHABITUEL - Observation continue")
     else:
-        context_parts.append("ℹ️ ACTIVITÉ DÉTECTÉE - Niveau normal")
+        context_parts.append("ACTIVITÉ DÉTECTÉE - Niveau normal")
     
     # Analyse des outils utilisés
     if 'pose_estimator' in detection_result.tools_used:
@@ -287,9 +275,9 @@ def get_scene_context_description(detection_result):
     
     # Recommandations basées sur la confiance
     if detection_result.confidence > 0.9:
-        context_parts.append("✅ CONFIANCE TRÈS ÉLEVÉE - Résultat fiable")
+        context_parts.append("CONFIANCE TRÈS ÉLEVÉE - Résultat fiable")
     elif detection_result.confidence > 0.7:
-        context_parts.append("👍 CONFIANCE ÉLEVÉE - Résultat probable")
+        context_parts.append("CONFIANCE ÉLEVÉE - Résultat probable")
     
     return " | ".join(context_parts)
 
@@ -326,7 +314,7 @@ def trigger_integrated_alert(detection_result):
 
 def render_auto_descriptions():
     """Affiche les descriptions automatiques de scènes."""
-    st.subheader("📝 Descriptions Automatiques de Scènes")
+    st.subheader("Descriptions Automatiques de Scènes")
     
     if st.session_state.auto_descriptions:
         st.write(f"**{len(st.session_state.auto_descriptions)} descriptions générées**")
@@ -346,7 +334,7 @@ def render_auto_descriptions():
         # Affichage
         for i, desc in enumerate(descriptions_to_show[:show_count]):
             with st.expander(
-                f"🕒 {desc['timestamp'].strftime('%H:%M:%S')} - {desc['detection_trigger'][:50]}...", 
+                f"{desc['timestamp'].strftime('%H:%M:%S')} - {desc['detection_trigger'][:50]}...", 
                 expanded=(i == 0)  # Premier élément ouvert
             ):
                 st.markdown(desc['description'])
@@ -360,12 +348,12 @@ def render_auto_descriptions():
                     st.metric("Caméra", desc['camera_id'])
                     
     else:
-        st.info("ℹ️ Aucune description automatique générée")
+        st.info("Aucune description automatique générée")
         st.caption("Les descriptions sont générées automatiquement lors des détections avec confiance > 75%")
 
 def render_detection_timeline():
     """Crée une timeline interactive des détections."""
-    st.subheader("📈 Timeline Interactive des Détections")
+    st.subheader("Timeline Interactive des Détections")
     
     if st.session_state.real_detections:
         # Préparation des données
@@ -426,17 +414,17 @@ def render_detection_timeline():
         else:
             st.info("Données de timeline indisponibles")
     else:
-        st.info("📊 Aucune détection disponible pour la timeline")
+        st.info("Aucune détection disponible pour la timeline")
         st.caption("Les détections apparaîtront ici une fois la surveillance démarrée")
 
 def render_alert_controls():
     """Contrôles pour la configuration des alertes."""
-    st.subheader("⚙️ Configuration Alertes & Descriptions")
+    st.subheader("Configuration Alertes & Descriptions")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        st.markdown("**🎯 Seuils de Déclenchement**")
+        st.markdown("**Seuils de Déclenchement**")
         
         new_conf_threshold = st.slider(
             "Seuil confiance alertes",
@@ -464,7 +452,7 @@ def render_alert_controls():
             st.success(f"✅ Seuil descriptions mis à jour: {new_desc_threshold:.0%}")
     
     with col2:
-        st.markdown("**🔊 Options Audio & Auto**")
+        st.markdown("**Options Audio & Auto**")
         
         new_audio_enabled = st.checkbox(
             "Alertes audio activées",
@@ -489,13 +477,13 @@ def render_alert_controls():
         
         # Test audio si disponible
         if AUDIO_AVAILABLE:
-            st.markdown("**🎵 Test Audio**")
+            st.markdown("**Test Audio**")
             col_test1, col_test2 = st.columns(2)
             with col_test1:
-                if st.button("🔊 Test Medium"):
+                if st.button("Test Medium"):
                     play_alert("MEDIUM", "Test alerte Medium", force=True)
             with col_test2:
-                if st.button("🚨 Test Critical"):
+                if st.button("Test Critical"):
                     play_alert("CRITICAL", "Test alerte Critical", force=True)
 
 #  INITIALISATION AUTOMATIQUE DE LA VRAIE PIPELINE VLM (Mode optionnel)
@@ -2536,7 +2524,7 @@ def render_integrated_chat(chat_type: str, context_data: Dict = None):
             if message['role'] == 'user':
                 st.markdown(f"""
                 <div class="chat-user">
-                    <strong>👤 Vous:</strong> {message['content']}
+                    <strong>Vous:</strong> {message['content']}
                 </div>
                 """, unsafe_allow_html=True)
             else:
@@ -2623,7 +2611,7 @@ async def generate_real_vlm_response(question: str, chat_type: str, context_data
             # Réponse VLM complète avec thinking
             response_text = f""" **Analyse VLM avec Thinking:**
 
-**💭 Processus de Raisonnement:**
+**Processus de Raisonnement:**
 {response_data.get('thinking', 'Thinking non disponible')[:300]}...
 
 **[ANALYSIS] Analyse Technique:**
@@ -4117,7 +4105,7 @@ def main():
                     "fair": "",
                     "poor": ""
                 }
-                quality_icon = quality_icons.get(metrics['quality'], "⚫")
+                quality_icon = quality_icons.get(metrics['quality'], "")
                 
                 st.write(f"**Qualité réseau:** {quality_icon} {metrics['quality'].title()}")
                 
@@ -4179,7 +4167,7 @@ def main():
         
         # Section contrôles alertes intégrés
         st.divider()
-        st.subheader("🚨 Contrôles Alertes Intégrées")
+        st.subheader("Contrôles Alertes Intégrées")
         
         # Contrôles rapides
         col1, col2 = st.columns(2)
@@ -4196,7 +4184,7 @@ def main():
         
         # Test audio rapide
         if AUDIO_AVAILABLE:
-            if st.button("🔊 Test Audio", key="sidebar_audio_test"):
+            if st.button("Test Audio", key="sidebar_audio_test"):
                 play_alert("MEDIUM", "Test sidebar", force=True)
         
         # Actions VLM
@@ -4226,7 +4214,7 @@ def main():
         " Configuration", 
         "[ANALYTICS] Analytics VLM", 
         "[ALERTS] Alertes VLM",
-        "🎯 Timeline & Descriptions"
+        "Timeline & Descriptions"
     ])
     
     with tab1:
@@ -4266,10 +4254,10 @@ def main():
         render_alerts_panel()
     
     with tab6:
-        st.header("🎯 Timeline & Descriptions Automatiques")
+        st.header("Timeline & Descriptions Automatiques")
         
         # Configuration des alertes en haut
-        with st.expander("⚙️ Configuration Alertes", expanded=False):
+        with st.expander("Configuration Alertes", expanded=False):
             render_alert_controls()
         
         # Deux colonnes principales

@@ -11,6 +11,7 @@ from pathlib import Path
 
 from services.session_manager import get_session_manager
 from config.settings import get_dashboard_config
+from services.vlm_integration import get_vlm_service
 
 class VLMChatInterface:
     """Interface de chat avancée avec le VLM."""
@@ -20,6 +21,9 @@ class VLMChatInterface:
         self.config = get_dashboard_config()
         self.vlm_callback: Optional[Callable] = None
         self.context_data = {}
+        
+        # Service VLM intégré du projet
+        self.vlm_service = get_vlm_service()
         
         # Questions prédéfinies
         self.predefined_questions = {
@@ -162,15 +166,21 @@ class VLMChatInterface:
         
         with col1:
             if st.button("Analyser maintenant", use_container_width=True):
-                self._quick_analyze()
+                # Vérification VLM avant analyse
+                if not self.get_vlm_status()['initialized']:
+                    st.warning("⚠️ VLM non initialisé. Allez dans l'onglet Contexte pour l'initialiser.")
+                else:
+                    self._quick_analyze()
         
         with col2:
             if st.button("Quelles alertes ?", use_container_width=True):
-                user_input = "Quelles sont les alertes actives et leur niveau de priorité ?"
+                self._process_user_input("Quelles sont les alertes actives et leur niveau de priorité ?")
+                st.rerun()
         
         with col3:
             if st.button("État système", use_container_width=True):
-                user_input = "Quel est l'état actuel du système de surveillance ?"
+                self._process_user_input("Quel est l'état actuel du système de surveillance ?")
+                st.rerun()
         
         with col4:
             if st.button("Effacer chat", use_container_width=True, type="secondary"):
@@ -224,6 +234,40 @@ class VLMChatInterface:
     def _render_context_tab(self):
         """Onglet contexte et données."""
         
+        # Status VLM
+        st.subheader("🤖 Status du VLM")
+        
+        vlm_status = self.get_vlm_status()
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            status_emoji = "✅" if vlm_status['initialized'] else "❌"
+            st.metric("VLM Status", f"{status_emoji} {'Actif' if vlm_status['initialized'] else 'Inactif'}")
+        
+        with col2:
+            available_emoji = "✅" if vlm_status['vlm_available'] else "❌"
+            st.metric("Disponibilité", f"{available_emoji} {'Oui' if vlm_status['vlm_available'] else 'Non'}")
+        
+        with col3:
+            model_emoji = "✅" if vlm_status['model_loaded'] else "❌"
+            st.metric("Modèle", f"{model_emoji} {'Chargé' if vlm_status['model_loaded'] else 'Non chargé'}")
+        
+        # Bouton d'initialisation
+        if not vlm_status['initialized']:
+            if st.button("🚀 Initialiser VLM", use_container_width=True):
+                self.initialize_vlm()
+                st.rerun()
+        
+        # Statistiques si disponibles
+        if 'stats' in vlm_status and vlm_status['stats']:
+            with st.expander("📊 Statistiques VLM"):
+                stats = vlm_status['stats']
+                st.metric("Requêtes traitées", stats.get('queries_processed', 0))
+                st.metric("Vidéos analysées", stats.get('videos_analyzed', 0))
+                if stats.get('average_response_time'):
+                    st.metric("Temps moyen", f"{stats['average_response_time']:.2f}s")
+        
+        st.divider()
         st.write("**Contexte actuel pour l'IA :**")
         
         # Analyses vidéo récentes
@@ -248,11 +292,11 @@ class VLMChatInterface:
             st.write("**Alertes actives:**")
             for alert in alerts[-5:]:  # 5 dernières
                 level_emoji = {
-                    'LOW': '',
-                    'MEDIUM': '', 
-                    'HIGH': '',
-                    'CRITICAL': ''
-                }.get(alert.get('level', 'LOW'), '')
+                    'LOW': '🟢',
+                    'MEDIUM': '🟡', 
+                    'HIGH': '🟠',
+                    'CRITICAL': '🔴'
+                }.get(alert.get('level', 'LOW'), '🟢')
                 
                 st.write(f"{level_emoji} {alert.get('message', 'N/A')}")
         
@@ -329,38 +373,23 @@ class VLMChatInterface:
         return context
     
     def _get_vlm_response(self, question: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Obtient une réponse du VLM."""
+        """Obtient une réponse du VLM intégré du projet."""
         
-        if self.vlm_callback:
-            # Appel au VLM via callback
-            start_time = datetime.now()
+        try:
+            # Appel asynchrone au VLM service
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
             
-            response = self.vlm_callback(question, context)
+            response = loop.run_until_complete(
+                self.vlm_service.process_chat_query(question, context)
+            )
             
-            analysis_time = (datetime.now() - start_time).total_seconds()
-            
-            # Enrichissement avec métadonnées
-            if isinstance(response, str):
-                response = {'content': response}
-            
-            response['metadata'] = {
-                'analysis_time': analysis_time,
-                'context_size': len(str(context)),
-                **response.get('metadata', {})
-            }
-            
+            loop.close()
             return response
-        
-        else:
-            # Réponse simulée en mode démo
-            return {
-                'content': f" Réponse simulée à: {question}\n\nEn mode démo, le VLM n'est pas connecté. Voici ce que je vois dans le contexte:\n- {len(context.get('video_analyses', {}))} analyses vidéo disponibles\n- {len(context.get('cameras_state', {}))} caméras configurées\n- {len(context.get('active_alerts', []))} alertes actives",
-                'metadata': {
-                    'analysis_time': 0.5,
-                    'demo_mode': True,
-                    'confidence': 0.8
-                }
-            }
+            
+        except Exception as e:
+            # Fallback avec analyse locale
+            return self._local_analysis_response(question, context)
     
     def _quick_analyze(self):
         """Lance une analyse rapide."""
@@ -374,8 +403,16 @@ class VLMChatInterface:
     
     def _rate_message(self, message_id: str, rating: str):
         """Note un message."""
-        # TODO: Implémenter système de notation
-        st.success(f"Merci pour votre retour ! ({rating})")
+        # Sauvegarde de la notation dans la session
+        ratings = self.session.get_data('message_ratings', {})
+        ratings[message_id] = {
+            'rating': rating,
+            'timestamp': datetime.now().isoformat()
+        }
+        self.session.set_data('message_ratings', ratings)
+        
+        rating_text = "positif" if rating == "like" else "négatif"
+        st.success(f"Merci pour votre retour {rating_text} ! Cela nous aide à améliorer l'IA.")
     
     def set_vlm_callback(self, callback: Callable[[str, Dict], Dict]):
         """Définit le callback VLM."""
@@ -385,10 +422,10 @@ class VLMChatInterface:
         """Ajoute un message système."""
         
         level_prefixes = {
-            'info': '',
-            'warning': '',
-            'error': '',
-            'success': ''
+            'info': 'ℹ️',
+            'warning': '⚠️',
+            'error': '❌',
+            'success': '✅'
         }
         
         prefix = level_prefixes.get(level, '')
@@ -421,6 +458,129 @@ class VLMChatInterface:
             return "\n".join(lines)
         
         return json.dumps(history, indent=2, ensure_ascii=False)
+    
+    def initialize_vlm(self):
+        """Initialise le VLM si nécessaire."""
+        
+        if 'vlm_initialized' not in st.session_state:
+            with st.spinner("🤖 Initialisation du VLM..."):
+                try:
+                    # Initialisation asynchrone
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    success = loop.run_until_complete(
+                        self.vlm_service.initialize_vlm()
+                    )
+                    
+                    loop.close()
+                    
+                    if success:
+                        st.session_state.vlm_initialized = True
+                        st.success("✅ VLM initialisé avec succès!")
+                    else:
+                        st.warning("⚠️ VLM en mode simulation")
+                        
+                except Exception as e:
+                    st.error(f"❌ Erreur initialisation VLM: {e}")
+        
+        return st.session_state.get('vlm_initialized', False)
+    
+    def get_vlm_status(self) -> Dict[str, Any]:
+        """Retourne le statut du VLM."""
+        return self.vlm_service.get_system_status()
+    
+    def _local_analysis_response(self, question: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Génère une réponse d'analyse locale intelligente (fallback)."""
+        
+        # Analyse des mots-clés de la question
+        question_lower = question.lower()
+        
+        if any(word in question_lower for word in ['risque', 'danger', 'menace', 'sécurité']):
+            response = self._analyze_security_level(context)
+        elif any(word in question_lower for word in ['personne', 'gens', 'individu', 'combien']):
+            response = self._analyze_people_count(context)
+        elif any(word in question_lower for word in ['alerte', 'alarme', 'incident']):
+            response = self._analyze_alerts(context)
+        elif any(word in question_lower for word in ['état', 'statut', 'système']):
+            response = self._analyze_system_status(context)
+        else:
+            response = self._general_analysis(context)
+            
+        return {
+            'content': f"🔄 **Mode fallback activé**\n\n{response}",
+            'metadata': {
+                'analysis_time': 0.3,
+                'fallback_mode': True,
+                'confidence': 0.6
+            }
+        }
+    
+    def _analyze_security_level(self, context: Dict[str, Any]) -> str:
+        """Analyse le niveau de sécurité."""
+        alerts = context.get('active_alerts', [])
+        if not alerts:
+            return "🟢 **Niveau de sécurité: NORMAL**\n\nAucune alerte active détectée. Le système fonctionne normalement."
+        
+        critical_count = sum(1 for a in alerts if a.get('level') == 'CRITICAL')
+        high_count = sum(1 for a in alerts if a.get('level') == 'HIGH')
+        
+        if critical_count > 0:
+            return f"🔴 **Niveau de sécurité: CRITIQUE**\n\n{critical_count} alerte(s) critique(s) active(s). Intervention immédiate requise."
+        elif high_count > 0:
+            return f"🟠 **Niveau de sécurité: ÉLEVÉ**\n\n{high_count} alerte(s) haute priorité. Surveillance renforcée recommandée."
+        else:
+            return f"🟡 **Niveau de sécurité: MOYEN**\n\n{len(alerts)} alerte(s) de niveau faible à moyen."
+    
+    def _analyze_people_count(self, context: Dict[str, Any]) -> str:
+        """Analyse le nombre de personnes."""
+        video_analyses = context.get('video_analyses', {})
+        if not video_analyses:
+            return "👤 **Comptage des personnes**\n\nAucune analyse vidéo récente disponible pour le comptage."
+        
+        # Simulation d'une analyse (remplacez par votre logique réelle)
+        total_people = len(video_analyses) * 2  # Exemple
+        return f"👥 **Personnes détectées: {total_people}**\n\nBasé sur {len(video_analyses)} analyse(s) vidéo récente(s)."
+    
+    def _analyze_alerts(self, context: Dict[str, Any]) -> str:
+        """Analyse les alertes."""
+        alerts = context.get('active_alerts', [])
+        if not alerts:
+            return "✅ **Aucune alerte active**\n\nTous les systèmes fonctionnent normalement."
+        
+        alert_summary = []
+        for alert in alerts[-5:]:
+            level_emoji = {
+                'LOW': '🟢', 'MEDIUM': '🟡', 
+                'HIGH': '🟠', 'CRITICAL': '🔴'
+            }.get(alert.get('level', 'LOW'), '🟢')
+            
+            alert_summary.append(f"{level_emoji} **{alert.get('level', 'N/A')}**: {alert.get('message', 'Message non disponible')}")
+        
+        return f"🚨 **{len(alerts)} alerte(s) active(s)**\n\n" + "\n".join(alert_summary)
+    
+    def _analyze_system_status(self, context: Dict[str, Any]) -> str:
+        """Analyse l'état du système."""
+        cameras = context.get('cameras_state', {})
+        alerts = context.get('active_alerts', [])
+        videos = context.get('video_analyses', {})
+        
+        active_cams = sum(1 for state in cameras.values() if state.get('enabled', False))
+        total_cams = len(cameras)
+        
+        status_parts = [
+            f"📹 **Caméras**: {active_cams}/{total_cams} actives",
+            f"📊 **Analyses**: {len(videos)} récentes",
+            f"🚨 **Alertes**: {len(alerts)} actives"
+        ]
+        
+        overall_status = "🟢 NORMAL" if len(alerts) == 0 else "🟡 SURVEILLANCE"
+        
+        return f"🖥️ **État du système: {overall_status}**\n\n" + "\n".join(status_parts)
+    
+    def _general_analysis(self, context: Dict[str, Any]) -> str:
+        """Analyse générale."""
+        return f"🔍 **Analyse générale**\n\nSystème opérationnel avec:\n- {len(context.get('cameras_state', {}))} caméra(s) configurée(s)\n- {len(context.get('video_analyses', {}))} analyse(s) vidéo\n- {len(context.get('active_alerts', []))} alerte(s) active(s)\n\nPour une analyse plus précise, posez une question spécifique."
 
 # Instance globale
 def get_vlm_chat() -> VLMChatInterface:

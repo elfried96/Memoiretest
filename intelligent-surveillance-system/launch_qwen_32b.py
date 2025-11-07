@@ -54,7 +54,7 @@ async def check_gpu_requirements():
         logger.info(f"GPU {i}: {props.name} - {vram_gb:.1f}GB VRAM")
         
         if vram_gb < 20:
-            logger.warning(f"⚠️ GPU {i} a {vram_gb:.1f}GB - 24GB recommandés pour Qwen2.5-VL-32B")
+            logger.warning(f" GPU {i} a {vram_gb:.1f}GB - 24GB recommandés pour Qwen2.5-VL-32B")
     
     return True
 
@@ -112,13 +112,13 @@ async def run_surveillance(video_path: str, **kwargs):
         results = await system.process_video(video_path)
         
         if results:
-            logger.info(f"✅ Analyse terminée - {len(results.frame_results)} frames analysées")
+            logger.info(f" Analyse terminée - {len(results.frame_results)} frames analysées")
             
             # Statistiques
             detections = sum(len(frame.detections) for frame in results.frame_results)
             avg_confidence = sum(frame.analysis_response.confidence for frame in results.frame_results) / len(results.frame_results)
             
-            logger.info(f"📈 Statistiques:")
+            logger.info(f" Statistiques:")
             logger.info(f"   • Détections YOLO: {detections}")
             logger.info(f"   • Confiance moyenne VLM: {avg_confidence:.2f}")
             logger.info(f"   • Temps total: {results.processing_time:.1f}s")
@@ -131,25 +131,25 @@ async def run_surveillance(video_path: str, **kwargs):
                 import json
                 json.dump(results.to_dict(), f, indent=2, ensure_ascii=False, default=str)
             
-            logger.info(f"💾 Résultats sauvegardés: {output_path}")
+            logger.info(f"Résultats sauvegardés: {output_path}")
             return True
         else:
-            logger.warning("⚠️ Aucun résultat généré")
+            logger.warning(" Aucun résultat généré")
             return False
             
     except Exception as e:
-        logger.error(f"❌ Erreur pendant analyse: {e}")
+        logger.error(f" Erreur pendant analyse: {e}")
         return False
     
     finally:
         await system.cleanup()
-        logger.info("🧹 Nettoyage terminé")
+        logger.info(" Nettoyage terminé")
 
 
 def main():
     """Point d'entrée principal."""
     parser = argparse.ArgumentParser(
-        description="🚀 Surveillance Intelligente avec Qwen2.5-VL-32B",
+        description=" Surveillance Intelligente avec Qwen2.5-VL-32B",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Exemples d'utilisation:

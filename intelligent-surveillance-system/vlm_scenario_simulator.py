@@ -42,18 +42,18 @@ try:
         print("Tentative d'initialisation de la pipeline VLM...")
         initialization_success = initialize_real_pipeline()
         if initialization_success:
-            print("✅ Pipeline VLM reelle initialisee avec succes")
+            print("Pipeline VLM reelle initialisee avec succes")
         else:
-            print("⚠️  Echec initialisation pipeline VLM - Mode simulation active")
+            print("  Echec initialisation pipeline VLM - Mode simulation active")
             VLM_AVAILABLE = False
     except Exception as init_e:
         error_msg = str(init_e)
         if "libcuda" in error_msg.lower() or "cuda" in error_msg.lower():
-            print("⚠️  Pipeline VLM nécessite CUDA - Mode simulation CPU activé")
+            print(" Pipeline VLM nécessite CUDA - Mode simulation CPU activé")
         elif "torch" in error_msg.lower():
-            print("⚠️  Erreur PyTorch - Mode simulation activé")
+            print("Erreur PyTorch - Mode simulation activé")
         else:
-            print(f"⚠️  Erreur initialisation pipeline VLM: {error_msg[:100]}... - Mode simulation active")
+            print(f" Erreur initialisation pipeline VLM: {error_msg[:100]}... - Mode simulation active")
         VLM_AVAILABLE = False
         
 except (ImportError, ValueError, OSError) as e:
@@ -371,11 +371,11 @@ Analysez ce scenario de surveillance et fournissez un raisonnement Chain-of-Thou
 SCENARIO: {scenario_text}
 
 Fournissez une analyse structuree avec:
-1. Observation systematique
+1. Observation systematique et tout en faisant attention à tout les détails 
 2. Analyse comportementale  
-3. Correlation donnees outils
+3. Correlation données outils
 4. Evaluation suspicion
-5. Decision finale avec niveau (LOW/MEDIUM/HIGH/CRITICAL)
+5. Decision finale avec niveau (LOW/MEDIUM/HIGH/CRITICAL) tout en donnant des explication claire sur la situation en donnant des recommandations d'action à mener 
 """
             
             # Simulation du contexte surveillance
@@ -414,7 +414,7 @@ Fournissez une analyse structuree avec:
     def run_simulation(self, scenario_text: str, scenario_name: str = None) -> Dict:
         """Execute une simulation complete."""
         print("\nAnalyse en cours avec votre pipeline VLM...")
-        time.sleep(1)  # Simulation du temps de traitement
+        time.sleep(200)  # Simulation du temps de traitement
         
         # Tente d'abord avec le VLM reel
         real_vlm_result = self.simulate_with_real_vlm(scenario_text)
@@ -461,7 +461,7 @@ Fournissez une analyse structuree avec:
         
         if result.get('source') == 'real_vlm':
             # Affichage pour VLM reel
-            print("🚀 PIPELINE VLM RÉELLE UTILISÉE")
+            print(" PIPELINE VLM RÉELLE UTILISÉE")
             print(result.get('vlm_response', ''))
             if result.get('thinking'):
                 print(f"\nThinking VLM: {result['thinking']}")
@@ -469,7 +469,7 @@ Fournissez une analyse structuree avec:
         
         else:
             # Affichage pour simulation locale
-            print("🔬 SIMULATION LOCALE AVANCÉE (Mode CPU)")
+            print(" SIMULATION LOCALE AVANCÉE (Mode CPU)")
             reasoning = result.get('reasoning', {})
             
             print("\n1. Observation systematique:")

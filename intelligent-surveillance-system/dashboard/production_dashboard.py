@@ -445,11 +445,11 @@ def render_alert_controls():
         # Mise à jour des seuils
         if new_conf_threshold != st.session_state.alert_thresholds['confidence_threshold']:
             st.session_state.alert_thresholds['confidence_threshold'] = new_conf_threshold
-            st.success(f"✅ Seuil confiance mis à jour: {new_conf_threshold:.0%}")
+            st.success(f" Seuil confiance mis à jour: {new_conf_threshold:.0%}")
             
         if new_desc_threshold != st.session_state.alert_thresholds['auto_description_threshold']:
             st.session_state.alert_thresholds['auto_description_threshold'] = new_desc_threshold
-            st.success(f"✅ Seuil descriptions mis à jour: {new_desc_threshold:.0%}")
+            st.success(f" Seuil descriptions mis à jour: {new_desc_threshold:.0%}")
     
     with col2:
         st.markdown("**Options Audio & Auto**")
@@ -469,11 +469,11 @@ def render_alert_controls():
         # Mise à jour des options
         if new_audio_enabled != st.session_state.alert_thresholds['audio_enabled']:
             st.session_state.alert_thresholds['audio_enabled'] = new_audio_enabled
-            st.success(f"✅ Audio {'activé' if new_audio_enabled else 'désactivé'}")
+            st.success(f" Audio {'activé' if new_audio_enabled else 'désactivé'}")
             
         if new_auto_enabled != st.session_state.alert_thresholds['auto_alerts_enabled']:
             st.session_state.alert_thresholds['auto_alerts_enabled'] = new_auto_enabled
-            st.success(f"✅ Alertes auto {'activées' if new_auto_enabled else 'désactivées'}")
+            st.success(f" Alertes auto {'activées' if new_auto_enabled else 'désactivées'}")
         
         # Test audio si disponible
         if AUDIO_AVAILABLE:
@@ -1008,7 +1008,7 @@ class NetworkQualityMonitor:
         self.running = True
         self.thread = threading.Thread(target=self._monitor_network_quality, daemon=True)
         self.thread.start()
-        print("[NETWORK] Monitoring réseau adaptatif démarré")
+        print("Monitoring réseau adaptatif démarré")
     
     def stop_monitoring(self):
         """Arrête le monitoring."""
@@ -2020,7 +2020,7 @@ class CameraNetworkQualityMonitor:
         if new_quality != self.current_quality:
             self.current_quality = new_quality
             self._adapt_parameters()
-            print(f"📡 Qualité réseau {self.camera_id}: {new_quality} (Succès: {success_rate:.1%}, Latence: {avg_latency:.0f}ms)")
+            print(f"  Qualité réseau {self.camera_id}: {new_quality} (Succès: {success_rate:.1%}, Latence: {avg_latency:.0f}ms)")
     
     def _adapt_parameters(self):
         """Adapte automatiquement les paramètres selon la qualité."""
@@ -2499,9 +2499,9 @@ def render_integrated_chat(chat_type: str, context_data: Dict = None):
         if st.session_state.pipeline_initialized and st.session_state.real_pipeline:
             stats = st.session_state.real_pipeline.get_performance_stats()
             tool_details = st.session_state.real_pipeline.get_tool_performance_details()
-            context_info = f"🔬 Pipeline active: {stats.get('frames_processed', 0)} frames, {len(stats.get('current_optimal_tools', []))} outils optimaux"
+            context_info = f" Pipeline active: {stats.get('frames_processed', 0)} frames, {len(stats.get('current_optimal_tools', []))} outils optimaux"
         else:
-            context_info = "🔬 Mode simulation - Pipeline VLM non initialisée"
+            context_info = " Mode simulation - Pipeline VLM non initialisée"
     
     elif chat_type == "video":
         questions = [
@@ -2555,10 +2555,10 @@ def render_integrated_chat(chat_type: str, context_data: Dict = None):
     
     # Traitement des messages
     message_to_send = None
-    if st.button("📤 Envoyer", key=f"send_{chat_type}") and user_input:
+    if st.button(" Envoyer", key=f"send_{chat_type}") and user_input:
         message_to_send = user_input
     elif selected_question:
-        if st.button("📤 Envoyer Question", key=f"send_quick_{chat_type}"):
+        if st.button(" Envoyer Question", key=f"send_quick_{chat_type}"):
             message_to_send = selected_question
     
     if message_to_send:
@@ -2691,7 +2691,7 @@ def render_surveillance_tab():
                         st.error(f" Erreur capture {camera['name']}: {str(e)}")
                         print(f"DEBUG: Exception capture {camera_id}: {e}")
                         # Test direct disponible en cas d'erreur
-                        if st.button(f"🧪 Test Direct", key=f"test_direct_{camera_id}"):
+                        if st.button(f" Test Direct", key=f"test_direct_{camera_id}"):
                             with st.spinner("Test direct en cours..."):
                                 try:
                                     test_frame = capture_real_frame_simple(camera, width=320, height=240)
@@ -2728,7 +2728,7 @@ def render_surveillance_tab():
     
     # Affichage des détections VLM récentes
     if st.session_state.real_detections:
-        st.subheader("🔬 Détections VLM Récentes")
+        st.subheader(" Détections VLM Récentes")
         
         for detection in st.session_state.real_detections[-5:]:  # 5 dernières
             suspicion_color = 'red' if 'HIGH' in str(detection.suspicion_level) or 'CRITICAL' in str(detection.suspicion_level) else 'orange' if 'MEDIUM' in str(detection.suspicion_level) else 'green'
@@ -2763,7 +2763,7 @@ def render_video_upload_tab():
     render_pipeline_status()
     
     # Section d'upload avec description
-    st.markdown("### 📤 Upload de Vidéo avec Description")
+    st.markdown("###  Upload de Vidéo avec Description")
     
     uploaded_file = st.file_uploader(
         "Sélectionnez une vidéo à analyser avec VLM",
@@ -2772,7 +2772,7 @@ def render_video_upload_tab():
     )
     
     # Formulaire de description enrichi
-    st.markdown("### [DESCRIPTION] Description et Contexte Vidéo")
+    st.markdown("###  Description et Contexte Vidéo")
     
     col1, col2 = st.columns(2)
     
@@ -2891,7 +2891,7 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
         st.json(file_details)
         
         # Bouton d'analyse VLM
-        analyze_button_text = "🔬 Analyser avec Pipeline VLM" if st.session_state.pipeline_initialized else "🔬 Analyser (Mode Simulation)"
+        analyze_button_text = " Analyser avec Pipeline VLM" if st.session_state.pipeline_initialized else "🔬 Analyser (Mode Simulation)"
         
         if st.button(analyze_button_text, type="primary"):
             # Validation formulaire
@@ -2931,7 +2931,7 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                 video_metadata = form_data
                 enhanced_context = {'video_analysis_mode': True, 'timestamp': datetime.now()}
             
-            with st.spinner("🔬 Analyse VLM contextualisée en cours..."):
+            with st.spinner(" Analyse VLM contextualisée en cours..."):
                 progress_bar = st.progress(0)
                 
                 # Simulation de traitement par frames avec contexte
@@ -3026,7 +3026,7 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
     
     # Affichage des résultats d'analyse VLM
     if st.session_state.video_analysis_results:
-        st.markdown("### 🔬 Résultats d'Analyse VLM")
+        st.markdown("###  Résultats d'Analyse VLM")
         
         # Sélection de l'analyse
         video_options = {k: v['video_name'] for k, v in st.session_state.video_analysis_results.items()}
@@ -3042,7 +3042,7 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
             # Résumé de l'analyse VLM
             st.markdown(f"""
             <div class="real-analysis-result">
-                <h4>🔬 Analyse VLM - {results['video_name']}</h4>
+                <h4> Analyse VLM - {results['video_name']}</h4>
                 <p><strong>Pipeline:</strong> {results['pipeline_used']}</p>
                 <p><strong>Mode:</strong> {results['analysis_mode']}</p>
                 <p><strong>Frames analysées:</strong> {results['frames_analyzed']}</p>
@@ -3067,7 +3067,7 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                 """, unsafe_allow_html=True)
             
             # Données d'optimisation
-            st.markdown("### [OPTIMIZATION] Optimisation Adaptative")
+            st.markdown("###  Optimisation Adaptative")
             opt_data = results['optimization_data']
             
             st.markdown(f"""
@@ -3108,7 +3108,7 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                 st.plotly_chart(fig, use_container_width=True)
             
             # Export des résultats VLM
-            if st.button("📥 Exporter Résultats VLM"):
+            if st.button(" Exporter Résultats VLM"):
                 st.download_button(
                     label=" Télécharger Analyse VLM JSON",
                     data=json.dumps(results, indent=2, default=str),
@@ -3562,7 +3562,7 @@ def render_camera_config():
                             if camera_usb_devices:
                                 st.write("**Caméras USB détectées:**")
                                 for usb_cam in camera_usb_devices:
-                                    st.write(f"🔌 {usb_cam}")
+                                    st.write(f"kk {usb_cam}")
                             else:
                                 st.warning("Aucune caméra USB détectée via lsusb")
                                 
@@ -3658,15 +3658,15 @@ def render_camera_config():
                                    help="Améliore la réactivité en sautant les frames en retard")
         
         # Test de connexion avant ajout
-        if source_url and st.button("🧪 Tester Connexion", key="test_connection"):
+        if source_url and st.button(" Tester Connexion", key="test_connection"):
             with st.spinner("Test de connexion en cours..."):
                 test_result = test_camera_connection(source_url, connection_timeout)
                 
                 if test_result['success']:
                     st.success(f" Connexion réussie!")
                     st.info(f" Backend: {test_result['backend_used']}")
-                    st.info(f"📐 Résolution détectée: {test_result['resolution']}")
-                    st.info(f"[TIME] Temps de test: {test_result['test_duration']:.1f}s")
+                    st.info(f" Résolution détectée: {test_result['resolution']}")
+                    st.info(f" Temps de test: {test_result['test_duration']:.1f}s")
                 else:
                     st.error(" Impossible de se connecter")
                     with st.expander("Détails des erreurs"):
@@ -3724,7 +3724,7 @@ def render_camera_config():
                             st.write("• Testez sans authentification d'abord")
                             st.write("• Vérifiez que le flux retourne multipart/x-mixed-replace")
                         elif cam_source_type == "Caméra IP (RTSP)":
-                            st.write("📡 **RTSP:**")
+                            st.write(" **RTSP:**")
                             st.write("• Vérifiez user:pass@ip:port/stream")
                             st.write("• Testez avec VLC d'abord")
                             st.write("• Essayez d'ajouter ?tcp à la fin de l'URL")
@@ -3780,9 +3780,9 @@ def render_camera_config():
                     if 'quality_mode' in camera:
                         mode = camera['quality_mode']
                         mode_display = {
-                            'low_latency': '[FAST] Faible latence',
-                            'balanced': '[BALANCED] Équilibré', 
-                            'high_quality': '💎 Haute qualité'
+                            'low_latency': ' Faible latence',
+                            'balanced': ' Équilibré',
+                            'high_quality': ' Haute qualité'
                         }
                         st.write(f"**Mode:** {mode_display.get(mode, mode)}")
                     
@@ -3790,7 +3790,7 @@ def render_camera_config():
                     col_test, col_delete = st.columns(2)
                     
                     with col_test:
-                        if st.button("🧪 Re-tester", key=f"retest_{camera_id}"):
+                        if st.button(" Re-tester", key=f"retest_{camera_id}"):
                             with st.spinner("Re-test en cours..."):
                                 test_result = test_camera_connection(
                                     camera['source'], 
@@ -3820,7 +3820,7 @@ def render_camera_config():
 
 def render_vlm_analytics():
     """Tableau de bord analytique avec métriques VLM réelles."""
-    st.subheader("[ANALYTICS] Analytics VLM & Métriques Pipeline")
+    st.subheader(" Analytics VLM & Métriques Pipeline")
     
     # Métriques principales
     col1, col2, col3, col4 = st.columns(4)
@@ -3876,7 +3876,7 @@ def render_vlm_analytics():
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("[TOOLS] Utilisation des Outils VLM")
+        st.subheader(" Utilisation des Outils VLM")
         
         if st.session_state.pipeline_initialized and st.session_state.real_pipeline:
             tool_usage = stats.get('tool_usage_stats', {})
@@ -3903,7 +3903,7 @@ def render_vlm_analytics():
             st.plotly_chart(fig, use_container_width=True)
     
     with col2:
-        st.subheader("[PERFORMANCE] Performance Temporelle")
+        st.subheader(" Performance Temporelle")
         
         # Simulation de données temporelles
         hours = [f"{i:02d}:00" for i in range(24)]
@@ -3936,7 +3936,7 @@ def render_vlm_analytics():
     
     # Historique des optimisations
     if st.session_state.optimization_results:
-        st.subheader("[HISTORY] Historique des Optimisations")
+        st.subheader(" Historique des Optimisations")
         
         for i, optimization in enumerate(st.session_state.optimization_results[-5:]):
             timestamp = optimization.get('timestamp', 'N/A')
@@ -3953,7 +3953,7 @@ def render_vlm_analytics():
 
 def render_alerts_panel():
     """Panneau des alertes avec données VLM réelles."""
-    st.subheader("[ALERTS] Centre des Alertes VLM")
+    st.subheader(" Centre des Alertes VLM")
     
     # Filtres
     col1, col2 = st.columns(2)
@@ -4044,7 +4044,7 @@ def main():
         # Statistiques captures threadées
         if st.session_state.threaded_captures:
             st.divider()
-            st.subheader("🧵 Performance Captures Threadées")
+            st.subheader(" Performance Captures Threadées")
             
             capture_stats = get_threaded_capture_stats()
             
@@ -4141,7 +4141,7 @@ def main():
                             st.write(f"**Qualité actuelle:** {compressor_stats['current_quality']}")
                             st.write(f"**Réduction taille:** {compressor_stats['avg_size_reduction']:.1f}x")
             else:
-                st.warning("⏳ Métriques réseau obsolètes")
+                st.warning(" Métriques réseau obsolètes")
         else:
             st.info("[NETWORK] Monitoring réseau en cours d'initialisation...")
         

@@ -191,7 +191,7 @@ class RealVLMPipeline:
             
             # 4. Système de benchmark
             if self.enable_optimization:
-                logger.info("🧪 Initialisation ToolOptimizationBenchmark...")
+                logger.info(" Initialisation ToolOptimizationBenchmark...")
                 self.benchmark = ToolOptimizationBenchmark(
                     vlm_model_name=self.vlm_model_name,
                     test_data_path=Path("data/benchmark/test_cases")
@@ -429,7 +429,7 @@ class RealVLMPipeline:
                 self._notify_error(e)
                 time.sleep(300)  # Attendre 5 min avant de reprendre
         
-        logger.info("⏹️ Worker d'optimisation arrêté")
+        logger.info(" Worker d'optimisation arrêté")
     
     async def _run_optimization_cycle(self) -> Optional[Dict[str, Any]]:
         """Exécute un cycle d'optimisation complet."""
@@ -483,7 +483,7 @@ class RealVLMPipeline:
             # Chargement des patterns de contexte sauvegardés
             # Chargement des performances d'outils
             # Initialisation avec la meilleure configuration connue
-            logger.info("📂 Données d'optimisation chargées")
+            logger.info(" Données d'optimisation chargées")
             
         except Exception as e:
             logger.warning(f" Impossible de charger données d'optimisation: {e}")

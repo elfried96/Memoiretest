@@ -3079,9 +3079,15 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                         pipeline.start_processing()
                     
                     # Extraction frames et analyse VLM frame par frame
-                    cap = cv2.VideoCapture(io.BytesIO(video_file_bytes))
-                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                    fps = cap.get(cv2.CAP_PROP_FPS)
+                    # Création fichier temporaire pour OpenCV
+                    
+                    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as tmp_file:
+                        tmp_file.write(video_file_bytes)
+                        tmp_file.flush()
+                        
+                        cap = cv2.VideoCapture(tmp_file.name)
+                        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                        fps = cap.get(cv2.CAP_PROP_FPS)
                     
                     analysis_results = {
                         'video_name': uploaded_file.name,
@@ -3146,6 +3152,12 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                                 frame_count += 19
                     
                     cap.release()
+                    
+                    # Nettoyage fichier temporaire
+                    try:
+                        os.unlink(tmp_file.name)
+                    except Exception as e:
+                        st.warning(f"Impossible de supprimer fichier temporaire: {e}")
                     
                     # Récupération résultats pipeline
                     pipeline_results = pipeline.get_latest_results()

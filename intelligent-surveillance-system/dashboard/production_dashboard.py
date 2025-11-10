@@ -3124,16 +3124,41 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                             metadata=video_metadata
                         )
                         
-                        # Analyse VLM réelle
+                        # Analyse VLM réelle - Version synchrone pour Streamlit
                         try:
-                            analysis_task = asyncio.create_task(pipeline.analyze_frame(frame_data))
-                            # Attendre analyse (pas de timeout - traitement complet)
-                            real_result = asyncio.get_event_loop().run_until_complete(analysis_task)
+                            # Utilisation directe sans asyncio pour éviter event loop conflicts
+                            import asyncio
+                            try:
+                                # Essai avec nouvelle boucle
+                                real_result = asyncio.run(pipeline.analyze_frame(frame_data))
+                            except RuntimeError:
+                                # Fallback: utiliser thread executor
+                                import concurrent.futures
+                                import threading
+                                
+                                def run_analysis():
+                                    loop = asyncio.new_event_loop()
+                                    asyncio.set_event_loop(loop)
+                                    try:
+                                        return loop.run_until_complete(pipeline.analyze_frame(frame_data))
+                                    finally:
+                                        loop.close()
+                                
+                                with concurrent.futures.ThreadPoolExecutor() as executor:
+                                    future = executor.submit(run_analysis)
+                                    real_result = future.result()
                             
                             if real_result:
                                 real_analysis_results.append(real_result)
+                            
+                            # Affichage silencieux sans spam
+                            if frame_count % 50 == 0:  # Afficher 1 frame sur 50
+                                progress_bar.progress((frame_count + 1) / total_frames)
+                                
                         except Exception as e:
-                            st.warning(f"Erreur analyse frame {frame_count}: {e}")
+                            # Log silencieux sans spam interface
+                            if frame_count % 100 == 0:  # Erreur 1 sur 100 seulement
+                                st.warning(f"Analyse frame {frame_count}: {str(e)[:50]}...")
                         
                         frame_count += 1
                         
@@ -3367,16 +3392,25 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
             
             with col1:
                 # Performance par outil
-                tool_names = list(results['tool_performance'].keys())
-                success_rates = [results['tool_performance'][tool]['success_rate'] for tool in tool_names]
-                
-                fig = px.bar(
-                    x=tool_names,
-                    y=success_rates,
-                    title="Taux de Succès par Outil VLM",
-                    labels={'x': 'Outils VLM', 'y': 'Taux de Succès'}
-                )
-                st.plotly_chart(fig, use_container_width=True)
+                if results['tool_performance']:
+                    tool_names = list(results['tool_performance'].keys())
+                    success_rates = [results['tool_performance'][tool]['success_rate'] for tool in tool_names]
+                    
+                    # Création DataFrame pour plotly
+                    df_tools = pd.DataFrame({
+                        'Outils VLM': tool_names,
+                        'Taux de Succès': success_rates
+                    })
+                    
+                    fig = px.bar(
+                        df_tools,
+                        x='Outils VLM',
+                        y='Taux de Succès',
+                        title="Taux de Succès par Outil VLM"
+                    )
+                    st.plotly_chart(fig, width="stretch")
+                else:
+                    st.info("Aucune donnée de performance d'outils disponible")
             
             with col2:
                 # Distribution des niveaux de suspicion
@@ -4166,14 +4200,20 @@ def render_vlm_analytics():
                 tools = list(tool_usage.keys())
                 usage_counts = list(tool_usage.values())
                 
+                # Création DataFrame pour plotly
+                df_usage = pd.DataFrame({
+                    'Outils VLM': tools,
+                    'Utilisations': usage_counts
+                })
+                
                 fig = px.bar(
-                    x=tools,
-                    y=usage_counts,
-                    title="Fréquence d'Utilisation des Outils",
-                    labels={'x': 'Outils VLM', 'y': 'Utilisations'}
+                    df_usage,
+                    x='Outils VLM',
+                    y='Utilisations',
+                    title="Fréquence d'Utilisation des Outils"
                 )
                 fig.update_xaxes(tickangle=45)
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width="stretch")
             else:
                 st.info("Aucune donnée d'utilisation d'outils disponible")
         else:

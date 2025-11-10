@@ -262,28 +262,30 @@ class RealVLMPipeline:
         logger.info(" Pipeline VLM arrêtée")
     
     async def analyze_frame(self, frame_data: FrameData) -> Optional[RealAnalysisResult]:
-        """Analyse une frame avec la pipeline complète."""
+        """Analyse une frame avec la pipeline complète - Version synchrone pour intégration dashboard."""
         try:
-            # Ajout à la queue d'analyse
+            if not self.running:
+                return None
+            
+            # Analyse directe sans queue pour intégration dashboard
             analysis_request = {
                 'frame_data': frame_data,
                 'timestamp': datetime.now(),
                 'frame_id': f"{frame_data.camera_id}_{frame_data.frame_number}"
             }
             
-            if not self.running:
-                return None
+            # Traitement direct
+            result = await self._process_frame_with_vlm(analysis_request)
             
-            try:
-                self.analysis_queue.put_nowait(analysis_request)
-                return True  # Mis en queue avec succès
-            except queue.Full:
-                logger.warning(" Queue d'analyse pleine, frame ignorée")
-                return False
+            if result:
+                # Mise à jour des statistiques
+                self._update_stats(result)
+            
+            return result
                 
         except Exception as e:
-            logger.error(f" Erreur ajout frame à l'analyse: {e}")
-            return False
+            logger.error(f" Erreur analyse frame directe: {e}")
+            return None
     
     def _analysis_worker(self, worker_name: str):
         """Worker thread pour analyse VLM."""
@@ -335,13 +337,22 @@ class RealVLMPipeline:
             frame_data = analysis_request['frame_data']
             frame_id = analysis_request['frame_id']
             
+            # Conversion frame en base64 pour AnalysisRequest
+            import base64
+            import cv2
+            
+            _, buffer = cv2.imencode('.jpg', frame_data.frame)
+            frame_base64 = base64.b64encode(buffer).decode('utf-8')
+            
             # Création de la requête d'analyse
             vlm_request = AnalysisRequest(
-                image=frame_data.frame,
-                timestamp=frame_data.timestamp,
-                camera_id=frame_data.camera_id,
-                frame_number=frame_data.frame_number,
-                context=frame_data.metadata or {}
+                frame_data=frame_base64,
+                context={
+                    'camera_id': frame_data.camera_id,
+                    'timestamp': frame_data.timestamp.isoformat(),
+                    'frame_number': frame_data.frame_number,
+                    **(frame_data.metadata or {})
+                }
             )
             
             # Analyse avec orchestrateur adaptatif

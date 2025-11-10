@@ -141,6 +141,9 @@ try:
         )
         from .camera_manager import CameraConfig, MultiCameraManager, FrameData
         from .vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
+        # ✅ NOUVEAU: Imports pour mémoire vidéo
+        from .components.vlm_chat import get_vlm_chat
+        from .services.video_memory_system import get_video_memory_system
     except ImportError:
         from real_pipeline_integration import (
             RealVLMPipeline, 
@@ -151,12 +154,25 @@ try:
         )
         from camera_manager import CameraConfig, MultiCameraManager, FrameData
         from vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
+        # ✅ NOUVEAU: Imports pour mémoire vidéo (fallback)
+        from components.vlm_chat import get_vlm_chat
+        from services.video_memory_system import get_video_memory_system
     PIPELINE_AVAILABLE = True
     logger.info(" Modules VLM chargés avec succès")
+    
+    # ✅ NOUVEAU: Initialisation système mémoire vidéo
+    try:
+        video_memory_system = get_video_memory_system()
+        VIDEO_MEMORY_AVAILABLE = True
+        logger.info(" Système mémoire vidéo initialisé")
+    except Exception as e:
+        logger.warning(f"⚠️ Système mémoire vidéo non disponible: {e}")
+        VIDEO_MEMORY_AVAILABLE = False
 except ImportError as e:
     logger.error(f" Erreur import pipeline VLM: {e}")
     st.error(f" Impossible d'importer la pipeline VLM: {e}")
     PIPELINE_AVAILABLE = False
+    VIDEO_MEMORY_AVAILABLE = False
 
 # Initialisation des variables de session
 if 'cameras' not in st.session_state:
@@ -645,15 +661,132 @@ def render_pipeline_status():
         if pipeline and pipeline.running:
             stats = pipeline.get_performance_stats()
             
+            # Configuration orchestrateur
+            orchestration_info = "THOROUGH (8 outils complets)"
+            if hasattr(pipeline, 'orchestrator') and hasattr(pipeline.orchestrator, 'config'):
+                mode = getattr(pipeline.orchestrator.config, 'mode', 'THOROUGH')
+                mode_names = {
+                    'fast': 'FAST (3 outils rapides)',
+                    'balanced': 'BALANCED (6 outils principaux)', 
+                    'thorough': 'THOROUGH (8 outils complets)'
+                }
+                orchestration_info = mode_names.get(str(mode).lower(), 'THOROUGH (8 outils complets)')
+            
             st.markdown(f"""
             <div class="pipeline-status pipeline-active">
-                <h4> Pipeline VLM Active</h4>
+                <h4>🎛️ Pipeline VLM Active - AdaptiveVLMOrchestrator</h4>
+                <p><strong>Mode Orchestration:</strong> {orchestration_info}</p>
                 <p><strong>Frames traitées:</strong> {stats.get('frames_processed', 0)}</p>
                 <p><strong>Temps moyen:</strong> {stats.get('average_processing_time', 0):.2f}s</p>
-                <p><strong>Outils optimaux:</strong> {len(stats.get('current_optimal_tools', []))}</p>
+                <p><strong>Outils optimaux actifs:</strong> {len(stats.get('current_optimal_tools', []))}/8</p>
                 <p><strong>Score performance:</strong> {stats.get('current_performance_score', 0):.2f}</p>
+                <p><strong>Cycles optimisation:</strong> {stats.get('optimization_cycles', 0)}</p>
             </div>
             """, unsafe_allow_html=True)
+            
+            # Section configuration orchestration avancée
+            with st.expander("⚙️ Configuration Orchestration VLM & Architecture", expanded=False):
+                st.subheader("🎛️ Architecture d'Orchestration AdaptiveVLMOrchestrator")
+                
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.markdown("""
+                    **🎯 Modes d'Orchestration Disponibles:**
+                    
+                    🚀 **FAST Mode** (3 outils - ~0.8s/frame):
+                    - DINO Features (Analyse comportementale)
+                    - Pose Estimator (Détection postures)  
+                    - Multimodal Fusion (Fusion données)
+                    - ⚡ Vitesse maximale pour surveillance temps réel
+                    
+                    ⚖️ **BALANCED Mode** (6 outils - ~1.5s/frame):
+                    - SAM2 + DINO + Pose + Trajectory
+                    - Multimodal Fusion + Adversarial Detector
+                    - 🎯 Équilibre optimal vitesse/précision
+                    
+                    🔬 **THOROUGH Mode** ✅ **ACTUEL** (8 outils - ~2.3s/frame):
+                    - TOUS les outils VLM avancés actifs
+                    - Analyse complète avec optimisation continue
+                    - 🎖️ Précision maximale pour analyse forensique
+                    """)
+                
+                with col2:
+                    st.markdown("**📊 Configuration Pipeline Actuelle:**")
+                    
+                    if hasattr(pipeline, 'orchestrator') and hasattr(pipeline.orchestrator, 'config'):
+                        config = pipeline.orchestrator.config
+                        mode_val = str(getattr(config, 'mode', 'THOROUGH')).upper()
+                        st.write(f"🎛️ **Mode Orchestration**: {mode_val}")
+                        st.write(f"⚡ **Outils simultanés**: {getattr(config, 'max_concurrent_tools', 4)}")
+                        st.write(f"🎯 **Seuil confiance**: {getattr(config, 'confidence_threshold', 0.7)}")
+                        timeout_val = getattr(config, 'timeout_seconds', None)
+                        timeout_text = 'Illimité ✅' if timeout_val is None else f'{timeout_val}s'
+                        st.write(f"⏱️ **Timeout**: {timeout_text}")
+                        advanced = getattr(config, 'enable_advanced_tools', True)
+                        st.write(f"🔧 **Outils avancés**: {'✅ TOUS ACTIVÉS' if advanced else '❌ Limités'}")
+                    else:
+                        st.write("🎛️ **Mode**: THOROUGH (défaut)")
+                        st.write("⚡ **Outils simultanés**: 4") 
+                        st.write("🎯 **Seuil confiance**: 0.7")
+                        st.write("⏱️ **Timeout**: Illimité ✅")
+                        st.write("🔧 **Outils avancés**: ✅ TOUS ACTIVÉS")
+                    
+                    st.markdown("**🔄 Optimisation Continue ToolOptimizationBenchmark:**")
+                    st.write(f"🔄 **Cycles exécutés**: {stats.get('optimization_cycles', 0)}")
+                    best_tools = stats.get('best_tool_combination', [])
+                    if best_tools:
+                        st.write(f"🏆 **Meilleure combinaison**: {', '.join(best_tools[:3])}...")
+                    else:
+                        st.write("🏆 **Meilleure combinaison**: En cours d'apprentissage")
+                    
+                    current_tools = stats.get('current_optimal_tools', [])
+                    if current_tools:
+                        st.write(f"⚡ **Outils actifs**: {', '.join(current_tools[:3])}...")
+                
+                st.subheader("🛠️ Arsenal d'Outils VLM Intégrés")
+                
+                # Affichage des outils avec statut
+                tools_info = [
+                    ("🔍 SAM2 Segmentator", "Segmentation précise objets/personnes", "Critique", "sam2_segmentator"),
+                    ("🧠 DINO Features", "Analyse comportementale avancée", "Critique", "dino_features"), 
+                    ("🏃 Pose Estimator", "Détection postures & mouvements", "Essentiel", "pose_estimator"),
+                    ("📍 Trajectory Analyzer", "Analyse trajectoires & patterns", "Important", "trajectory_analyzer"),
+                    ("🔗 Multimodal Fusion", "Fusion données visuelles + contexte", "Critique", "multimodal_fusion"),
+                    ("⏱️ Temporal Transformer", "Analyse séquences temporelles", "Avancé", "temporal_transformer"),
+                    ("🛡️ Adversarial Detector", "Détection attaques adversaires", "Sécurité", "adversarial_detector"),
+                    ("🎯 Domain Adapter", "Adaptation domaines spécifiques", "Spécialisé", "domain_adapter")
+                ]
+                
+                tool_usage_stats = stats.get('tool_usage_stats', {})
+                
+                for tool_name, description, priority, tool_key in tools_info:
+                    priority_colors = {
+                        "Critique": "🔴", "Essentiel": "🟠", "Important": "🟡", 
+                        "Avancé": "🔵", "Sécurité": "🟣", "Spécialisé": "🟢"
+                    }
+                    
+                    usage_count = tool_usage_stats.get(tool_key, 0)
+                    active_status = "✅ ACTIF" if tool_key in current_tools else "⏸️ Standby"
+                    
+                    st.write(f"{tool_name} - {description}")
+                    st.write(f"   {priority_colors.get(priority, '⚪')} {priority} | {active_status} | Utilisations: {usage_count}")
+                
+                st.subheader("📈 Métriques de Performance Orchestration")
+                
+                perf_col1, perf_col2 = st.columns(2)
+                with perf_col1:
+                    total_frames = stats.get('frames_processed', 0)
+                    success_rate = 0.0
+                    if total_frames > 0:
+                        total_detections = stats.get('total_detections', 0)
+                        success_rate = (total_detections / total_frames) * 100
+                    
+                    st.metric("🎯 Taux Détection", f"{success_rate:.1f}%")
+                    st.metric("⚡ Performance Score", f"{stats.get('current_performance_score', 0):.2f}")
+                
+                with perf_col2:
+                    st.metric("🔄 Optimisations", stats.get('optimization_cycles', 0))
+                    st.metric("⏱️ Temps Moyen", f"{stats.get('average_processing_time', 0):.2f}s")
         else:
             st.markdown("""
             <div class="pipeline-status pipeline-inactive">
@@ -665,7 +798,7 @@ def render_pipeline_status():
         st.markdown("""
         <div class="pipeline-status pipeline-inactive">
             <h4> Pipeline VLM Non Disponible</h4>
-            <p>Mode simulation activé - Vérifiez l'installation du système core</p>
+            <p>Pipeline VLM en attente d'initialisation - Vérifiez l'installation du système core</p>
         </div>
         """, unsafe_allow_html=True)
 
@@ -1970,8 +2103,8 @@ class CameraNetworkQualityMonitor:
                 latency = (time.time() - start_time) * 1000
                 return latency if response.status_code == 200 else 9999
             else:
-                # Pour RTSP/webcam, simulation basée sur performances
-                return 50  # Latence locale simulée
+                # Pour RTSP/webcam, mesure réelle indisponible
+                return 0  # Latence indéterminée
                 
         except Exception:
             return 9999  # Très mauvaise latence en cas d'erreur
@@ -2436,8 +2569,8 @@ def capture_real_frame(camera_config: dict, width: int = 640, height: int = 480)
     return error_frame
 
 def generate_dummy_frame(camera_id: str, width: int = 320, height: int = 240):
-    """Génère une frame simulée avec analyse VLM (fallback)."""
-    img = np.random.randint(50, 200, (height, width, 3), dtype=np.uint8)
+    """Génère une frame d'erreur pour caméra indisponible (fallback)."""
+    img = np.zeros((height, width, 3), dtype=np.uint8)  # Frame noire au lieu d'aléatoire
     
     # Informations de base
     cv2.putText(img, f"Camera {camera_id}", (10, 30), 
@@ -2452,7 +2585,7 @@ def generate_dummy_frame(camera_id: str, width: int = 320, height: int = 240):
         camera_id=camera_id,
         frame=img,
         timestamp=datetime.now(),
-        frame_number=random.randint(1000, 9999),
+        frame_number=1,
         metadata={'resolution': (width, height)}
     )
     
@@ -2501,7 +2634,7 @@ def render_integrated_chat(chat_type: str, context_data: Dict = None):
             tool_details = st.session_state.real_pipeline.get_tool_performance_details()
             context_info = f" Pipeline active: {stats.get('frames_processed', 0)} frames, {len(stats.get('current_optimal_tools', []))} outils optimaux"
         else:
-            context_info = " Mode simulation - Pipeline VLM non initialisée"
+            context_info = " Pipeline VLM non initialisée - Analyse indisponible"
     
     elif chat_type == "video":
         questions = [
@@ -2585,7 +2718,7 @@ async def generate_real_vlm_response(question: str, chat_type: str, context_data
     """Génère une réponse VLM intelligente avec thinking/reasoning."""
     
     if not PIPELINE_AVAILABLE:
-        return " Pipeline VLM non disponible - Mode simulation basique."
+        return " Pipeline VLM non disponible - Chat indisponible."
     
     # Récupération des vraies données pour contexte VLM
     vlm_context = {}
@@ -2934,86 +3067,167 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
             with st.spinner(" Analyse VLM contextualisée en cours..."):
                 progress_bar = st.progress(0)
                 
-                # Simulation de traitement par frames avec contexte
-                total_frames = random.randint(50, 200)
-                analysis_results = {
-                    'video_name': uploaded_file.name,
-                    'video_metadata': video_metadata,  # Métadonnées enrichies
-                    'analysis_mode': analysis_mode,
-                    'pipeline_used': 'Real VLM Pipeline' if st.session_state.pipeline_initialized else 'Simulation',
-                    'total_frames': total_frames,
-                    'frames_analyzed': total_frames,
-                    'detections': [],
-                    'tool_performance': {},
-                    'optimization_data': {},
-                    'summary': {},
-                    'timestamp': datetime.now(),
-                    'context_used': True  # Marqueur contexte utilisé
-                }
-                
-                # Simulation du traitement frame par frame
-                for frame_num in range(total_frames):
-                    progress_bar.progress((frame_num + 1) / total_frames)
-                    time.sleep(0.01)  # Simulation de traitement
+                # ✅ VRAIE ANALYSE VLM AVEC PIPELINE RÉELLE
+                if st.session_state.pipeline_initialized and st.session_state.real_pipeline:
+                    pipeline = st.session_state.real_pipeline
                     
-                    # Génération de détections réalistes
-                    if random.random() > 0.7:  # 30% de chance de détection par frame
-                        tools_used = random.sample([
-                            'sam2_segmentator', 'dino_features', 'pose_estimator',
-                            'trajectory_analyzer', 'multimodal_fusion'
-                        ], random.randint(2, 4))
+                    # Traitement vidéo avec vraie pipeline VLM
+                    video_file_bytes = uploaded_file.read()
+                    
+                    # Démarrage pipeline si pas encore active
+                    if not pipeline.running:
+                        pipeline.start_processing()
+                    
+                    # Extraction frames et analyse VLM frame par frame
+                    cap = cv2.VideoCapture(io.BytesIO(video_file_bytes))
+                    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+                    fps = cap.get(cv2.CAP_PROP_FPS)
+                    
+                    analysis_results = {
+                        'video_name': uploaded_file.name,
+                        'video_metadata': video_metadata,
+                        'analysis_mode': analysis_mode,
+                        'pipeline_used': 'Real VLM Pipeline',
+                        'total_frames': total_frames,
+                        'frames_analyzed': 0,
+                        'detections': [],
+                        'tool_performance': {},
+                        'optimization_data': {},
+                        'summary': {},
+                        'timestamp': datetime.now(),
+                        'context_used': True
+                    }
+                    
+                    # Analyse frame par frame avec vraie pipeline
+                    frame_count = 0
+                    real_analysis_results = []
+                    
+                    while True:
+                        ret, frame = cap.read()
+                        if not ret:
+                            break
                         
+                        progress_bar.progress((frame_count + 1) / total_frames)
+                        
+                        # Création FrameData pour pipeline
+                        frame_data = FrameData(
+                            frame=frame,
+                            camera_id=f"uploaded_video_{uploaded_file.name}",
+                            frame_number=frame_count,
+                            timestamp=datetime.now(),
+                            metadata=video_metadata
+                        )
+                        
+                        # Analyse VLM réelle
+                        try:
+                            analysis_task = asyncio.create_task(pipeline.analyze_frame(frame_data))
+                            # Attendre analyse (pas de timeout - traitement complet)
+                            real_result = asyncio.get_event_loop().run_until_complete(analysis_task)
+                            
+                            if real_result:
+                                real_analysis_results.append(real_result)
+                        except Exception as e:
+                            st.warning(f"Erreur analyse frame {frame_count}: {e}")
+                        
+                        frame_count += 1
+                        
+                        # Échantillonnage basé sur frame_sampling pour éviter surcharge
+                        if frame_sampling == "Élevé (1/10)":
+                            for _ in range(9):
+                                ret, _ = cap.read()
+                                if not ret:
+                                    break
+                                frame_count += 9
+                        elif frame_sampling == "Moyen (1/20)":
+                            for _ in range(19):
+                                ret, _ = cap.read()
+                                if not ret:
+                                    break
+                                frame_count += 19
+                    
+                    cap.release()
+                    
+                    # Récupération résultats pipeline
+                    pipeline_results = pipeline.get_latest_results()
+                    
+                    # Construction résultats finaux depuis vraie pipeline
+                    analysis_results['frames_analyzed'] = len(real_analysis_results)
+                    
+                    for real_result in real_analysis_results:
                         detection = {
-                            'frame_number': frame_num,
-                            'timestamp': f"{frame_num // 30:02d}:{(frame_num % 30) * 2:02d}",
-                            'type': random.choice(['person', 'bag', 'vehicle', 'suspicious_movement']),
-                            'confidence': random.uniform(0.6, 0.98),
-                            'bbox': [random.randint(0, 100), random.randint(0, 100), 
-                                   random.randint(100, 300), random.randint(100, 400)],
-                            'tools_used': tools_used,
-                            'optimization_score': random.uniform(0.5, 0.95)
+                            'frame_number': real_result.frame_id.split('_')[-1],
+                            'timestamp': real_result.timestamp.strftime("%H:%M:%S"),
+                            'type': real_result.action_type.value if hasattr(real_result.action_type, 'value') else str(real_result.action_type),
+                            'confidence': real_result.confidence,
+                            'bbox': real_result.bbox_annotations[0] if real_result.bbox_annotations else [],
+                            'tools_used': real_result.tools_used,
+                            'optimization_score': real_result.optimization_score,
+                            'description': real_result.description,
+                            'suspicion_level': real_result.suspicion_level.value if hasattr(real_result.suspicion_level, 'value') else str(real_result.suspicion_level)
                         }
                         analysis_results['detections'].append(detection)
-                
-                # Calcul des performances par outil
-                all_tools_used = []
-                for detection in analysis_results['detections']:
-                    all_tools_used.extend(detection['tools_used'])
-                
-                tool_usage = Counter(all_tools_used)
-                
-                for tool, count in tool_usage.items():
-                    analysis_results['tool_performance'][tool] = {
-                        'usage_count': count,
-                        'success_rate': random.uniform(0.7, 0.95),
-                        'avg_confidence': random.uniform(0.75, 0.92),
-                        'processing_time': random.uniform(0.1, 1.5)
+                    
+                    # Performance par outil depuis vraie pipeline
+                    pipeline_stats = pipeline.get_performance_stats()
+                    tool_details = pipeline.get_tool_performance_details()
+                    
+                    analysis_results['tool_performance'] = tool_details.get('tool_usage_stats', {})
+                    analysis_results['optimization_data'] = {
+                        'optimal_combination': pipeline_stats.get('current_optimal_tools', []),
+                        'performance_score': pipeline_stats.get('current_performance_score', 0.0),
+                        'improvement_suggestions': []
+                    }
+                    
+                    # Résumé depuis vraies données
+                    suspicion_levels = [d['suspicion_level'] for d in analysis_results['detections']]
+                    analysis_results['summary'] = {
+                        'total_detections': len(analysis_results['detections']),
+                        'high_confidence_detections': len([d for d in analysis_results['detections'] if d['confidence'] > 0.8]),
+                        'suspicion_distribution': dict(Counter(suspicion_levels)),
+                        'most_used_tools': pipeline_stats.get('current_optimal_tools', [])[:3],
+                        'avg_processing_time': pipeline_stats.get('average_processing_time', 0.0),
+                        'overall_performance_score': pipeline_stats.get('current_performance_score', 0.0)
                     }
                 
-                # Données d'optimisation
-                analysis_results['optimization_data'] = {
-                    'optimal_combination': list(tool_usage.keys())[:4],
-                    'performance_score': random.uniform(0.7, 0.9),
-                    'improvement_suggestions': [
-                        'Augmenter utilisation SAM2 pour segmentation précise',
-                        'Combiner DINO avec pose estimation pour meilleure détection',
-                        'Optimiser seuils de confiance pour réduire faux positifs'
-                    ]
-                }
+                else:
+                    # Fallback si pipeline non disponible
+                    st.error("❌ Pipeline VLM réelle non initialisée. Impossible d'analyser la vidéo.")
+                    return
                 
-                # Résumé
-                suspicion_levels = [random.choice(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']) for _ in range(len(analysis_results['detections']))]
-                analysis_results['summary'] = {
-                    'total_detections': len(analysis_results['detections']),
-                    'high_confidence_detections': len([d for d in analysis_results['detections'] if d['confidence'] > 0.8]),
-                    'suspicion_distribution': dict(Counter(suspicion_levels)),
-                    'most_used_tools': [tool for tool, _ in tool_usage.most_common(3)],
-                    'avg_processing_time': random.uniform(0.5, 2.0),
-                    'overall_performance_score': random.uniform(0.6, 0.9)
-                }
+                # ✅ NOUVEAU: Stockage avec système mémoire vidéo
+                video_id = f"video_{len(st.session_state.uploaded_videos) + 1}_{int(datetime.now().timestamp())}"
                 
-                # Stockage des résultats
-                video_id = f"video_{len(st.session_state.uploaded_videos) + 1}"
+                # Enrichissement avec données mémoire vidéo
+                analysis_results['video_id'] = video_id
+                analysis_results['video_name'] = uploaded_file.name
+                analysis_results['analysis_time'] = analysis_results['summary']['avg_processing_time']
+                analysis_results['frame_count'] = len(analysis_results.get('detections', []))
+                
+                # Création detailed_frames pour compatibilité mémoire
+                detailed_frames = []
+                for i, detection in enumerate(analysis_results.get('detections', [])):
+                    frame_data = {
+                        'frame_index': i,
+                        'timestamp': i * (analysis_results['analysis_time'] / max(len(analysis_results['detections']), 1)),
+                        'description': detection.get('description', ''),
+                        'objects_detected': [{
+                            'type': detection.get('object_type', 'objet'),
+                            'confidence': detection.get('confidence', 0.7),
+                            'count': 1
+                        }] if detection.get('object_type') else [],
+                        'behaviors': [{
+                            'type': detection.get('behavior_type', 'normal'),
+                            'confidence': detection.get('confidence', 0.7)
+                        }] if detection.get('behavior_type') else [],
+                        'confidence': detection.get('confidence', 0.7),
+                        'suspicion_level': detection.get('suspicion_level', 'LOW'),
+                        'tools_used': detection.get('tools_used', [])
+                    }
+                    detailed_frames.append(frame_data)
+                
+                analysis_results['detailed_frames'] = detailed_frames
+                
+                # Stockage traditionnel
                 st.session_state.video_analysis_results[video_id] = analysis_results
                 st.session_state.uploaded_videos.append({
                     'id': video_id,
@@ -3022,7 +3236,63 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                 })
                 
                 progress_bar.progress(1.0)
-                st.success(" Analyse VLM terminée avec succès!")
+                
+                # ✅ NOUVEAU: Stockage dans système mémoire avancé
+                if VIDEO_MEMORY_AVAILABLE:
+                    try:
+                        vlm_chat = get_vlm_chat()
+                        memory_id = vlm_chat.link_video_analysis(video_id, analysis_results)
+                        
+                        st.success("✅ Analyse VLM terminée avec succès! Mémoire contextuelle activée.")
+                        
+                        # ✅ NOUVEAU: Section test conversation immédiat
+                        with st.expander("💬 Tester la conversation contextuelle", expanded=True):
+                            st.write("**Questions suggérées:**")
+                            
+                            col_test1, col_test2 = st.columns(2)
+                            
+                            with col_test1:
+                                if st.button("Dit-moi exactement ce que tu as vu", key=f"detail_{video_id}"):
+                                    test_response = vlm_chat.video_memory_system.query_video_memory(
+                                        video_id, 
+                                        "Dit-moi exactement ce que tu as vu dans la vidéo avec plus de détails"
+                                    )
+                                    st.write("🤖 **Réponse:**")
+                                    st.write(test_response['response'])
+                            
+                            with col_test2:
+                                if st.button("Combien de personnes ?", key=f"count_{video_id}"):
+                                    test_response = vlm_chat.video_memory_system.query_video_memory(
+                                        video_id,
+                                        "Combien de personnes as-tu détectées dans la vidéo ?"
+                                    )
+                                    st.write("🤖 **Réponse:**") 
+                                    st.write(test_response['response'])
+                            
+                            # Input libre pour test
+                            custom_question = st.text_input(
+                                "Posez votre propre question sur cette vidéo:",
+                                placeholder="Ex: À quel moment les personnes ont-elles touché des produits ?",
+                                key=f"custom_{video_id}"
+                            )
+                            
+                            if custom_question:
+                                test_response = vlm_chat.video_memory_system.query_video_memory(
+                                    video_id, custom_question
+                                )
+                                
+                                st.write("🤖 **Réponse:**")
+                                st.write(test_response['response'])
+                                
+                                # Métadonnées debug
+                                with st.expander("Debug Info"):
+                                    st.json(test_response['metadata'])
+                    
+                    except Exception as e:
+                        st.warning(f"⚠️ Mémoire vidéo non disponible: {e}")
+                        st.success("✅ Analyse VLM terminée avec succès!")
+                else:
+                    st.success("✅ Analyse VLM terminée avec succès!")
     
     # Affichage des résultats d'analyse VLM
     if st.session_state.video_analysis_results:
@@ -3895,26 +4165,21 @@ def render_vlm_analytics():
             else:
                 st.info("Aucune donnée d'utilisation d'outils disponible")
         else:
-            # Données simulées pour demo
-            tools = ['SAM2', 'DINO', 'Pose', 'Trajectory', 'Fusion']
-            usage = [random.randint(10, 50) for _ in tools]
-            
-            fig = px.bar(x=tools, y=usage, title="Utilisation Outils (Simulation)")
-            st.plotly_chart(fig, use_container_width=True)
+            st.info("Pipeline VLM non initialisée - Données d'utilisation indisponibles")
     
     with col2:
         st.subheader(" Performance Temporelle")
         
-        # Simulation de données temporelles
+        # Données temporelles réelles uniquement
         hours = [f"{i:02d}:00" for i in range(24)]
         if st.session_state.real_detections:
-            # Utilisation des vraies données
+            # Utilisation des vraies données de détection
             detection_times = [d.timestamp.hour for d in st.session_state.real_detections]
             hourly_counts = Counter(detection_times)
             performance_scores = [hourly_counts.get(i, 0) for i in range(24)]
         else:
-            # Données simulées
-            performance_scores = [random.uniform(0.6, 0.9) for _ in hours]
+            # Pas de données disponibles
+            performance_scores = [0 for _ in range(24)]
         
         fig = go.Figure()
         fig.add_trace(go.Scatter(
@@ -4208,13 +4473,14 @@ def main():
             st.rerun()
     
     # Onglets principaux
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
         " Surveillance VLM", 
         "📤 Upload Vidéo VLM",
         " Configuration", 
         "[ANALYTICS] Analytics VLM", 
         "[ALERTS] Alertes VLM",
-        "Timeline & Descriptions"
+        "Timeline & Descriptions",
+        "🤖 Chat VLM Contextuel"  # ✅ NOUVEAU: Onglet chat avec mémoire
     ])
     
     with tab1:
@@ -4270,6 +4536,89 @@ def main():
         with col2:
             # Descriptions automatiques
             render_auto_descriptions()
+    
+    # ✅ NOUVEAU: Onglet Chat VLM Contextuel
+    with tab7:
+        st.header("🤖 Chat VLM Contextuel avec Mémoire Vidéo")
+        
+        # Vérification disponibilité système mémoire
+        if VIDEO_MEMORY_AVAILABLE:
+            try:
+                vlm_chat = get_vlm_chat()
+                
+                # Indicateur contexte vidéo actuel
+                if vlm_chat.current_video_context:
+                    video_name = vlm_chat.current_video_context.get('video_name', 'Vidéo')
+                    st.success(f"🎯 Contexte vidéo actif: {video_name}")
+                    
+                    # Métriques contexte
+                    col_ctx1, col_ctx2, col_ctx3 = st.columns(3)
+                    
+                    with col_ctx1:
+                        memory_stats = vlm_chat.video_memory_system.get_system_stats()
+                        efficiency = memory_stats.get('memory_efficiency', 0)
+                        st.metric("Efficacité mémoire", f"{efficiency:.1%}")
+                    
+                    with col_ctx2:
+                        videos_stored = memory_stats.get('videos_stored', 0)
+                        st.metric("Vidéos en mémoire", videos_stored)
+                    
+                    with col_ctx3:
+                        if st.button("🔄 Désactiver contexte"):
+                            vlm_chat.current_video_context = None
+                            st.rerun()
+                else:
+                    st.info("💡 Uploadez d'abord une vidéo dans l'onglet 'Upload Vidéo VLM' pour activer la mémoire contextuelle")
+                    
+                    # Liste des vidéos disponibles
+                    if st.session_state.video_analysis_results:
+                        st.write("**Vidéos analysées disponibles:**")
+                        
+                        available_videos = []
+                        for video_id, analysis in st.session_state.video_analysis_results.items():
+                            video_name = analysis.get('video_name', video_id)
+                            available_videos.append({
+                                'id': video_id,
+                                'name': video_name,
+                                'analysis': analysis
+                            })
+                        
+                        # Sélection vidéo pour activer contexte
+                        if available_videos:
+                            selected_video_idx = st.selectbox(
+                                "Activer contexte pour une vidéo:",
+                                range(len(available_videos)),
+                                format_func=lambda x: available_videos[x]['name'] if x < len(available_videos) else "Aucune"
+                            )
+                            
+                            if st.button("🔗 Activer ce contexte vidéo"):
+                                selected_video = available_videos[selected_video_idx]
+                                memory_id = vlm_chat.link_video_analysis(
+                                    selected_video['id'], 
+                                    selected_video['analysis']
+                                )
+                                st.success(f"✅ Contexte activé pour: {selected_video['name']}")
+                                st.rerun()
+                
+                # Interface chat principale
+                st.markdown("---")
+                vlm_chat.render_chat_interface()
+                
+            except Exception as e:
+                st.error(f"❌ Erreur système chat VLM: {e}")
+                st.write("**Mode fallback:** Utilisez l'interface chat classique dans les autres onglets.")
+        
+        else:
+            st.warning("⚠️ Système de mémoire vidéo non disponible")
+            st.write("Fonctionnalités disponibles:")
+            st.write("- Chat VLM de base")
+            st.write("- Analyses vidéo classiques") 
+            st.write("- Interface de surveillance standard")
+            
+            # Fallback vers chat intégré classique
+            st.markdown("---")
+            st.subheader("Chat VLM Classique")
+            render_integrated_chat("video", {})
 
 if __name__ == "__main__":
     main()

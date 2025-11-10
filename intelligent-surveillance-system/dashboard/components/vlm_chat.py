@@ -12,6 +12,7 @@ from pathlib import Path
 from services.session_manager import get_session_manager
 from config.settings import get_dashboard_config
 from services.vlm_integration import get_vlm_service
+from services.video_memory_system import get_video_memory_system
 
 class VLMChatInterface:
     """Interface de chat avancée avec le VLM."""
@@ -24,6 +25,12 @@ class VLMChatInterface:
         
         # Service VLM intégré du projet
         self.vlm_service = get_vlm_service()
+        
+        # ✅ NOUVEAU: Système mémoire vidéo avancé
+        self.video_memory_system = get_video_memory_system()
+        
+        # ✅ NOUVEAU: Contexte vidéo actuel
+        self.current_video_context = None
         
         # Questions prédéfinies
         self.predefined_questions = {
@@ -172,6 +179,10 @@ class VLMChatInterface:
                 else:
                     self._quick_analyze()
         
+        # ✅ NOUVEAU: Indicateur contexte vidéo actif
+        if self.current_video_context:
+            st.info(f"🎯 Contexte vidéo actif: {self.current_video_context.get('video_name', 'vidéo')}")
+        
         with col2:
             if st.button("Quelles alertes ?", use_container_width=True):
                 self._process_user_input("Quelles sont les alertes actives et leur niveau de priorité ?")
@@ -286,6 +297,32 @@ class VLMChatInterface:
                 st.write(f"- **{state.get('name', cam_id)}**: "
                         f"{'Actif' if state.get('enabled', False) else 'Inactif'}")
         
+        # ✅ NOUVEAU: Contexte vidéo actuel
+        if self.current_video_context:
+            st.write("**Contexte vidéo actif:**")
+            col1, col2, col3 = st.columns(3)
+            
+            with col1:
+                st.metric("Vidéo", self.current_video_context.get('video_name', 'N/A'))
+            
+            with col2:
+                linked_time = self.current_video_context.get('linked_timestamp', '')
+                if linked_time:
+                    dt = datetime.fromisoformat(linked_time.replace('Z', '+00:00'))
+                    time_str = dt.strftime("%H:%M:%S")
+                    st.metric("Lié à", time_str)
+            
+            with col3:
+                memory_stats = self.video_memory_system.get_system_stats()
+                efficiency = memory_stats.get('memory_efficiency', 0)
+                st.metric("Efficacité mémoire", f"{efficiency:.1%}")
+            
+            # Bouton pour désactiver contexte
+            if st.button("🔄 Désactiver contexte vidéo"):
+                self.current_video_context = None
+                st.success("Contexte vidéo désactivé")
+                st.rerun()
+        
         # Alertes récentes
         alerts = self.session.get_active_alerts()
         if alerts:
@@ -373,8 +410,34 @@ class VLMChatInterface:
         return context
     
     def _get_vlm_response(self, question: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Obtient une réponse du VLM intégré du projet."""
+        """Obtient une réponse du VLM intégré du projet avec mémoire vidéo."""
         
+        # ✅ NOUVEAU: Check si question porte sur vidéo liée
+        if (self.current_video_context and 
+            self._is_video_related_question(question)):
+            
+            # Query système mémoire vidéo
+            video_id = self.current_video_context['video_id']
+            conversation_history = self.session.get_chat_history()
+            
+            memory_response = self.video_memory_system.query_video_memory(
+                video_id, question, conversation_history
+            )
+            
+            if memory_response['confidence'] > 0.8:
+                # Réponse haute confiance basée sur mémoire
+                return {
+                    'content': memory_response['response'],
+                    'metadata': {
+                        'source': 'video_memory_system',
+                        'confidence': memory_response['confidence'],
+                        'frames_referenced': memory_response['frames_referenced'],
+                        'memory_based': True,
+                        **memory_response['metadata']
+                    }
+                }
+        
+        # Fallback vers VLM service normal
         try:
             # Appel asynchrone au VLM service
             loop = asyncio.new_event_loop()
@@ -417,6 +480,53 @@ class VLMChatInterface:
     def set_vlm_callback(self, callback: Callable[[str, Dict], Dict]):
         """Définit le callback VLM."""
         self.vlm_callback = callback
+    
+    def link_video_analysis(self, video_id: str, analysis_result: Dict) -> str:
+        """
+        Lie une analyse vidéo au chat avec mémoire persistante.
+        """
+        
+        # Stockage dans système mémoire avancé
+        memory_id = self.video_memory_system.store_video_analysis(
+            video_id, analysis_result
+        )
+        
+        # Mise à jour contexte chat actuel
+        self.current_video_context = {
+            'video_id': video_id,
+            'memory_id': memory_id,
+            'video_name': analysis_result.get('video_name', 'vidéo'),
+            'analysis_result': analysis_result,
+            'linked_timestamp': datetime.now().isoformat()
+        }
+        
+        # Message système avec contexte détaillé
+        video_name = analysis_result.get('video_name', 'vidéo')
+        duration = analysis_result.get('analysis_time', 'N/A')
+        frame_count = len(analysis_result.get('detailed_frames', []))
+        
+        self.add_system_message(
+            f"Mémoire vidéo activée: {video_name} "
+            f"({duration}s, {frame_count} frames analysées). "
+            f"Je peux maintenant répondre avec des détails précis sur cette vidéo.",
+            level='success'
+        )
+        
+        return memory_id
+    
+    def _is_video_related_question(self, question: str) -> bool:
+        """
+        Détecte si question porte sur vidéo analysée.
+        """
+        
+        video_keywords = [
+            'vidéo', 'video', 'voir', 'vu', 'observé', 'détecté',
+            'dans cette', 'exactement', 'précis', 'détail',
+            'timeline', 'moment', 'quand', 'combien'
+        ]
+        
+        question_lower = question.lower()
+        return any(keyword in question_lower for keyword in video_keywords)
     
     def add_system_message(self, content: str, level: str = "info"):
         """Ajoute un message système."""
@@ -487,8 +597,14 @@ class VLMChatInterface:
         return st.session_state.get('vlm_initialized', False)
     
     def get_vlm_status(self) -> Dict[str, Any]:
-        """Retourne le statut du VLM."""
-        return self.vlm_service.get_system_status()
+        """Retourne le statut du VLM avec mémoire vidéo."""
+        vlm_status = self.vlm_service.get_system_status()
+        
+        # ✅ NOUVEAU: Ajout stats mémoire vidéo
+        memory_stats = self.video_memory_system.get_system_stats()
+        vlm_status['video_memory'] = memory_stats
+        
+        return vlm_status
     
     def _local_analysis_response(self, question: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Génère une réponse d'analyse locale intelligente (fallback)."""

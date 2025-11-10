@@ -26,6 +26,13 @@ except ImportError:
     VLM_AVAILABLE = False
 
 from services.session_manager import get_session_manager
+# Import du système mémoire vidéo (ajouté pour compatibilité)
+try:
+    from .video_memory_system import get_video_memory_system
+    VIDEO_MEMORY_AVAILABLE = True
+except ImportError:
+    VIDEO_MEMORY_AVAILABLE = False
+    get_video_memory_system = None
 
 class StreamlitVLMService:
     """Service d'intégration VLM pour Streamlit."""
@@ -39,6 +46,9 @@ class StreamlitVLMService:
         
         # Cache pour les analyses
         self.analysis_cache = {}
+        
+        # ✅ NOUVEAU: Système mémoire vidéo si disponible
+        self.video_memory_system = get_video_memory_system() if VIDEO_MEMORY_AVAILABLE else None
         
         # Métriques
         self.stats = {
@@ -163,6 +173,17 @@ class StreamlitVLMService:
                 analysis_time,
                 options
             )
+            
+            # ✅ NOUVEAU: Stockage dans mémoire vidéo si disponible
+            video_id = f"vlm_video_{hash(video_file.name)}_{int(datetime.now().timestamp())}"
+            if self.video_memory_system:
+                try:
+                    self.video_memory_system.store_video_analysis(video_id, aggregated_result)
+                    aggregated_result['video_memory_enabled'] = True
+                    aggregated_result['video_id'] = video_id
+                except Exception as e:
+                    st.warning(f"Mémoire vidéo non disponible: {e}")
+                    aggregated_result['video_memory_enabled'] = False
             
             # Mise à jour des statistiques
             self.stats['videos_analyzed'] += 1
@@ -546,15 +567,26 @@ class StreamlitVLMService:
         }
     
     def get_system_status(self) -> Dict[str, Any]:
-        """Retourne l'état du système VLM."""
+        """Retourne l'état du système VLM avec mémoire vidéo."""
         
-        return {
+        status = {
             'initialized': self.is_initialized,
             'vlm_available': VLM_AVAILABLE,
             'model_loaded': self.vlm_model is not None and self.is_initialized,
             'orchestrator_loaded': self.orchestrator is not None,
-            'stats': self.stats.copy()
+            'stats': self.stats.copy(),
+            'video_memory_available': VIDEO_MEMORY_AVAILABLE
         }
+        
+        # ✅ NOUVEAU: Ajout stats mémoire vidéo si disponible
+        if self.video_memory_system:
+            try:
+                memory_stats = self.video_memory_system.get_system_stats()
+                status['video_memory_stats'] = memory_stats
+            except Exception as e:
+                status['video_memory_error'] = str(e)
+        
+        return status
     
     def cleanup(self):
         """Nettoyage des ressources."""

@@ -3191,18 +3191,20 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                     analysis_results['frames_analyzed'] = len(real_analysis_results)
                     
                     for real_result in real_analysis_results:
-                        detection = {
-                            'frame_number': real_result.frame_id.split('_')[-1],
-                            'timestamp': real_result.timestamp.strftime("%H:%M:%S"),
-                            'type': real_result.action_type.value if hasattr(real_result.action_type, 'value') else str(real_result.action_type),
-                            'confidence': real_result.confidence,
-                            'bbox': real_result.bbox_annotations[0] if real_result.bbox_annotations else [],
-                            'tools_used': real_result.tools_used,
-                            'optimization_score': real_result.optimization_score,
-                            'description': real_result.description,
-                            'suspicion_level': real_result.suspicion_level.value if hasattr(real_result.suspicion_level, 'value') else str(real_result.suspicion_level)
-                        }
-                        analysis_results['detections'].append(detection)
+                        # Vérification que real_result est valide
+                        if real_result and hasattr(real_result, 'frame_id'):
+                            detection = {
+                                'frame_number': real_result.frame_id.split('_')[-1] if real_result.frame_id else str(len(analysis_results['detections'])),
+                                'timestamp': real_result.timestamp.strftime("%H:%M:%S") if real_result.timestamp else "00:00:00",
+                                'type': real_result.action_type.value if hasattr(real_result.action_type, 'value') else str(real_result.action_type),
+                                'confidence': real_result.confidence if hasattr(real_result, 'confidence') else 0.0,
+                                'bbox': real_result.bbox_annotations[0] if real_result.bbox_annotations else [],
+                                'tools_used': real_result.tools_used if hasattr(real_result, 'tools_used') else [],
+                                'optimization_score': real_result.optimization_score if hasattr(real_result, 'optimization_score') else 0.0,
+                                'description': real_result.description if hasattr(real_result, 'description') else "Analyse VLM réussie",
+                                'suspicion_level': real_result.suspicion_level.value if hasattr(real_result.suspicion_level, 'value') else str(real_result.suspicion_level) if hasattr(real_result, 'suspicion_level') else 'LOW'
+                            }
+                            analysis_results['detections'].append(detection)
                     
                     # Performance par outil depuis vraie pipeline
                     pipeline_stats = pipeline.get_performance_stats()

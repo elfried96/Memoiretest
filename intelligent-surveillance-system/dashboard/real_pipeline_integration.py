@@ -29,7 +29,13 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # Imports du système core
+logger = logging.getLogger(__name__)
 try:
+    # Force CPU mode avant tout import PyTorch
+    import os
+    os.environ['CUDA_VISIBLE_DEVICES'] = ''
+    os.environ['TORCH_USE_CUDA_DSA'] = '0'
+    
     from src.core.orchestrator.adaptive_orchestrator import AdaptiveVLMOrchestrator, ContextPattern, ToolPerformanceHistory
     from src.core.vlm.model import VisionLanguageModel
     from src.core.vlm.tools_integration import AdvancedToolsManager
@@ -40,11 +46,12 @@ try:
     from src.core.monitoring.performance_monitor import PerformanceMonitor
     from src.core.monitoring.vlm_metrics import VLMMetricsCollector
     CORE_AVAILABLE = True
-    logger = logging.getLogger(__name__)
     logger.info(" Modules VLM core chargés avec succès")
 except ImportError as e:
-    logger = logging.getLogger(__name__)
     logger.error(f" Impossible d'importer les modules core: {e}")
+    CORE_AVAILABLE = False
+except Exception as e:
+    logger.error(f" Erreur lors du chargement des modules: {e}")
     CORE_AVAILABLE = False
 
 from dashboard.camera_manager import FrameData
@@ -356,11 +363,7 @@ class RealVLMPipeline:
             )
             
             # Analyse avec orchestrateur adaptatif
-            if hasattr(self.orchestrator, 'analyze_with_adaptive_tools'):
-                vlm_response = await self.orchestrator.analyze_with_adaptive_tools(vlm_request)
-            else:
-                # Fallback sur méthode standard
-                vlm_response = await self.orchestrator.analyze(vlm_request)
+            vlm_response = await self.orchestrator.analyze(vlm_request)
             
             if not vlm_response:
                 logger.warning(f" Pas de réponse VLM pour frame {frame_id}")

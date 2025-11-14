@@ -198,6 +198,16 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
         except Exception as e:
             logger.error(f"Erreur sauvegarde données d'optimisation: {e}")
     
+    async def analyze(self, request: AnalysisRequest) -> AnalysisResponse:
+        """Méthode d'analyse principale attendue par la pipeline."""
+        
+        # Conversion de AnalysisRequest vers format compatible
+        frame_data = request.frame_data
+        context = request.context
+        detections = []  # Pas de détections dans AnalysisRequest standard
+        
+        return await self.analyze_surveillance_frame(frame_data, detections, context)
+    
     async def analyze_surveillance_frame(
         self,
         frame_data: str,

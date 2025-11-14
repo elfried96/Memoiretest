@@ -1,5 +1,8 @@
 """SAM2 Segmentation for precise object segmentation."""
 
+import os
+# Force CPU mode pour PyTorch
+os.environ['CUDA_VISIBLE_DEVICES'] = ''
 import torch
 import torch.nn as nn
 import numpy as np

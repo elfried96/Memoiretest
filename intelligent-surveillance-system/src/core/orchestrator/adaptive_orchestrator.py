@@ -190,7 +190,7 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
                 json.dump({
                     "tools": self.current_optimal_tools,
                     "last_updated": datetime.now().isoformat(),
-                    "performance_score": np.mean([p.score for p in self.performance_window]) if self.performance_window else 0.0
+                    "performance_score": np.mean(list(self.performance_window)) if self.performance_window else 0.0
                 }, f, indent=2)
                 
             logger.debug("Données d'optimisation sauvegardées")
@@ -241,9 +241,9 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
                     context_signature, selected_tools, analysis_result, processing_time
                 )
             
-            # 6. Vérification si re-optimisation nécessaire
-            if self._should_reoptimize():
-                asyncio.create_task(self._background_reoptimization())
+            # 6. Vérification si re-optimisation nécessaire (désactivé temporairement)
+            # if self._should_reoptimize():
+            #     asyncio.create_task(self._background_reoptimization())
             
             return analysis_result
             

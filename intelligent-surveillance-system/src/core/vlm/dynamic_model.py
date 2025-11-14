@@ -101,6 +101,9 @@ class DynamicVisionLanguageModel:
         # Performance stats seulement (pas de cache par défaut pour économiser mémoire)
         self._performance_stats = {}
         
+        # Mode simulation pour développement
+        self.simulation_mode = False
+        
         # Chargement du modèle par défaut
         self.default_model = default_model
         logger.info(f"VLM Dynamique initialisé - Modèle par défaut: {default_model}")
@@ -142,8 +145,10 @@ class DynamicVisionLanguageModel:
         is_available, message = self.model_registry.validate_model_availability(model_id)
         if not is_available:
             logger.error(f"Modèle {model_id} non disponible: {message}")
-            # SUPPRIMÉ: Pas de fallback selon standards 2025
-            logger.error("❌ Modèle requis indisponible - arrêt selon standards 2025")
+            logger.error("❌ Modèle requis indisponible - installation nécessaire")
+            logger.info("💡 Pour installer Qwen/Qwen2.5-VL-7B-Instruct:")
+            logger.info("   pip install transformers>=4.48.0")
+            logger.info("   ou utilisez un autre modèle VLM supporté")
             return False
         
         # Récupération config

@@ -30,6 +30,7 @@ class ActionType(Enum):
     """Types d'actions détectées."""
     NORMAL_SHOPPING = "normal_shopping"
     SUSPICIOUS_MOVEMENT = "suspicious_movement"
+    SUSPICIOUS_ACTIVITY = "suspicious_activity"
     ITEM_CONCEALMENT = "item_concealment"
     POTENTIAL_THEFT = "potential_theft"
     CONFIRMED_THEFT = "confirmed_theft"
@@ -162,6 +163,7 @@ class AnalysisResponse(BaseModel):
     confidence: float = Field(..., ge=0.0, le=1.0)
     description: str
     reasoning: str = Field(default="", description="Processus de raisonnement du modèle")
+    detections: List[Dict[str, Any]] = Field(default_factory=list, description="Liste des détections d'objets")
     tools_used: List[str] = Field(default_factory=list)
     recommendations: List[str] = Field(default_factory=list)
     timestamp: datetime = Field(default_factory=datetime.now)

@@ -281,6 +281,10 @@ class DynamicVisionLanguageModel:
     async def _load_qwen_model(self, config, model_kwargs) -> bool:
         """Chargement spécifique Qwen2-VL et Qwen2.5-VL."""
         try:
+            # Désactiver hf_transfer pour éviter l'erreur
+            import os
+            os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '0'
+            
             from transformers import AutoProcessor
             
             # Support Qwen2.5-VL et Qwen2-VL

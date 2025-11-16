@@ -65,6 +65,17 @@ class VLMChatbotCache:
             'total_requests': 0
         }
     
+    def _serialize_for_json(self, obj):
+        """Convertit récursivement les datetime en string pour JSON."""
+        if isinstance(obj, dict):
+            return {key: self._serialize_for_json(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._serialize_for_json(item) for item in obj]
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
+        else:
+            return obj
+    
     def _hash_question(self, question: str, chat_type: str) -> str:
         """Hash normalisé de la question."""
         normalized = f"{chat_type}:{question.lower().strip()}"
@@ -116,6 +127,9 @@ class VLMChatbotCache:
                     response = cached.response_data.copy()
                     response['_cache_hit'] = True
                     response['_cache_age'] = (datetime.now() - cached.timestamp).total_seconds()
+                    
+                    # Convertir tous les datetime en string pour JSON
+                    response = self._serialize_for_json(response)
                     
                     return response
             
@@ -426,7 +440,8 @@ class VLMChatbotPerformanceOptimizer:
                 'optimizations': ['compression', 'batching']
             }
             
-            return response
+            # Sérialiser pour éviter les erreurs JSON avec datetime
+            return self.cache._serialize_for_json(response)
             
         except Exception as e:
             processing_time = time.time() - start_time

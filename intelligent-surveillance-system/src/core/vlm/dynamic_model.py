@@ -64,7 +64,7 @@ class DynamicVisionLanguageModel:
     
     def __init__(
         self,
-        default_model: str = "Qwen/Qwen2.5-VL-32B-Instruct",
+        default_model: str = "qwen2.5-vl-32b-instruct",
         device: str = "auto", 
         enable_fallback: bool = True
     ):

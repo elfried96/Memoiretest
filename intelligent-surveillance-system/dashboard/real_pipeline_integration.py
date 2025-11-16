@@ -108,7 +108,7 @@ class RealVLMPipeline:
     """Pipeline VLM réelle intégrée au dashboard."""
     
     def __init__(self, 
-                 vlm_model_name: str = "Qwen/Qwen2.5-VL-7B-Instruct",
+                 vlm_model_name: str = "qwen2.5-vl-32b-instruct",
                  enable_optimization: bool = True,
                  max_concurrent_analysis: int = 2):
         

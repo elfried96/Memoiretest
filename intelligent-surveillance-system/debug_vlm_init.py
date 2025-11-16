@@ -49,7 +49,7 @@ def test_pipeline_creation():
         from dashboard.real_pipeline_integration import RealVLMPipeline
         
         pipeline = RealVLMPipeline(
-            vlm_model_name="Qwen/Qwen2.5-VL-7B-Instruct",
+            vlm_model_name="qwen2.5-vl-32b-instruct",
             enable_optimization=False  # Désactiver pour debug
         )
         logger.info(" Instance pipeline créée")
@@ -95,7 +95,7 @@ def test_sync_init():
         from dashboard.real_pipeline_integration import initialize_real_pipeline
         
         success = initialize_real_pipeline(
-            vlm_model_name="Qwen/Qwen2.5-VL-7B-Instruct",
+            vlm_model_name="qwen2.5-vl-32b-instruct",
             enable_optimization=False
         )
         logger.info(f" Résultat sync init: {success}")

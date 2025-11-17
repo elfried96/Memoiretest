@@ -423,6 +423,10 @@ class VLMChatbotPerformanceOptimizer:
                 question, chat_type, compressed_context, vlm_processor
             )
             
+            # Nettoyer immédiatement les datetime de la réponse
+            if response:
+                response = self.cache._serialize_for_json(response)
+            
             # 4. Mise en cache
             if response and response.get('confidence', 0) > 0.7:
                 self.cache.put(question, chat_type, original_context, response)

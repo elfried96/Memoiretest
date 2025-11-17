@@ -511,7 +511,7 @@ if AUTO_INIT_VLM and not st.session_state.pipeline_initialized and PIPELINE_AVAI
     try:
         with st.spinner(" Initialisation automatique de la pipeline VLM..."):
             if initialize_real_pipeline(
-                vlm_model_name="qwen2.5-vl-32b-instruct",
+                vlm_model_name="qwen2.5-vl-7b-instruct",
                 enable_optimization=True
             ):
                 st.success(" Pipeline VLM réelle initialisée automatiquement!")
@@ -815,7 +815,7 @@ async def initialize_pipeline():
             # Initialisation de la pipeline  
             logger.info("📞 Appel initialize_real_pipeline...")
             success = initialize_real_pipeline(
-                vlm_model_name="qwen2.5-vl-32b-instruct",
+                vlm_model_name="qwen2.5-vl-7b-instruct",
                 enable_optimization=True
             )
             logger.info(f" Résultat initialize_real_pipeline: {success}")

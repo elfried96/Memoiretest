@@ -73,7 +73,7 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
     
     def __init__(
         self,
-        vlm_model_name: str = "qwen2.5-vl-32b-instruct",
+        vlm_model_name: str = "qwen2.5-vl-7b-instruct",
         config: OrchestrationConfig = None,
         enable_adaptive_learning: bool = True,
         optimization_data_path: Optional[Path] = None

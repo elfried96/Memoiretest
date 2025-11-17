@@ -80,7 +80,7 @@ class StreamlitVLMService:
                 # Chargement VLM
                 if not self.vlm_model:
                     self.vlm_model = VisionLanguageModel(
-                        model_name="qwen2.5-vl-32b-instruct",
+                        model_name="qwen2.5-vl-7b-instruct",
                         device="auto",
                         load_in_4bit=True
                     )

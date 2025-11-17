@@ -43,7 +43,7 @@ class ModernVLMOrchestrator:
     
     def __init__(
         self, 
-        vlm_model_name: str = "qwen2.5-vl-32b-instruct",
+        vlm_model_name: str = "qwen2.5-vl-7b-instruct",
         config: OrchestrationConfig = None
     ):
         self.config = config or OrchestrationConfig()

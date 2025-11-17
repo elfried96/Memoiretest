@@ -9,6 +9,12 @@ Connecte le dashboard aux vrais composants du système :
 - Pipeline complète de détection
 """
 
+import os
+# Configuration GPU optimale pour Qwen2.5-VL-7B-Instruct
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Utiliser GPU 0
+os.environ['TORCH_USE_CUDA_DSA'] = '1'   # Activer optimisations CUDA
+os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '1'  # Activer téléchargement rapide
+
 import asyncio
 import sys
 from pathlib import Path
@@ -31,10 +37,6 @@ if str(project_root) not in sys.path:
 # Imports du système core
 logger = logging.getLogger(__name__)
 try:
-    # Force CPU mode avant tout import PyTorch
-    import os
-    os.environ['CUDA_VISIBLE_DEVICES'] = ''
-    os.environ['TORCH_USE_CUDA_DSA'] = '0'
     
     from src.core.orchestrator.adaptive_orchestrator import AdaptiveVLMOrchestrator, ContextPattern, ToolPerformanceHistory
     from src.core.vlm.model import VisionLanguageModel
@@ -64,15 +66,15 @@ class RealAnalysisResult:
     camera_id: str
     timestamp: datetime
     
-    # Résultats VLM
-    suspicion_level: SuspicionLevel
-    action_type: ActionType
+    # Résultats VLM (utiliser Any pour éviter l'erreur d'import)
+    suspicion_level: Any  # SuspicionLevel
+    action_type: Any      # ActionType
     confidence: float
     description: str
     
     # Détections spécifiques
     detections: List[Dict[str, Any]]
-    tool_results: Dict[str, ToolResult]
+    tool_results: Dict[str, Any]  # ToolResult
     
     # Métriques de performance
     processing_time: float
@@ -108,7 +110,7 @@ class RealVLMPipeline:
     """Pipeline VLM réelle intégrée au dashboard."""
     
     def __init__(self, 
-                 vlm_model_name: str = "qwen2.5-vl-32b-instruct",
+                 vlm_model_name: str = "qwen2.5-vl-7b-instruct",
                  enable_optimization: bool = True,
                  max_concurrent_analysis: int = 2):
         
@@ -191,8 +193,8 @@ class RealVLMPipeline:
             logger.info(" Initialisation VisionLanguageModel...")
             self.vlm_model = VisionLanguageModel(
                 model_name=self.vlm_model_name,
-                device="auto",
-                load_in_4bit=True,
+                device="cuda",  # Force GPU
+                load_in_4bit=True,  # Quantization pour performance
                 max_tokens=512
             )
             

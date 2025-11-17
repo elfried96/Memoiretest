@@ -44,7 +44,7 @@ class DynamicVisionLanguageModel:
     - Qwen/Qwen2.5-VL-7B-Instruct: Modèle principal pour surveillance
     - Qwen/Qwen2.5-VL-7B-Instruct-2506: Version améliorée
     - qwen2-vl-7b-instruct: Fallback robuste
-    - qwen2.5-vl-32b-instruct: Version haute performance
+    - qwen2.5-vl-7b-instruct: Version haute performance
     
     Attributes:
         device (torch.device): Device de computation (GPU/CPU)
@@ -64,8 +64,8 @@ class DynamicVisionLanguageModel:
     
     def __init__(
         self,
-        default_model: str = "qwen2.5-vl-32b-instruct",
-        device: str = "auto", 
+        default_model: str = "qwen2.5-vl-7b-instruct",
+        device: str = "cuda", 
         enable_fallback: bool = True
     ):
         """

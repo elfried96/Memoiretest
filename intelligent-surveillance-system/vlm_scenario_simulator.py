@@ -10,6 +10,12 @@ Usage:
     python vlm_scenario_simulator.py
 """
 
+# Configuration GPU optimale pour Qwen2.5-VL-7B-Instruct
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Utiliser GPU 0
+os.environ['TORCH_USE_CUDA_DSA'] = '1'   # Activer optimisations CUDA  
+os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '1'  # Activer téléchargement rapide
+
 import json
 import sys
 import time
@@ -385,18 +391,49 @@ Fournissez une analyse structuree avec:
                 'timestamp': datetime.now()
             }
             
-            # Appel VLM reel (asynchrone)
+            # Appel VLM reel directement (évite les optimisations chatbot qui causent l'erreur datetime)
             import asyncio
+            from src.core.types import AnalysisRequest
+            
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
-            response = loop.run_until_complete(
-                process_vlm_chat_query(
-                    question=vlm_prompt,
-                    chat_type='surveillance',
-                    vlm_context=mock_context
+            # Créer une image factice pour AnalysisRequest
+            import numpy as np
+            import cv2
+            import base64
+            fake_image = np.zeros((480, 640, 3), dtype=np.uint8)
+            _, buffer = cv2.imencode('.jpg', fake_image)
+            frame_data_b64 = base64.b64encode(buffer).decode('utf-8')
+            
+            # Utiliser directement l'orchestrateur VLM sans les optimisations chatbot
+            if self.vlm_pipeline and hasattr(self.vlm_pipeline, 'orchestrator'):
+                vlm_request = AnalysisRequest(
+                    frame_data=frame_data_b64,
+                    context={"surveillance_prompt": vlm_prompt, **mock_context}
                 )
-            )
+                
+                response = loop.run_until_complete(
+                    self.vlm_pipeline.orchestrator.analyze(vlm_request)
+                )
+                
+                # Convertir AnalysisResponse en format attendu
+                response = {
+                    'response': response.description,
+                    'reasoning': response.reasoning,
+                    'confidence': response.confidence,
+                    'suspicion_level': response.suspicion_level.value,
+                    'action_type': response.action_type.value
+                }
+            else:
+                # Fallback vers chatbot si orchestrateur non disponible
+                response = loop.run_until_complete(
+                    process_vlm_chat_query(
+                        question=vlm_prompt,
+                        chat_type='surveillance',
+                        vlm_context=mock_context
+                    )
+                )
             
             loop.close()
             

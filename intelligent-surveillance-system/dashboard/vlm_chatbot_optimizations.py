@@ -447,7 +447,7 @@ class VLMChatbotPerformanceOptimizer:
             processing_time = time.time() - start_time
             logger.error(f" Erreur optimization chatbot: {e}")
             
-            return {
+            error_response = {
                 'type': 'optimization_error',
                 'response': f" Erreur optimisation: {str(e)}",
                 'confidence': 0.0,
@@ -457,6 +457,9 @@ class VLMChatbotPerformanceOptimizer:
                     'error': str(e)
                 }
             }
+            
+            # Sérialiser pour éviter les erreurs JSON avec datetime
+            return self.cache._serialize_for_json(error_response)
     
     def _update_perf_stats(self, processing_time: float, cache_hit: bool):
         """Met à jour les statistiques de performance."""

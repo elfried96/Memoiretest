@@ -400,10 +400,13 @@ Fournissez une analyse structuree avec:
             
             loop.close()
             
+            # Nettoyer les datetime de la réponse pour éviter les erreurs JSON
+            clean_response = self._clean_datetime_from_response(response)
+            
             return {
-                'vlm_response': response.get('response', ''),
-                'thinking': response.get('thinking', ''),
-                'confidence': response.get('confidence', 0.0),
+                'vlm_response': clean_response.get('response', ''),
+                'thinking': clean_response.get('thinking', ''),
+                'confidence': clean_response.get('confidence', 0.0),
                 'source': 'real_vlm'
             }
             
@@ -411,10 +414,23 @@ Fournissez une analyse structuree avec:
             print(f"Erreur VLM reel: {e}")
             return None
     
+    def _clean_datetime_from_response(self, obj):
+        """Nettoie récursivement les datetime des réponses VLM."""
+        from datetime import datetime
+        
+        if isinstance(obj, dict):
+            return {key: self._clean_datetime_from_response(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._clean_datetime_from_response(item) for item in obj]
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
+        else:
+            return obj
+    
     def run_simulation(self, scenario_text: str, scenario_name: str = None) -> Dict:
         """Execute une simulation complete."""
         print("\nAnalyse en cours avec votre pipeline VLM...")
-        time.sleep(200)  # Simulation du temps de traitement
+        time.sleep(2)  # Simulation du temps de traitement (2 secondes)
         
         # Tente d'abord avec le VLM reel
         real_vlm_result = self.simulate_with_real_vlm(scenario_text)
@@ -462,10 +478,30 @@ Fournissez une analyse structuree avec:
         if result.get('source') == 'real_vlm':
             # Affichage pour VLM reel
             print(" PIPELINE VLM RÉELLE UTILISÉE")
-            print(result.get('vlm_response', ''))
+            
+            # Extraire le texte de la réponse VLM
+            vlm_response = result.get('vlm_response', {})
+            
+            # Si c'est un dictionnaire, extraire le texte de réponse
+            if isinstance(vlm_response, dict):
+                response_text = vlm_response.get('response', vlm_response.get('description', ''))
+                reasoning_text = vlm_response.get('reasoning', '')
+                confidence = vlm_response.get('confidence', 0.0)
+                
+                if response_text:
+                    print(f"📊 ANALYSE: {response_text}")
+                if reasoning_text and reasoning_text != response_text:
+                    print(f"🤔 RAISONNEMENT: {reasoning_text}")
+            else:
+                # Si c'est déjà du texte, l'afficher directement
+                print(f"📊 RÉPONSE VLM: {vlm_response}")
+                confidence = result.get('confidence', 0.0)
+            
+            # Thinking si disponible
             if result.get('thinking'):
-                print(f"\nThinking VLM: {result['thinking']}")
-            print(f"\nConfiance VLM: {result.get('confidence', 0):.2%}")
+                print(f"💭 THINKING: {result['thinking']}")
+            
+            print(f"\n✅ Confiance VLM: {confidence:.2%}")
         
         else:
             # Affichage pour simulation locale

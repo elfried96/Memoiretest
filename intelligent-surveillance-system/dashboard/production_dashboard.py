@@ -35,6 +35,7 @@ import logging
 
 # Configuration du logger
 logging.basicConfig(level=logging.INFO)
+logging.getLogger('streamlit.script_run_context').setLevel(logging.ERROR)
 logger = logging.getLogger(__name__)
 
 # Import contexte vidéo
@@ -1170,7 +1171,7 @@ class NetworkQualityMonitor:
                 for i, url in enumerate(test_urls[:2]):  # Max 2 serveurs
                     try:
                         start_time = time.perf_counter()
-                        response = requests.get(url, timeout=4, 
+                        response = requests.get(url, timeout=8, 
                                               headers={'User-Agent': 'NetworkMonitor/1.0'})
                         if response.status_code == 200:
                             latency = (time.perf_counter() - start_time) * 1000
@@ -1204,7 +1205,7 @@ class NetworkQualityMonitor:
                     
                     speed_start = time.perf_counter()
                     response = requests.get(f'https://httpbin.org/bytes/{test_size}', 
-                                          timeout=10, stream=True,
+                                          timeout=20, stream=True,
                                           headers={'User-Agent': 'SpeedTest/1.0'})
                     
                     total_bytes = 0

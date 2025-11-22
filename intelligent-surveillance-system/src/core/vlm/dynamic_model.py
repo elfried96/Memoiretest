@@ -582,7 +582,7 @@ STRICT: Commence directement par { et termine par }. Aucun texte avant/après.""
                     "temperature": 0.8,     # ✅ Doc officielle: 0.8 pour Thinking models  
                     "do_sample": True,      # ✅ Nécessaire avec temperature
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
-                    "use_cache": False,      # ❌ DÉSACTIVER cache pour éviter DynamicCache bug (transformers >= 4.55)
+                    "use_cache": True,      # ✅ RÉACTIVÉ pour performance vidéo
                     "return_dict_in_generate": False,
                     "output_attentions": False,
                     "output_hidden_states": False
@@ -594,7 +594,7 @@ STRICT: Commence directement par { et termine par }. Aucun texte avant/après.""
                     "temperature": 0.1,     # ✅ Stable pour Qwen2-VL
                     "do_sample": True,
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
-                    "use_cache": False,      # ❌ DÉSACTIVER cache pour éviter DynamicCache bug (transformers >= 4.55)
+                    "use_cache": True,      # ✅ RÉACTIVÉ pour performance vidéo cruciale
                     "return_dict_in_generate": False,  # Simplifier retour
                     "output_attentions": False,
                     "output_hidden_states": False
@@ -656,34 +656,47 @@ STRICT: Commence directement par { et termine par }. Aucun texte avant/après.""
             raise ProcessingError(f"Génération échouée: {e}")
     
     def _extract_json_from_qwen_response(self, response: str) -> str:
-        """Extrait le JSON de la réponse Qwen2-VL qui peut contenir du texte supplémentaire."""
+        """
+        Extrait le JSON de la réponse Qwen2-VL qui peut contenir du texte supplémentaire.
+        Priorise les blocs JSON marqués avec ```json.
+        """
         import re
         import json
         
         try:
-            # Chercher un JSON valide dans la réponse
-            # Pattern pour trouver du JSON entre accolades
+            # 1. Chercher un bloc JSON démarqué par ```json
+            markdown_match = re.search(r"```json\s*(\{.*?\})\s*```", response, re.DOTALL)
+            if markdown_match:
+                json_str = markdown_match.group(1)
+                try:
+                    # Tester si c'est un JSON valide
+                    parsed = json.loads(json_str)
+                    if 'suspicion_level' in parsed and 'action_type' in parsed:
+                        logger.debug("JSON extrait avec succès depuis un bloc markdown ```json")
+                        return json_str
+                except json.JSONDecodeError:
+                    logger.warning("Bloc markdown ```json trouvé mais invalide, tentative suivante.")
+
+            # 2. Si pas de bloc markdown, chercher le premier JSON valide dans la réponse
             json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
             matches = re.findall(json_pattern, response, re.DOTALL)
             
             for match in matches:
                 try:
-                    # Tester si c'est un JSON valide
                     parsed = json.loads(match)
-                    # Vérifier qu'il contient les champs requis
                     if 'suspicion_level' in parsed and 'action_type' in parsed:
-                        logger.debug(f"JSON extrait avec succès de la réponse Qwen2-VL")
+                        logger.debug(f"JSON générique extrait avec succès de la réponse Qwen2-VL")
                         return match
                 except json.JSONDecodeError:
                     continue
             
-            # Si aucun JSON valide trouvé, essayer d'en construire un à partir du texte
-            logger.warning("Aucun JSON valide trouvé, construction depuis texte")
+            # 3. Si aucun JSON valide trouvé, construire un JSON à partir du texte
+            logger.warning("Aucun JSON valide trouvé, construction depuis le texte brut.")
             return self._construct_json_from_text(response)
             
         except Exception as e:
-            logger.error(f"Erreur extraction JSON: {e}")
-            return response  # Retourner la réponse originale
+            logger.error(f"Erreur majeure lors de l'extraction JSON: {e}")
+            return response  # Retourner la réponse originale en dernier recours
     
     def _construct_json_from_text(self, text: str) -> str:
         """Construit un JSON valide à partir du texte libre de Qwen2-VL."""

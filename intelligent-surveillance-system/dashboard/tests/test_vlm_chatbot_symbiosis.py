@@ -1,0 +1,1 @@
+# Tests for vlm_chatbot_symbiosis.py

@@ -102,9 +102,9 @@ class VLMModelRegistry:
             description="FALLBACK - Qwen2-VL 7B robuste si Kimi indisponible"
         )
         
-        # Qwen2.5-VL-32B-Instruct (NOUVELLE VERSION PUISSANTE)
+        # Qwen2.5-VL-7B-Instruct (NOUVELLE VERSION PUISSANTE)
         models["qwen2.5-vl-7b-instruct"] = ModelConfig(
-            model_name="Qwen/Qwen2.5-VL-32B-Instruct",
+            model_name="Qwen/Qwen2.5-VL-7B-Instruct",
             model_type=VLMModelType.QWEN,
             processor_class="AutoProcessor",
             model_class="Qwen2_5_VLForConditionalGeneration",

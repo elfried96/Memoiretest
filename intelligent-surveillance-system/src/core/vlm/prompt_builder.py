@@ -49,10 +49,27 @@ INDICATEUR #1 À DÉTECTER: ARTICLES DANS SAC PERSONNEL
 • SUSPECT: Client place articles directement dans SON SAC/POCHE
 • Si tu observes cela → SUSPICION HIGH immédiate (score 0.8+)
 
-{video_context_section}
+        
 
-CONTEXTE SURVEILLANCE:
-- Zone: {location}
+        {video_context_section}
+
+
+
+        📜 DIRECTIVES IMPÉRATIVES POUR CETTE ANALYSE :
+
+        =============================================
+
+        1.  **LA VÉRITÉ DE L'OPÉRAFEUR EST ABSOLUE** : Si l'opérateur fournit une description, ton unique but est de trouver les preuves visuelles qui la confirment. Ne la contredis JAMAIS. Le contexte utilisateur PRÉVAUT sur ta connaissance générale.
+
+        2.  **DÉCRIS UNIQUEMENT LE VISIBLE** : N'invente AUCUN objet. Si tu ne vois pas de **panier** ou de **caddie**, n'en parle pas. Fais la distinction claire entre un **sac personnel** et un panier de magasin.
+
+        3.  **DÉFINITION DU VOL POUR CETTE MISSION** : L'acte de placer un produit directement dans un **sac personnel**, un sac à dos, une poche ou sous un vêtement est, par définition, un comportement de **SUSPICION ÉLEVÉE**.
+
+        4.  **RAISONNEMENT CONTEXTUALISÉ** : Dans ta réponse JSON, ton champ "reasoning" DOIT commencer par expliquer comment tu as utilisé la "Description détaillée utilisateur" pour guider ton analyse.
+
+
+
+        CONTEXTE SURVEILLANCE:- Zone: {location}
 - Horodatage: {timestamp}
 - Historique: {previous_detections}
 

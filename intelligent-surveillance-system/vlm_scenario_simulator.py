@@ -370,19 +370,24 @@ class VLMScenarioSimulator:
                 return None
         
         try:
-            # Construction du prompt pour simulation
-            vlm_prompt = f"""
-Analysez ce scenario de surveillance et fournissez un raisonnement Chain-of-Thought structure:
-
-SCENARIO: {scenario_text}
-
-Fournissez une analyse structuree avec:
-1. Observation systematique et tout en faisant attention à tout les détails 
-2. Analyse comportementale  
-3. Correlation données outils
-4. Evaluation suspicion
-5. Decision finale avec niveau (LOW/MEDIUM/HIGH/CRITICAL) tout en donnant des explication claire sur la situation en donnant des recommandations d'action à mener 
-"""
+            # NOUVEAU: Utilisation du PromptBuilder renforcé
+            from src.core.vlm.prompt_builder import PromptBuilder
+            prompt_builder = PromptBuilder()
+            
+            # Simuler le contexte vidéo comme s'il venait du dashboard
+            mock_video_context = {
+                'title': "Simulation de Scénario",
+                'location_type': "Magasin/Commerce",
+                'time_context': "Heures ouverture",
+                'suspicious_focus': ["Vol à l'étalage", "Mouvements suspects"],
+                'detailed_description': scenario_text # Le texte du scénario est la description de l'opérateur
+            }
+            
+            vlm_prompt = prompt_builder.build_surveillance_prompt(
+                context=mock_context,
+                available_tools=self.available_tools,
+                video_context_metadata=mock_video_context
+            )
             
             # Simulation du contexte surveillance
             mock_context = {

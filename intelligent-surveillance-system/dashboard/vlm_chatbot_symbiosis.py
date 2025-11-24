@@ -724,7 +724,8 @@ def get_vlm_chatbot() -> VLMChatbotSymbiosis:
 async def process_vlm_chat_query(
     question: str, 
     chat_type: str = "surveillance",
-    vlm_context: Dict[str, Any] = None
+    vlm_context: Dict[str, Any] = None,
+    real_pipeline: Optional[RealVLMPipeline] = None
 ) -> Dict[str, Any]:
     """
     Interface principale pour traiter les questions chatbot avec VLM.
@@ -732,4 +733,9 @@ async def process_vlm_chat_query(
     Remplace l'ancien generate_real_vlm_response() statique.
     """
     chatbot = get_vlm_chatbot()
+    
+    # NOUVEAU: Injection explicite de la pipeline si fournie
+    if real_pipeline:
+        chatbot.pipeline = real_pipeline
+        
     return await chatbot.process_chat_query(question, chat_type, vlm_context)

@@ -868,6 +868,33 @@ STRICT: Commence directement par { et termine par }. Aucun texte avant/après.""
         print(f"  📋 Recommandations: {', '.join(analysis_result.recommendations)}")
         print("="*80 + "\n")
 
+    async def is_scene_interesting(self, frame_data: str) -> bool:
+        """
+        Analyse rapide pour déterminer si la scène contient des éléments d'intérêt.
+        Retourne True si la scène est intéressante, False sinon.
+        """
+        try:
+            if not self.is_loaded:
+                await self.load_model()
+
+            image = self._prepare_image(frame_data)
+            
+            # Prompt très simple et direct
+            prompt = "Analyse cette image. Y a-t-il des personnes, des objets en mouvement ou des interactions notables ? Réponds uniquement par 'OUI' ou 'NON'."
+            
+            # Utilise une configuration de génération rapide
+            # Pour simplifier, nous appelons directement _generate_response
+            # car il est déjà assez rapide pour ce genre de requête.
+            
+            response_text = await self._generate_response(image, prompt)
+            
+            # Analyse simple de la réponse
+            return "OUI" in response_text.upper()
+
+        except Exception as e:
+            logger.warning(f"Échec de l'analyse préliminaire de la scène : {e}. Scène considérée comme intéressante par défaut.")
+            return True # En cas de doute, on analyse
+
     async def shutdown(self):
         """Arrêt propre."""
         logger.info("Arrêt du VLM dynamique...")

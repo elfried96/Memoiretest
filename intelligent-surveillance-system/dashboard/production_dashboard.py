@@ -412,7 +412,7 @@ def render_detection_timeline():
                 showlegend=True
             )
             
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, width='stretch')
             
             # Statistiques rapides
             col1, col2, col3, col4 = st.columns(4)
@@ -2718,60 +2718,89 @@ def render_integrated_chat(chat_type: str, context_data: Dict = None):
 async def generate_real_vlm_response(question: str, chat_type: str, context_data: Dict) -> str:
     """Génère une réponse VLM intelligente avec thinking/reasoning."""
     
-    if not PIPELINE_AVAILABLE:
-        return " Pipeline VLM non disponible - Chat indisponible."
+    # Récupération de la pipeline depuis l'état de session
+    real_pipeline = st.session_state.get('real_pipeline')
+
+    if not PIPELINE_AVAILABLE or not real_pipeline or not real_pipeline.initialized:
+        return "Pipeline VLM non disponible ou non initialisée. Chat indisponible."
     
-    # Récupération des vraies données pour contexte VLM
-    vlm_context = {}
-    if st.session_state.pipeline_initialized and st.session_state.real_pipeline:
-        vlm_context = {
-            'stats': st.session_state.real_pipeline.get_performance_stats(),
-            'tools': st.session_state.real_pipeline.get_tool_performance_details(),
-            'detections': st.session_state.real_detections[-10:],
-            'optimizations': st.session_state.optimization_results[-5:],
-            'alerts': st.session_state.real_alerts[-5:]
-        }
+    # Contexte VLM enrichi
+    vlm_context = {
+        'stats': real_pipeline.get_performance_stats(),
+        'tools': real_pipeline.get_tool_performance_details(),
+        'detections': st.session_state.real_detections[-10:],
+        'optimizations': st.session_state.optimization_results[-5:],
+        'alerts': st.session_state.real_alerts[-5:]
+    }
     
     try:
-        #  APPEL VLM CHATBOT AVEC THINKING/REASONING
+        # APPEL VLM CHATBOT avec injection de la pipeline
         response_data = await process_vlm_chat_query(
             question=question,
             chat_type=chat_type, 
-            vlm_context=vlm_context
+            vlm_context=vlm_context,
+            real_pipeline=real_pipeline  # Injection directe de la pipeline
         )
         
         # Formatage pour interface chat Streamlit
         if response_data.get("type") == "vlm_thinking":
-            # Réponse VLM complète avec thinking
-            response_text = f""" **Analyse VLM avec Thinking:**
+            response_text = f"""**Analyse VLM avec Thinking:**
 
 **Processus de Raisonnement:**
-{response_data.get('thinking', 'Thinking non disponible')[:300]}...
+{response_data.get('thinking', 'Thinking non disponible')}
 
-**[ANALYSIS] Analyse Technique:**
-{response_data.get('analysis', 'Analyse non disponible')[:200]}...
-
-**[RESPONSE] Réponse:**
+**Réponse:**
 {response_data.get('response', 'Réponse non disponible')}
 
-**[DETAILS] Détails Techniques:**
-{response_data.get('technical_details', 'Détails non disponibles')}
-
-**[RECOMMENDATIONS] Recommandations:**
-{' | '.join(response_data.get('recommendations', [])[:3])}
-
-**[CONFIDENCE] Confiance:** {response_data.get('confidence', 0):.1%} | **[QUALITY] Qualité Données:** {response_data.get('data_quality', 'medium')}"""
-            
+**Recommandations:**
+{' | '.join(response_data.get('recommendations', []))}
+"""
             return response_text
             
         else:
-            # Fallback ou réponse basique
-            return response_data.get("response", " Réponse VLM générée.")
+            return response_data.get("response", "Réponse VLM générée.")
             
     except Exception as e:
-        # Fallback sur ancien système si erreur VLM
         logger.error(f"Erreur chatbot VLM: {e}")
-        return f" Erreur VLM chatbot: {str(e)}. Utilisant fallback basique."
+        return f"Erreur VLM chatbot: {str(e)}."
+
+def group_alerts_into_incidents(alerts: List[Dict], time_threshold_seconds: int = 60) -> List[Dict]:
+    """Regroupe les alertes en incidents basés sur la caméra et le temps."""
+    incidents = []
+    # Assurer que les alertes ont bien un timestamp
+    valid_alerts = [a for a in alerts if isinstance(a.get('timestamp'), datetime)]
+    sorted_alerts = sorted(valid_alerts, key=lambda x: x['timestamp'])
+    
+    for alert in sorted_alerts:
+        found_incident = False
+        for incident in reversed(incidents):
+            if (incident['camera'] == alert['camera'] and
+                (alert['timestamp'] - incident['end_time']).total_seconds() < time_threshold_seconds):
+                
+                incident['alerts'].append(alert)
+                incident['end_time'] = alert['timestamp']
+                
+                suspicion_levels = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+                current_max_level = suspicion_levels.get(incident['highest_suspicion'], 1)
+                new_level = suspicion_levels.get(alert['level'], 1)
+                if new_level > current_max_level:
+                    incident['highest_suspicion'] = alert['level']
+                
+                found_incident = True
+                break
+        
+        if not found_incident:
+            incidents.append({
+                'id': f"incident_{alert['timestamp'].timestamp()}",
+                'camera': alert['camera'],
+                'start_time': alert['timestamp'],
+                'end_time': alert['timestamp'],
+                'alerts': [alert],
+                'highest_suspicion': alert['level'],
+                'summary': alert['message']
+            })
+            
+    return incidents
 
 def render_surveillance_tab():
     """Onglet surveillance avec vraie intégration VLM."""
@@ -2860,23 +2889,45 @@ def render_surveillance_tab():
                         st.session_state.cameras[camera['id']]['active'] = True
                         st.rerun()
     
+    # NOUVEAU: Affichage des incidents regroupés
+    if st.session_state.real_alerts:
+        st.subheader("🚨 Fil d'Incidents en Temps Réel")
+        
+        incidents = group_alerts_into_incidents(st.session_state.real_alerts, time_threshold_seconds=120)
+        
+        # Afficher les incidents les plus récents en premier
+        for incident in reversed(incidents[-5:]): # 5 derniers incidents
+            suspicion_color = 'red' if 'HIGH' in incident['highest_suspicion'] or 'CRITICAL' in incident['highest_suspicion'] else 'orange' if 'MEDIUM' in incident['highest_suspicion'] else 'green'
+            
+            with st.container():
+                st.markdown(f"""
+                <div class="real-analysis-result">
+                    <h5>[INCIDENT] <span style="color: {suspicion_color};">{incident['highest_suspicion']}</span> - {incident['summary']}</h5>
+                    <p>
+                        <strong>Caméra:</strong> {incident['camera']} | 
+                        <strong>Durée:</strong> {incident['start_time'].strftime('%H:%M:%S')} - {incident['end_time'].strftime('%H:%M:%S')} |
+                        <strong>Alertes:</strong> {len(incident['alerts'])}
+                    </p>
+                </div>
+                """, unsafe_allow_html=True)
+
+                with st.expander("Voir les détails des alertes"):
+                    for alert in incident['alerts']:
+                        st.markdown(f"""
+                        - **{alert['timestamp'].strftime('%H:%M:%S')}**: {alert['message']} (Confiance: {alert.get('confidence', 0):.1%})
+                        """)
+    
     # Affichage des détections VLM récentes
     if st.session_state.real_detections:
-        st.subheader(" Détections VLM Récentes")
+        st.subheader("🔬 Dernières Détections VLM (Brutes)")
         
-        for detection in st.session_state.real_detections[-5:]:  # 5 dernières
+        for detection in st.session_state.real_detections[-3:]:  # 3 dernières pour ne pas surcharger
             suspicion_color = 'red' if 'HIGH' in str(detection.suspicion_level) or 'CRITICAL' in str(detection.suspicion_level) else 'orange' if 'MEDIUM' in str(detection.suspicion_level) else 'green'
             
             st.markdown(f"""
-            <div class="real-analysis-result">
-                <h5>[DETECTION] Détection {detection.frame_id}</h5>
-                <p><strong>Caméra:</strong> {detection.camera_id}</p>
-                <p><strong>Niveau suspicion:</strong> <span style="color: {suspicion_color}">{detection.suspicion_level}</span></p>
-                <p><strong>Confiance:</strong> {detection.confidence:.1%}</p>
-                <p><strong>Description:</strong> {detection.description}</p>
-                <p><strong>Outils utilisés:</strong> {', '.join(detection.tools_used[:3])}...</p>
-                <p><strong>Temps traitement:</strong> {detection.processing_time:.2f}s</p>
-                <p><strong>Score optimisation:</strong> {detection.optimization_score:.2f}</p>
+            <div class="real-analysis-result" style="border-color: #ccc; background: #fafafa;">
+                <p><strong>Frame:</strong> {detection.frame_id} | <strong>Suspicion:</strong> <span style="color: {suspicion_color}">{detection.suspicion_level}</span> | <strong>Confiance:</strong> {detection.confidence:.1%}</p>
+                <p><i>{detection.description}</i></p>
             </div>
             """, unsafe_allow_html=True)
     
@@ -2998,6 +3049,28 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
             ["Dense (toutes frames)", "Standard (1/2 frames)", "Rapide (1/5 frames)", "Clés seulement"],
             help="Densité d'analyse selon durée vidéo"
         )
+
+        # NOUVEAU: Contrôle du FPS de traitement
+        fps_options = {
+            "Tous": None,
+            "1 FPS (Très rapide)": 1,
+            "2 FPS": 2,
+            "5 FPS": 5,
+            "10 FPS": 10,
+        }
+        selected_fps_label = st.selectbox(
+            "FPS pour analyse VLM",
+            options=list(fps_options.keys()),
+            index=0, # Défaut sur "Tous"
+            help="Nombre d'images par seconde à analyser. Réduire cette valeur accélère MASSIVEMENT l'analyse."
+        )
+        target_fps_processing = fps_options[selected_fps_label]
+
+        enable_motion_detection = st.checkbox(
+            "Ignorer les scènes sans mouvement",
+            value=True,
+            help="Active une analyse rapide pour sauter les images où rien ne bouge. Très efficace pour les caméras fixes."
+        )
     
     # Sélection d'outils spécifiques
     if analysis_mode == "Outils sélectionnés":
@@ -3086,10 +3159,16 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                         tmp_file.write(video_file_bytes)
                         tmp_file.flush()
                         
-                        cap = cv2.VideoCapture(tmp_file.name)
-                        total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-                        fps = cap.get(cv2.CAP_PROP_FPS)
-                    
+                        # NOUVEAU: Utilisation du VideoProcessor optimisé
+                        from src.core.headless.video_processor import VideoProcessor
+                        video_processor = VideoProcessor(
+                            source=tmp_file.name,
+                            target_fps_processing=target_fps_processing,
+                            enable_motion_detection=enable_motion_detection
+                        )
+                        total_frames = video_processor.get_video_info().get('total_frames', 1)
+                        if total_frames == 0: total_frames = 1 # Éviter division par zéro
+
                     analysis_results = {
                         'video_name': uploaded_file.name,
                         'video_metadata': video_metadata,
@@ -3105,38 +3184,29 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                         'context_used': True
                     }
                     
-                    # Analyse frame par frame avec vraie pipeline
-                    frame_count = 0
+                    # Analyse frame par frame avec vraie pipeline via le générateur
                     real_analysis_results = []
                     
-                    while True:
-                        ret, frame = cap.read()
-                        if not ret:
-                            break
-                        
-                        progress_bar.progress((frame_count + 1) / total_frames)
+                    # Boucle sur le générateur optimisé
+                    for frame_number, frame in video_processor.frames_generator():
+                        progress_bar.progress(frame_number / total_frames if total_frames > 0 else 0)
                         
                         # Création FrameData pour pipeline
                         frame_data = FrameData(
                             frame=frame,
                             camera_id=f"uploaded_video_{uploaded_file.name}",
-                            frame_number=frame_count,
+                            frame_number=frame_number,
                             timestamp=datetime.now(),
                             metadata=video_metadata
                         )
                         
-                        # Analyse VLM réelle - Version synchrone pour Streamlit
+                        # Analyse VLM réelle
                         try:
-                            # Utilisation directe sans asyncio pour éviter event loop conflicts
                             import asyncio
                             try:
-                                # Essai avec nouvelle boucle
                                 real_result = asyncio.run(pipeline.analyze_frame(frame_data))
                             except RuntimeError:
-                                # Fallback: utiliser thread executor
                                 import concurrent.futures
-                                import threading
-                                
                                 def run_analysis():
                                     loop = asyncio.new_event_loop()
                                     asyncio.set_event_loop(loop)
@@ -3144,7 +3214,6 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                                         return loop.run_until_complete(pipeline.analyze_frame(frame_data))
                                     finally:
                                         loop.close()
-                                
                                 with concurrent.futures.ThreadPoolExecutor() as executor:
                                     future = executor.submit(run_analysis)
                                     real_result = future.result()
@@ -3152,32 +3221,11 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                             if real_result:
                                 real_analysis_results.append(real_result)
                             
-                            # Affichage silencieux sans spam
-                            if frame_count % 50 == 0:  # Afficher 1 frame sur 50
-                                progress_bar.progress((frame_count + 1) / total_frames)
-                                
                         except Exception as e:
-                            # Log silencieux sans spam interface
-                            if frame_count % 100 == 0:  # Erreur 1 sur 100 seulement
-                                st.warning(f"Analyse frame {frame_count}: {str(e)[:50]}...")
-                        
-                        frame_count += 1
-                        
-                        # Échantillonnage basé sur frame_sampling pour éviter surcharge
-                        if frame_sampling == "Élevé (1/10)":
-                            for _ in range(9):
-                                ret, _ = cap.read()
-                                if not ret:
-                                    break
-                                frame_count += 9
-                        elif frame_sampling == "Moyen (1/20)":
-                            for _ in range(19):
-                                ret, _ = cap.read()
-                                if not ret:
-                                    break
-                                frame_count += 19
+                            if frame_number % 50 == 0:
+                                st.warning(f"Analyse frame {frame_number}: {str(e)[:50]}...")
                     
-                    cap.release()
+                    # Le VideoProcessor gère la libération des ressources
                     
                     # Nettoyage fichier temporaire
                     try:
@@ -3424,7 +3472,7 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
                     names=list(suspicion_dist.keys()),
                     title="Distribution Niveaux de Suspicion"
                 )
-                st.plotly_chart(fig, use_container_width=True)
+                st.plotly_chart(fig, width='stretch')
             
             # Export des résultats VLM
             if st.button(" Exporter Résultats VLM"):
@@ -4252,7 +4300,7 @@ def render_vlm_analytics():
             height=300
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     
     # Historique des optimisations
     if st.session_state.optimization_results:

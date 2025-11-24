@@ -218,11 +218,20 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
         
         start_time = time.time()
         
+        # NOUVEAU: Étape 1 - Analyse préliminaire rapide
+        is_scene_interesting = await self.vlm_model.is_scene_interesting(frame_data)
+        if not is_scene_interesting:
+            return self._create_default_response("Scène statique, aucune analyse requise.")
+
         # 1. Analyse du contexte pour sélection adaptative
         context_signature = self._analyze_context(context or {}, detections or [])
         
         # 2. Sélection adaptative des outils
         selected_tools = await self._adaptive_tool_selection(context_signature)
+
+        # NOUVEAU: Si aucun outil n'est sélectionné, ne rien faire
+        if not selected_tools:
+            return self._create_default_response("Aucun outil pertinent pour ce contexte.")
         
         # 3. Override temporaire de la sélection d'outils
         original_select_tools = self._select_tools_for_mode
@@ -241,15 +250,24 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
                     context_signature, selected_tools, analysis_result, processing_time
                 )
             
-            # 6. Vérification si re-optimisation nécessaire (désactivé temporairement)
-            # if self._should_reoptimize():
-            #     asyncio.create_task(self._background_reoptimization())
-            
             return analysis_result
             
         finally:
             # Restauration de la méthode originale
             self._select_tools_for_mode = original_select_tools
+    
+    def _create_default_response(self, reason: str) -> AnalysisResponse:
+        """Crée une réponse par défaut pour les scènes non analysées."""
+        return AnalysisResponse(
+            suspicion_level=SuspicionLevel.LOW,
+            action_type=ActionType.NORMAL,
+            confidence=0.95,
+            description=reason,
+            detections=[],
+            tools_used=[],
+            tool_results={},
+            optimization_score=0.0
+        )
     
     def _analyze_context(self, context: Dict[str, Any], detections: List) -> str:
         """Analyse du contexte pour génération de signature."""

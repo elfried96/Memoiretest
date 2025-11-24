@@ -32,6 +32,7 @@ class CameraConfig:
     enabled: bool = True
     detection_zones: List[Tuple[int, int, int, int]] = None  # (x1, y1, x2, y2)
     sensitivity: float = 0.7
+    target_fps_processing: Optional[int] = None  # FPS cible pour le traitement VLM (ex: 1 pour 1fps)
 
 
 @dataclass
@@ -58,6 +59,9 @@ class CameraStream:
         self.frame_count = 0
         self.connection_attempts = 0
         self.max_connection_attempts = 5
+
+        self._last_processed_frame_time = 0.0
+        self._frame_interval_processing = (1.0 / self.config.target_fps_processing) if self.config.target_fps_processing else 0.0
         
     def start(self) -> bool:
         """Démarre le flux caméra."""
@@ -161,15 +165,21 @@ class CameraStream:
                     except queue.Empty:
                         pass
                 
+                # Contrôle du framerate pour le traitement (si défini)
+                if self._frame_interval_processing > 0:
+                    current_time = time.time()
+                    if (current_time - self._last_processed_frame_time) < self._frame_interval_processing:
+                        # Si le temps n'est pas écoulé, attendre la prochaine frame réelle
+                        time.sleep(max(0, self._frame_interval_processing - (current_time - self._last_processed_frame_time)))
+                        continue # Sauter le traitement de cette frame si elle est trop proche
+                    self._last_processed_frame_time = current_time
+                
                 # Callback pour traitement externe
                 if self.frame_callback:
                     try:
                         self.frame_callback(frame_data)
                     except Exception as e:
                         logger.error(f" Erreur callback frame: {e}")
-                
-                # Contrôle du framerate
-                time.sleep(1.0 / self.config.fps)
                 
             except Exception as e:
                 logger.error(f" Erreur capture caméra {self.config.id}: {e}")
@@ -362,6 +372,10 @@ class MultiCameraManager:
         for key, value in config_updates.items():
             if hasattr(camera.config, key):
                 setattr(camera.config, key, value)
+                
+        # Si target_fps_processing a changé, recalculer l'intervalle
+        if 'target_fps_processing' in config_updates:
+            camera._frame_interval_processing = (1.0 / camera.config.target_fps_processing) if camera.config.target_fps_processing else 0.0
         
         if was_running and camera.config.enabled:
             return camera.start()

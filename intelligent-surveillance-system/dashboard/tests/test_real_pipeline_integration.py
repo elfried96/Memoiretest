@@ -112,6 +112,7 @@ def test_initialize_real_pipeline_function(mock_core_components):
 
                 assert success is True
                 assert pipeline is not None
-                assert pipeline.initialized is True                mock_asyncio_run.assert_called_once()
+                assert pipeline.initialized is True
+                mock_asyncio_run.assert_called_once()
 
 # More tests will be added here for frame analysis, callbacks, etc.

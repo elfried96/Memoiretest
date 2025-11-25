@@ -133,18 +133,18 @@ if str(dashboard_root) not in sys.path:
 try:
     logger.info(" Chargement des modules VLM...")
     try:
-        from .real_pipeline_integration import (
+        from dashboard.real_pipeline_integration import (
             RealVLMPipeline, 
             RealAnalysisResult,
             initialize_real_pipeline,
             get_real_pipeline,
             is_real_pipeline_available
         )
-        from .camera_manager import CameraConfig, MultiCameraManager, FrameData
-        from .vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
+        from dashboard.camera_manager import CameraConfig, MultiCameraManager, FrameData
+        from dashboard.vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
         # ✅ NOUVEAU: Imports pour mémoire vidéo
-        from .components.vlm_chat import get_vlm_chat
-        from .services.video_memory_system import get_video_memory_system
+        from dashboard.components.vlm_chat import get_vlm_chat
+        from dashboard.services.video_memory_system import get_video_memory_system
     except ImportError:
         from real_pipeline_integration import (
             RealVLMPipeline, 

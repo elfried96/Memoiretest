@@ -53,7 +53,7 @@ except ImportError as e:
 
 # Import des fonctionnalités optionnelles (ne bloquent pas VLM_AVAILABLE)
 try:
-    from .vlm_chatbot_optimizations import get_performance_optimizer
+    from dashboard.vlm_chatbot_optimizations import get_performance_optimizer
     logger.info("Optimisations chatbot chargées")
 except ImportError as e:
     logger.warning(f"Optimisations chatbot non disponibles: {e}")
@@ -61,7 +61,7 @@ except ImportError as e:
         return None
 
 try:
-    from .vlm_chatbot_advanced_features import get_advanced_features
+    from dashboard.vlm_chatbot_advanced_features import get_advanced_features
     logger.info("Features avancées chatbot chargées")
 except ImportError as e:
     logger.warning(f"Features avancées chatbot non disponibles: {e}")

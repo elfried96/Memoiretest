@@ -37,24 +37,52 @@ if str(project_root) not in sys.path:
 # Imports du système core
 logger = logging.getLogger(__name__)
 try:
-    
+    from src.core.vlm.tools_integration import AdvancedToolsManager
     from src.core.orchestrator.adaptive_orchestrator import AdaptiveVLMOrchestrator, ContextPattern, ToolPerformanceHistory
     from src.core.vlm.model import VisionLanguageModel
-    from src.core.vlm.tools_integration import AdvancedToolsManager
     from src.core.vlm.dynamic_model import DynamicVisionLanguageModel
     from src.core.types import AnalysisRequest, AnalysisResponse, SuspicionLevel, ActionType, DetectionStatus, ToolResult
     from src.core.orchestrator.vlm_orchestrator import OrchestrationConfig, OrchestrationMode
     from src.testing.tool_optimization_benchmark import ToolOptimizationBenchmark, ToolPerformanceMetrics, ToolCombinationResult
     from src.core.monitoring.performance_monitor import PerformanceMonitor
     from src.core.monitoring.vlm_metrics import VLMMetricsCollector
+    
+    # Import AdvancedToolsManager séparément avec gestion d'erreur
+    try:
+        from src.core.vlm.tools_integration import AdvancedToolsManager
+        TOOLS_MANAGER_AVAILABLE = True
+    except ImportError as tools_e:
+        logger.warning(f"AdvancedToolsManager non disponible: {tools_e}")
+        TOOLS_MANAGER_AVAILABLE = False
+        # Créer une classe de fallback
+        class AdvancedToolsManager:
+            def __init__(self):
+                self.tools = {}
+            async def execute_tools(self, *args, **kwargs):
+                return {}
+    
     CORE_AVAILABLE = True
     logger.info(" Modules VLM core chargés avec succès")
 except ImportError as e:
     logger.error(f" Impossible d'importer les modules core: {e}")
     CORE_AVAILABLE = False
+    TOOLS_MANAGER_AVAILABLE = False
+    # Créer une classe de fallback
+    class AdvancedToolsManager:
+        def __init__(self):
+            self.tools = {}
+        async def execute_tools(self, *args, **kwargs):
+            return {}
 except Exception as e:
     logger.error(f" Erreur lors du chargement des modules: {e}")
     CORE_AVAILABLE = False
+    TOOLS_MANAGER_AVAILABLE = False
+    # Créer une classe de fallback
+    class AdvancedToolsManager:
+        def __init__(self):
+            self.tools = {}
+        async def execute_tools(self, *args, **kwargs):
+            return {}
 
 from dashboard.camera_manager import FrameData
 

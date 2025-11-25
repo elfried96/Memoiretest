@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 
 # Import contexte vidéo
 try:
-    from video_context_integration import (
+    from dashboard.video_context_integration import (
         VideoContextMetadata, 
         create_video_metadata_from_form,
         get_video_context_integration
@@ -53,7 +53,7 @@ except ImportError as e:
 
 # Import système d'alertes audio
 try:
-    from utils.audio_alerts import (
+    from dashboard.utils.audio_alerts import (
         AudioAlertSystem, 
         play_alert, 
         play_behavior_alert,
@@ -129,51 +129,22 @@ if str(project_root) not in sys.path:
 if str(dashboard_root) not in sys.path:
     sys.path.insert(0, str(dashboard_root))
 
-# Imports de la pipeline réelle
+# Imports de la pipeline réelle (avec chemins absolus pour robustesse)
 try:
     logger.info(" Chargement des modules VLM...")
-    try:
-        from dashboard.real_pipeline_integration import (
-            RealVLMPipeline, 
-            RealAnalysisResult,
-            initialize_real_pipeline,
-            get_real_pipeline,
-            is_real_pipeline_available
-        )
-        from dashboard.camera_manager import CameraConfig, MultiCameraManager, FrameData
-        from dashboard.vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
-        # ✅ NOUVEAU: Imports pour mémoire vidéo
-        from dashboard.components.vlm_chat import get_vlm_chat
-        from dashboard.services.video_memory_system import get_video_memory_system
-    except ImportError:
-        from real_pipeline_integration import (
-            RealVLMPipeline, 
-            RealAnalysisResult,
-            initialize_real_pipeline,
-            get_real_pipeline,
-            is_real_pipeline_available
-        )
-        from camera_manager import CameraConfig, MultiCameraManager, FrameData
-        from vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
-        # ✅ NOUVEAU: Imports pour mémoire vidéo (fallback)
-        from components.vlm_chat import get_vlm_chat
-        from services.video_memory_system import get_video_memory_system
+    from dashboard.real_pipeline_integration import (
+        RealVLMPipeline, 
+        RealAnalysisResult,
+        initialize_real_pipeline,
+        get_real_pipeline,
+        is_real_pipeline_available
+    )
+    from dashboard.camera_manager import CameraConfig, MultiCameraManager, FrameData
+    from dashboard.vlm_chatbot_symbiosis import process_vlm_chat_query, get_vlm_chatbot
+    from dashboard.components.vlm_chat import get_vlm_chat
+    from dashboard.services.video_memory_system import get_video_memory_system
     PIPELINE_AVAILABLE = True
     logger.info(" Modules VLM chargés avec succès")
-    
-    # ✅ NOUVEAU: Initialisation système mémoire vidéo
-    try:
-        video_memory_system = get_video_memory_system()
-        VIDEO_MEMORY_AVAILABLE = True
-        logger.info(" Système mémoire vidéo initialisé")
-    except Exception as e:
-        logger.warning(f"⚠️ Système mémoire vidéo non disponible: {e}")
-        VIDEO_MEMORY_AVAILABLE = False
-except ImportError as e:
-    logger.error(f" Erreur import pipeline VLM: {e}")
-    st.error(f" Impossible d'importer la pipeline VLM: {e}")
-    PIPELINE_AVAILABLE = False
-    VIDEO_MEMORY_AVAILABLE = False
 
 # Initialisation des variables de session
 if 'cameras' not in st.session_state:

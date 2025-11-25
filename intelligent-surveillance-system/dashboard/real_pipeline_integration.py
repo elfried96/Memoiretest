@@ -36,53 +36,20 @@ if str(project_root) not in sys.path:
 
 # Imports du système core
 logger = logging.getLogger(__name__)
-try:
-    from src.core.vlm.tools_integration import AdvancedToolsManager
-    from src.core.orchestrator.adaptive_orchestrator import AdaptiveVLMOrchestrator, ContextPattern, ToolPerformanceHistory
-    from src.core.vlm.model import VisionLanguageModel
-    from src.core.vlm.dynamic_model import DynamicVisionLanguageModel
-    from src.core.types import AnalysisRequest, AnalysisResponse, SuspicionLevel, ActionType, DetectionStatus, ToolResult
-    from src.core.orchestrator.vlm_orchestrator import OrchestrationConfig, OrchestrationMode
-    from src.testing.tool_optimization_benchmark import ToolOptimizationBenchmark, ToolPerformanceMetrics, ToolCombinationResult
-    from src.core.monitoring.performance_monitor import PerformanceMonitor
-    from src.core.monitoring.vlm_metrics import VLMMetricsCollector
-    
-    # Import AdvancedToolsManager séparément avec gestion d'erreur
-    try:
-        from src.core.vlm.tools_integration import AdvancedToolsManager
-        TOOLS_MANAGER_AVAILABLE = True
-    except ImportError as tools_e:
-        logger.warning(f"AdvancedToolsManager non disponible: {tools_e}")
-        TOOLS_MANAGER_AVAILABLE = False
-        # Créer une classe de fallback
-        class AdvancedToolsManager:
-            def __init__(self):
-                self.tools = {}
-            async def execute_tools(self, *args, **kwargs):
-                return {}
-    
-    CORE_AVAILABLE = True
-    logger.info(" Modules VLM core chargés avec succès")
-except ImportError as e:
-    logger.error(f" Impossible d'importer les modules core: {e}")
-    CORE_AVAILABLE = False
-    TOOLS_MANAGER_AVAILABLE = False
-    # Créer une classe de fallback
-    class AdvancedToolsManager:
-        def __init__(self):
-            self.tools = {}
-        async def execute_tools(self, *args, **kwargs):
-            return {}
-except Exception as e:
-    logger.error(f" Erreur lors du chargement des modules: {e}")
-    CORE_AVAILABLE = False
-    TOOLS_MANAGER_AVAILABLE = False
-    # Créer une classe de fallback
-    class AdvancedToolsManager:
-        def __init__(self):
-            self.tools = {}
-        async def execute_tools(self, *args, **kwargs):
-            return {}
+# Import direct - échec = arrêt du système (pas de fallback)
+from src.core.orchestrator.adaptive_orchestrator import AdaptiveVLMOrchestrator, ContextPattern, ToolPerformanceHistory
+from src.core.vlm.model import VisionLanguageModel
+from src.core.vlm.tools_integration import AdvancedToolsManager
+from src.core.vlm.dynamic_model import DynamicVisionLanguageModel
+from src.core.types import AnalysisRequest, AnalysisResponse, SuspicionLevel, ActionType, DetectionStatus, ToolResult
+from src.core.orchestrator.vlm_orchestrator import OrchestrationConfig, OrchestrationMode
+from src.testing.tool_optimization_benchmark import ToolOptimizationBenchmark, ToolPerformanceMetrics, ToolCombinationResult
+from src.core.monitoring.performance_monitor import PerformanceMonitor
+from src.core.monitoring.vlm_metrics import VLMMetricsCollector
+
+CORE_AVAILABLE = True
+TOOLS_MANAGER_AVAILABLE = True
+logger.info("✅ Tous les modules VLM core chargés avec succès")
 
 from dashboard.camera_manager import FrameData
 
@@ -333,9 +300,20 @@ class RealVLMPipeline:
                 # Récupération d'une requête d'analyse
                 analysis_request = self.analysis_queue.get(timeout=0.1)  # Timeout court pour réactivité
                 
-                # Traitement avec pipeline VLM
+                # Traitement avec pipeline VLM - gestion event loop
                 start_time = time.time()
-                result = asyncio.run(self._process_frame_with_vlm(analysis_request))
+                try:
+                    # Créer une nouvelle boucle pour ce thread
+                    new_loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(new_loop)
+                    try:
+                        result = new_loop.run_until_complete(self._process_frame_with_vlm(analysis_request))
+                    finally:
+                        new_loop.close()
+                        asyncio.set_event_loop(None)
+                except Exception as e:
+                    logger.error(f"Erreur traitement frame worker: {e}")
+                    result = None
                 processing_time = time.time() - start_time
                 
                 if result:
@@ -451,8 +429,19 @@ class RealVLMPipeline:
                 if current_time - last_optimization >= optimization_interval:
                     logger.info(" Démarrage cycle d'optimisation...")
                     
-                    # Exécution du benchmark
-                    optimization_results = asyncio.run(self._run_optimization_cycle())
+                    # Exécution du benchmark - gestion event loop
+                    try:
+                        # Créer une nouvelle boucle pour ce thread
+                        new_loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(new_loop)
+                        try:
+                            optimization_results = new_loop.run_until_complete(self._run_optimization_cycle())
+                        finally:
+                            new_loop.close()
+                            asyncio.set_event_loop(None)
+                    except Exception as e:
+                        logger.error(f"Erreur optimisation worker: {e}")
+                        optimization_results = None
                     
                     if optimization_results:
                         # Mise à jour de la configuration optimale
@@ -658,29 +647,36 @@ def initialize_real_pipeline(**kwargs) -> bool:
         real_pipeline = RealVLMPipeline(**kwargs)
     
     try:
-        # Vérifier si une boucle asyncio existe déjà
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # Créer une nouvelle boucle dans un thread séparé
-            import concurrent.futures
-            import threading
-            
-            def run_in_thread():
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                try:
-                    return new_loop.run_until_complete(real_pipeline.initialize())
-                finally:
-                    new_loop.close()
-            
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(run_in_thread)
-                return future.result()  # Pas de timeout - attendre jusqu'à la fin
-        else:
-            # Pas de boucle en cours, utiliser asyncio.run normalement
-            return asyncio.run(real_pipeline.initialize())
+        # Gestion robuste de l'event loop pour Streamlit
+        import concurrent.futures
+        import threading
+        
+        # Toujours créer une nouvelle boucle dans un thread séparé pour Streamlit
+        def run_in_thread():
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            try:
+                return new_loop.run_until_complete(real_pipeline.initialize())
+            except Exception as e:
+                logger.error(f"Erreur dans thread asyncio: {e}")
+                return False
+            finally:
+                new_loop.close()
+        
+        # Utiliser ThreadPoolExecutor pour isolation complète
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(run_in_thread)
+            try:
+                return future.result(timeout=300)  # Timeout 5 minutes
+            except concurrent.futures.TimeoutError:
+                logger.error("Timeout lors de l'initialisation de la pipeline")
+                return False
+            except Exception as e:
+                logger.error(f"Erreur ThreadPoolExecutor: {e}")
+                return False
+                
     except Exception as e:
-        logger.error(f" Erreur initialisation pipeline: {e}")
+        logger.error(f"Erreur initialisation pipeline: {e}")
         return False
 
 def is_real_pipeline_available() -> bool:

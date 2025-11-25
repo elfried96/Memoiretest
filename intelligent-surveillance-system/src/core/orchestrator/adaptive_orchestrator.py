@@ -219,7 +219,7 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
         start_time = time.time()
         
         # NOUVEAU: Étape 1 - Analyse préliminaire rapide
-        is_scene_interesting = await self.vlm_model.is_scene_interesting(frame_data)
+        is_scene_interesting = await self.vlm_model_instance.is_scene_interesting(frame_data)
         if not is_scene_interesting:
             return self._create_default_response("Scène statique, aucune analyse requise.")
 

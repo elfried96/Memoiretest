@@ -46,23 +46,12 @@ class ModernVLMOrchestrator:
         vlm_model_name: str = "qwen2.5-vl-7b-instruct",
         config: OrchestrationConfig = None
     ):
-        self.config = config or OrchestrationConfig()
         self.vlm_model_name = vlm_model_name
-        
-        # Composants principaux
-        self.vlm = DynamicVisionLanguageModel(
-            default_model=vlm_model_name,
-            enable_fallback=True
-        )
-        
-        # Statistiques de performance
-        self.stats = {
-            "total_analyses": 0,
-            "successful_analyses": 0,
-            "average_response_time": 0.0,
-            "tools_usage": {},
-            "error_count": 0
-        }
+        self.config = config or OrchestrationConfig()
+        self.tools_manager = AdvancedToolsManager()
+        self.prompt_builder = PromptBuilder()
+        self.response_parser = ResponseParser()
+        self.vlm_model_instance = DynamicVisionLanguageModel(default_model=vlm_model_name)
         
         logger.info(f"Orchestrateur VLM initialisé - Mode: {self.config.mode.value}")
     
@@ -90,12 +79,12 @@ class ModernVLMOrchestrator:
             
             # 3. Analyse avec le VLM et outils
             if self.config.enable_advanced_tools:
-                result = await self.vlm.analyze_with_tools(
+                result = await self.vlm_model_instance.analyze_with_tools(
                     analysis_request, 
                     use_advanced_tools=True
                 )
             else:
-                result = await self.vlm.analyze_with_tools(
+                result = await self.vlm_model_instance.analyze_with_tools(
                     analysis_request,
                     use_advanced_tools=False
                 )
@@ -298,7 +287,7 @@ class ModernVLMOrchestrator:
         """État complet du système d'orchestration."""
         
         # Statut du VLM
-        vlm_status = self.vlm.get_system_status()
+        vlm_status = self.vlm_model_instance.get_system_status()
         
         # Calcul du taux de succès
         success_rate = (
@@ -328,14 +317,14 @@ class ModernVLMOrchestrator:
         """Vérification de santé du système."""
         
         health_status = {
-            "vlm_loaded": self.vlm.is_loaded,
+            "vlm_loaded": self.vlm_model_instance.is_loaded,
             "tools_available": True,
             "system_responsive": True
         }
         
         try:
             # Test rapide du VLM si chargé
-            if self.vlm.is_loaded:
+            if self.vlm_model_instance.is_loaded:
                 # Test basique avec une image fictive
                 test_request = AnalysisRequest(
                     frame_data="",  # Image vide pour test
@@ -355,6 +344,6 @@ class ModernVLMOrchestrator:
         logger.info("Arrêt de l'orchestrateur VLM...")
         
         # Déchargement du VLM
-        await self.vlm.shutdown()
+        await self.vlm_model_instance.shutdown()
         
         logger.info("Orchestrateur VLM arrêté")

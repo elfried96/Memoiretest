@@ -144,10 +144,12 @@ try:
     from dashboard.components.vlm_chat import get_vlm_chat
     from dashboard.services.video_memory_system import get_video_memory_system
     PIPELINE_AVAILABLE = True
+    VIDEO_MEMORY_AVAILABLE = True
     logger.info(" Modules VLM chargés avec succès")
 except Exception as e:
     logger.error(f" Erreur chargement modules VLM: {e}")
     PIPELINE_AVAILABLE = False
+    VIDEO_MEMORY_AVAILABLE = False
 
 # Initialisation des variables de session
 if 'cameras' not in st.session_state:

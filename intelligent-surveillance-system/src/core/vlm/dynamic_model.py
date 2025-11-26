@@ -481,8 +481,7 @@ class DynamicVisionLanguageModel:
         
         # FORCAGE JSON STRICT RENFORCÉ pour Qwen2-VL (très strict)
         if self.current_config and self.current_config.model_type == VLMModelType.QWEN:
-            base_prompt += """\n\n🚨 RÉPONSE OBLIGATOIRE EN JSON UNIQUEMENT 🚨
-Tu DOIS répondre SEULEMENT avec ce JSON (aucun autre texte):
+            base_prompt += """\n\n Tu dois répondre seulement au format JSON comme ceci, sans aucun autre texte avant ou après le JSON :
 
 {
   "suspicion_level": "low",
@@ -493,7 +492,7 @@ Tu DOIS répondre SEULEMENT avec ce JSON (aucun autre texte):
   "recommendations": ["Action recommandée 1", "Action recommandée 2"]
 }
 
-STRICT: Commence directement par { et termine par }. Aucun texte avant/après."""
+ Commence directement par { et termine par }. Aucun texte avant/après."""
         else:
             # Pour autres modèles (Kimi-VL)
             base_prompt += """\n\n⚠️ IMPORTANT: Réponds UNIQUEMENT en JSON valide avec cette structure EXACTE:

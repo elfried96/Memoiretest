@@ -260,7 +260,7 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
         """Crée une réponse par défaut pour les scènes non analysées."""
         return AnalysisResponse(
             suspicion_level=SuspicionLevel.LOW,
-            action_type=ActionType.NORMAL,
+            action_type=ActionType.NORMAL_SHOPPING,
             confidence=0.95,
             description=reason,
             detections=[],

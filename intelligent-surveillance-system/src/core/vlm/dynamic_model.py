@@ -467,7 +467,7 @@ class DynamicVisionLanguageModel:
             request.context,
             request.tools_available,
             tools_results,
-            request.context.get("video_context_metadata")
+            request.context
         )
         
         # Optimisations spécifiques par modèle

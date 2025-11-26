@@ -221,7 +221,7 @@ class VLMChatbotSymbiosis:
             
             # 5. Analyse avec VLM (symbiose complète)
             vlm_response = await self._analyze_with_vlm_symbiosis(
-                vlm_request, chat_prompt
+                vlm_request, chat_prompt, context_image=request_image
             )
             
             # 6. Post-traitement et structuration
@@ -478,7 +478,8 @@ Réponds maintenant en utilisant ton intelligence VLM complète avec thinking/re
     async def _analyze_with_vlm_symbiosis(
         self, 
         vlm_request: AnalysisRequest, 
-        chat_prompt: str
+        chat_prompt: str,
+        context_image: np.ndarray
     ) -> AnalysisResponse:
         """
         Analyse avec symbiose VLM complète.

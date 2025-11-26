@@ -106,6 +106,8 @@ class VideoProcessor:
         else:
             # Nouveau paramètre pour contrôler le FPS de l'analyse
             target_fps_processing = getattr(self, 'target_fps_processing', source_fps)
+            if target_fps_processing is None or target_fps_processing <= 0:
+                target_fps_processing = source_fps
             step = int(source_fps / target_fps_processing) if target_fps_processing > 0 else 1
             step = max(1, step) # Assurer qu'on avance d'au moins 1
 

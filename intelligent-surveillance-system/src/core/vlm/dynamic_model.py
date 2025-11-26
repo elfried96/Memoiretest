@@ -662,6 +662,8 @@ class DynamicVisionLanguageModel:
         import re
         import json
         
+        logger.debug(f"Réponse brute Qwen à parser: {response}")
+
         try:
             # 1. Chercher un bloc JSON démarqué par ```json
             markdown_match = re.search(r"```json\s*(\{.*?\})\s*```", response, re.DOTALL)

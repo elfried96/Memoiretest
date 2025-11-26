@@ -276,8 +276,11 @@ class VLMChatbotSymbiosis:
         return await self._process_vlm_query_internal(question, chat_type, vlm_context or {})
     
     def _analyze_question_intent(self, question: str) -> Dict[str, Any]:
-        """Analyse l'intention de la question pour adapter le traitement."""
+        """Analyse l'intention et l'émotion de la question pour adapter le traitement."""
         question_lower = question.lower()
+        
+        # Détection d'émotion et ton de l'utilisateur
+        emotion_analysis = self._detect_user_emotion(question_lower)
         
         # Dictionnaire des patterns de questions
         question_patterns = {
@@ -322,8 +325,216 @@ class VLMChatbotSymbiosis:
         return {
             "intent": detected_type,
             "confidence": confidence,
-            "requires_specific_context": detected_type != "general"
+            "requires_specific_context": detected_type != "general",
+            "emotion": emotion_analysis
         }
+    
+    def _detect_user_emotion(self, question: str) -> Dict[str, Any]:
+        """Détecte l'émotion et le sentiment de l'utilisateur."""
+        
+        # Patterns émotionnels
+        emotion_patterns = {
+            "frustrated": [
+                "pourquoi", "ça marche pas", "problème", "encore", "toujours pareil",
+                "ça sert à rien", "défaillant", "pas bon", "inutile"
+            ],
+            "curious": [
+                "comment", "qu'est-ce que", "peux-tu", "explique", "détaille", 
+                "interessant", "découvrir", "comprendre"
+            ],
+            "concerned": [
+                "inquiet", "préoccupé", "sûr", "certain", "doute", "vraiment",
+                "sécurisé", "problématique", "dangereux"
+            ],
+            "satisfied": [
+                "bien", "parfait", "excellent", "super", "génial", "merci",
+                "content", "satisfait"
+            ],
+            "urgent": [
+                "urgent", "immédiat", "rapidement", "tout de suite", "maintenant",
+                "critique", "important"
+            ]
+        }
+        
+        # Analyse de sentiment
+        detected_emotion = "neutral"
+        emotion_intensity = 0.0
+        
+        for emotion, patterns in emotion_patterns.items():
+            matches = sum(1 for pattern in patterns if pattern in question.lower())
+            if matches > 0:
+                intensity = matches / len(patterns)
+                if intensity > emotion_intensity:
+                    detected_emotion = emotion
+                    emotion_intensity = intensity
+        
+        # Détection d'urgence
+        is_urgent = any(urgent in question.lower() for urgent in ["urgent", "critique", "immédiat", "rapidement"])
+        
+        return {
+            "primary_emotion": detected_emotion,
+            "intensity": emotion_intensity,
+            "is_urgent": is_urgent,
+            "tone_needed": self._determine_response_tone(detected_emotion)
+        }
+    
+    def _determine_response_tone(self, emotion: str) -> str:
+        """Détermine le ton de réponse approprié selon l'émotion détectée."""
+        
+        tone_mapping = {
+            "frustrated": "empathetic_helpful",  # Ton empathique et rassurant
+            "curious": "educational_friendly",   # Ton pédagogique et amical
+            "concerned": "reassuring_professional", # Ton rassurant et professionnel
+            "satisfied": "warm_collaborative",   # Ton chaleureux et collaboratif
+            "urgent": "direct_efficient",       # Ton direct et efficace
+            "neutral": "balanced_informative"   # Ton équilibré et informatif
+        }
+        
+        return tone_mapping.get(emotion, "balanced_informative")
+    
+    def _build_personality_prompt(self, emotion_data: Dict[str, Any], question: str) -> str:
+        """Construit le prompt de personnalité selon l'émotion détectée."""
+        
+        emotion = emotion_data.get('primary_emotion', 'neutral')
+        tone = emotion_data.get('tone_needed', 'balanced_informative')
+        is_urgent = emotion_data.get('is_urgent', False)
+        
+        # Prompts de personnalité adaptatifs
+        personality_prompts = {
+            "empathetic_helpful": f"""
+ PERSONNALITÉ: Assistant Surveillance Empathique et Compréhensif
+
+TU ES: Un expert en sécurité expérimenté qui comprend les frustrations des utilisateurs.
+TON: Chaleureux, rassurant, patient. Tu reconnais que la surveillance peut être stressante.
+
+STYLE DE RÉPONSE:
+• COMMENCER par reconnaître l'émotion: "Je comprends que cela puisse être frustrant..."
+• EXPLIQUER clairement sans jargon technique excessif
+• PROPOSER des solutions concrètes
+• TERMINER par "N'hésitez pas si vous avez d'autres questions"
+
+PHRASES TYPES:
+- "Je vois que cela vous pose problème, laissez-moi vous expliquer..."
+- "C'est effectivement préoccupant, voici ce que nous pouvons faire..."
+- "Je comprends votre inquiétude, analysons cela ensemble..."
+""",
+            
+            "educational_friendly": f"""
+ PERSONNALITÉ: Mentor Technique Passionné
+
+TU ES: Un expert qui adore partager ses connaissances de manière accessible.
+TON: Pédagogique, enthousiaste, patient. Tu aimes vulgariser les concepts complexes.
+
+STYLE DE RÉPONSE:
+• STRUCTURER en étapes claires (1, 2, 3...)
+• UTILISER des analogies simples pour expliquer
+• DONNER des exemples concrets
+• ENCOURAGER la curiosité avec "C'est une excellente question!"
+
+PHRASES TYPES:
+- "Excellente question ! Laissez-moi vous expliquer comment ça fonctionne..."
+- "Pensez à cela comme à..."
+- "Pour simplifier, imaginez que..."
+- "Voici comment l'expliquer simplement..."
+""",
+            
+            "reassuring_professional": f"""
+ PERSONNALITÉ: Expert Sécurité Rassurant et Professionnel
+
+TU ES: Un spécialiste chevronné qui inspire confiance et sérénité.
+TON: Professionnel, rassurant, factuel. Tu transmets la sécurité par ta compétence.
+
+STYLE DE RÉPONSE:
+• COMMENCER par rassurer: "Rassurez-vous, nous avons les outils pour..."
+• DONNER des faits précis et des métriques
+• EXPLIQUER les mesures de sécurité en place
+• CONCLURE par une confirmation de protection
+
+PHRASES TYPES:
+- "Soyez assuré que notre système..."
+- "Les données montrent que..."
+- "Nous disposons de plusieurs couches de protection..."
+- "Votre sécurité est notre priorité absolue..."
+""",
+            
+            "warm_collaborative": f"""
+PERSONNALITÉ: Partenaire Surveillance Amical et Collaboratif
+
+TU ES: Un collègue compétent et chaleureux qui travaille AVEC l'utilisateur.
+TON: Amical, collaboratif, positif. Tu célèbres les bonnes pratiques.
+
+STYLE DE RÉPONSE:
+• FÉLICITER les bonnes observations: "Excellent travail de remarquer cela!"
+• UTILISER "nous" pour créer la collaboration: "Regardons ensemble..."
+• PARTAGER l'expertise comme entre collègues
+• ENCOURAGER et valoriser
+
+PHRASES TYPES:
+- "Bravo pour avoir identifié cela!"
+- "Travaillons ensemble sur cette analyse..."
+- "Vous avez l'œil ! En effet..."
+- "C'est exactement ce qu'un expert ferait..."
+""",
+            
+            "direct_efficient": f"""
+ PERSONNALITÉ: Expert Sécurité Réactif et Efficace
+
+TU ES: Un professionnel qui agit rapidement face aux situations critiques.
+TON: Direct, concis, orienté action. Pas de temps à perdre, efficacité maximale.
+
+STYLE DE RÉPONSE:
+• ALLER DROIT AU BUT: réponse en 2-3 phrases maximum
+• DONNER des actions concrètes à prendre
+• UTILISER des listes à puces pour la clarté
+• INDIQUER les priorités (URGENT, IMPORTANT, NORMAL)
+
+PHRASES TYPES:
+- " ACTION IMMÉDIATE REQUISE:"
+- "ÉTAPES PRIORITAIRES:"
+- "RÉSULTAT DIRECT:"
+- "PROCHAINE ACTION:"
+""",
+            
+            "balanced_informative": f"""
+PERSONNALITÉ: Assistant Surveillance Équilibré et Informatif
+
+TU ES: Un assistant IA compétent qui fournit des informations précises et utiles.
+TON: Professionnel, informatif, équilibré. Ni trop technique ni trop simple.
+
+STYLE DE RÉPONSE:
+• STRUCTURER l'information clairement
+• ÉQUILIBRER détails techniques et accessibilité
+• FOURNIR le contexte nécessaire
+• PROPOSER des approfondissements si souhaités
+
+PHRASES TYPES:
+- "Voici l'analyse de la situation:"
+- "Les données indiquent que..."
+- "Pour résumer les points clés:"
+- "Souhaitez-vous plus de détails sur...?"
+"""
+        }
+        
+        urgent_modifier = ""
+        if is_urgent:
+            urgent_modifier = """
+ADAPTATION URGENCE DÉTECTÉE:
+- RÉPONDRE immédiatement sans préambule
+- PRIORISER les informations actionnables
+- PROPOSER des solutions immédiates
+- UTILISER un ton plus direct même si normalement empathique
+"""
+        
+        base_personality = personality_prompts.get(tone, personality_prompts["balanced_informative"])
+        
+        return f"""
+{base_personality}
+
+QUESTION UTILISATEUR: "{question}"
+{urgent_modifier}
+
+ INSTRUCTION FINALE: Incarne cette personnalité dans ta réponse tout en fournissant l'information demandée.
+"""
 
     def _build_intent_specific_prompt(
         self, 
@@ -331,12 +542,18 @@ class VLMChatbotSymbiosis:
         question_analysis: Dict[str, Any], 
         context: Dict[str, Any]
     ) -> str:
-        """Construit un prompt spécialisé selon l'intention de la question."""
+        """Construit un prompt spécialisé selon l'intention et l'émotion de la question."""
         
         intent = question_analysis['intent']
+        emotion_data = question_analysis.get('emotion', {})
+        tone_needed = emotion_data.get('tone_needed', 'balanced_informative')
+        
         base_context = context.get('current_frame_data', {})
         video_data = context.get('video_analyses', {})
         stats = context.get('stats', {})
+        
+        # Personnalité et ton adaptatifs selon l'émotion
+        personality_prompt = self._build_personality_prompt(emotion_data, question)
         
         # Templates de prompts spécialisés
         intent_prompts = {
@@ -414,16 +631,16 @@ FOCUS: Analyse comportementale détaillée avec prise en compte du contexte util
 """,
 
             "person_analysis": f"""
-🚨🚨🚨 MISSION: ANALYSE COMPORTEMENTALE DES PERSONNES AVEC CONTEXTE CRITIQUE 🚨🚨🚨
+MISSION: ANALYSE COMPORTEMENTALE DES PERSONNES AVEC CONTEXTE CRITIQUE
 
 Question utilisateur: "{question}"
 
-⛔ INFORMATION CRITIQUE UTILISATEUR - PRIORITÉ ABSOLUE:
+INFORMATION CRITIQUE UTILISATEUR - PRIORITÉ ABSOLUE:
 ======================================================
 CONTEXTE FOURNI PAR L'UTILISATEUR (VÉRITÉ ABSOLUE):
 "{context.get('user_description', 'ATTENTION: Description utilisateur manquante!')}"
 
-🔒 RÈGLES ABSOLUES POUR CETTE ANALYSE:
+RÈGLES ABSOLUES POUR CETTE ANALYSE:
 1. La description utilisateur ci-dessus est une VÉRITÉ FACTUELLE
 2. Si elle mentionne "vol", "sortie sans payer", "sans passer caisse" → CLASSIFICATION OBLIGATOIRE: suspicion HIGH/CRITICAL  
 3. INTERDICTION FORMELLE de classer comme "normal" si l'utilisateur décrit un comportement suspect
@@ -435,20 +652,20 @@ TÂCHE SPÉCIALISÉE:
 3. Évaluer le niveau de suspicion selon le contexte utilisateur
 4. Formuler des recommandations adaptées à la gravité décrite
 
-⚠️ ATTENTION: Si tu ignores la description utilisateur ou la contredis, tu commets une ERREUR CRITIQUE.
+ATTENTION: Si tu ignores la description utilisateur ou la contredis, tu commets une ERREUR CRITIQUE.
 
 FOCUS: Analyse des personnes qui CONFIRME et DÉTAILLE la description utilisateur fournie.
 """
         }
         
-        return intent_prompts.get(intent, f"""
+        return personality_prompt + "\n\n" + intent_prompts.get(intent, f"""
 MISSION: RÉPONSE GÉNÉRALE VLM
 
 Question utilisateur: "{question}"
 
 Contexte: {context}
 
-TÂCHE: Répondre de manière informative et contextuelle.
+TÂCHE: Répondre de manière informative et contextuelle en incarnant la personnalité définie ci-dessus.
 """)
 
     def _format_tools_analysis(self, context: Dict[str, Any]) -> str:

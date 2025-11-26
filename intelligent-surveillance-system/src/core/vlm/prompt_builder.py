@@ -378,8 +378,12 @@ FORMAT RÉPONSE JSON:
 🚨 FOCUS SURVEILLANCE PRIORITAIRE (selon utilisateur):
 {self._format_list_for_context(video_metadata.get('suspicious_focus', []))}
 
-📝 DESCRIPTION DÉTAILLÉE UTILISATEUR:
+🚨 INFORMATION CRITIQUE UTILISATEUR - PRIORITÉ ABSOLUE:
+=======================================================
+CONTEXTE FOURNI PAR L'UTILISATEUR (INFORMATION VÉRIFIÉE):
 "{video_metadata.get('detailed_description', 'Aucune description fournie')}"
+
+⚠️ RÈGLE FONDAMENTALE: Cette description utilisateur est FACTUELLE et doit PRIMER sur toute observation visuelle ambiguë.
 
 🎯 PRIORITÉ ANALYSE: {video_metadata.get('analysis_priority', 'Standard')}
 📊 ÉCHANTILLONNAGE: {video_metadata.get('frame_sampling', 'Standard')}
@@ -392,22 +396,29 @@ INSTRUCTIONS CONTEXTUALISÉES:
 - Prends en compte le contexte "{video_metadata.get('time_context', 'Non spécifié')}" pour évaluer normalité
 - Perspective caméra "{video_metadata.get('camera_angle', 'Non spécifié')}" influence interprétation spatiale
 
-⚖️ ÉVALUATION COMPORTEMENTS CONTEXTUALISÉE:
-- NORMAUX dans ce contexte spécifique: {', '.join(video_metadata.get('expected_activities', []))}
+🚨 RÈGLES DE DÉTECTION CRITIQUES:
+- Si l'utilisateur mentionne "sortie sans payer" ou "vol" → SUSPICION HIGH/CRITICAL OBLIGATOIRE
+- Si usage de "sac personnel" pour transporter produits → Analyser comme POTENTIEL VOL
+- Sac personnel ≠ panier/caddie → Indication forte de dissimulation
+- Absence de passage caisse avec produits → CRITICAL SUSPICION
+- Placement direct articles dans sacs personnels → HIGH SUSPICION minimun
+
+⚖️ ÉVALUATION COMPORTEMENTS AVEC CONTEXTE CRITIQUE:
+- NORMAUX dans ce contexte: {', '.join(video_metadata.get('expected_activities', []))}
 - SUSPECTS à prioriser: {', '.join(video_metadata.get('suspicious_focus', []))}
-- Description utilisateur doit PRIMER sur assumptions générales
+- Description utilisateur doit TOUJOURS PRIMER sur observations visuelles
 
 🎯 OBJECTIFS SPÉCIFIQUES CETTE VIDÉO:
-- Focus principal: détection patterns listés en "Focus surveillance prioritaire"
-- Ignorer ou minimiser activités normales listées sauf si vraiment suspectes
-- Adapter confiance selon qualité description utilisateur fournie
-- Corréler obligatoirement avec description détaillée fournie
+- Focus principal: validation description utilisateur par observation visuelle
+- Corréler obligatoirement comportements avec description détaillée
+- Adapter confiance selon cohérence entre visuel et description
+- Priorité absolue aux éléments mentionnés par l'utilisateur
 
-CALIBRAGE SUSPICION CONTEXTUEL ADAPTÉ:
-- LOW (0.0-0.3): Activité listée comme normale ET cohérente avec contexte
-- MEDIUM (0.3-0.6): Activité non listée mais cohérente avec contexte général  
-- HIGH (0.6-0.8): Comportement incohérent avec contexte OU focus surveillance détecté
-- CRITICAL (0.8-1.0): Focus surveillance confirmé ET description utilisateur validée
+CALIBRAGE SUSPICION CONTEXTUEL ADAPTÉ AVEC PRIORITÉ VOL:
+- LOW (0.0-0.3): Activité listée comme normale ET aucun élément de vol détecté
+- MEDIUM (0.3-0.6): Comportement ambiguë MAIS pas d'indication de vol  
+- HIGH (0.6-0.8): Sac personnel utilisé OU comportement suspect + description utilisateur
+- CRITICAL (0.8-1.0): Description utilisateur mentionne vol OU sortie sans payer confirmée
 """
         return context_section
 

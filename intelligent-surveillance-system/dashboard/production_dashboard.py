@@ -2904,8 +2904,15 @@ def render_surveillance_tab():
             <div class="real-analysis-result" style="border-color: #ccc; background: #fafafa;">
                 <p><strong>Frame:</strong> {detection.frame_id} | <strong>Suspicion:</strong> <span style="color: {suspicion_color}">{detection.suspicion_level}</span> | <strong>Confiance:</strong> {detection.confidence:.1%}</p>
                 <p><i>{detection.description}</i></p>
+                if detection.get('reasoning'):
+                    with st.expander(f"Raisonnement détaillé (Frame {detection.frame_number})"):
+                        st.write(detection['reasoning'])
             </div>
             """, unsafe_allow_html=True)
+
+            if detection.get('reasoning'):
+                with st.expander(f"Raisonnement détaillé (Frame {detection.frame_id})"):
+                    st.write(detection['reasoning'])
     
     # Chat intégré pour surveillance
     st.divider()

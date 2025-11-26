@@ -66,6 +66,7 @@ class RealAnalysisResult:
     action_type: Any      # ActionType
     confidence: float
     description: str
+    reasoning: str
     
     # Détections spécifiques
     detections: List[Dict[str, Any]]
@@ -90,6 +91,7 @@ class RealAnalysisResult:
             'action_type': self.action_type.value if hasattr(self.action_type, 'value') else str(self.action_type),
             'confidence': self.confidence,
             'description': self.description,
+            'reasoning': self.reasoning,
             'detections': self.detections,
             'tool_results': {k: asdict(v) if hasattr(v, '__dict__') else str(v) for k, v in self.tool_results.items()},
             'processing_time': self.processing_time,
@@ -386,6 +388,7 @@ class RealVLMPipeline:
                 action_type=vlm_response.action_type,
                 confidence=vlm_response.confidence,
                 description=vlm_response.description,
+                reasoning=vlm_response.reasoning,
                 detections=vlm_response.detections,
                 tool_results=getattr(vlm_response, 'tool_results', {}),
                 processing_time=0.0,  # Sera mis à jour par le worker

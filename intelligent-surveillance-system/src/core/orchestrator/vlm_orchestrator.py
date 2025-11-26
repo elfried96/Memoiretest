@@ -56,6 +56,14 @@ class ModernVLMOrchestrator:
         self.response_parser = ResponseParser()
         self.vlm_model_instance = DynamicVisionLanguageModel(default_model=vlm_model_name)
         
+        self.stats = {
+            "total_analyses": 0,
+            "successful_analyses": 0,
+            "error_count": 0,
+            "average_response_time": 0.0,
+            "tools_usage": {}
+        }
+        
         logger.info(f"Orchestrateur VLM initialisé - Mode: {self.config.mode.value}")
     
     async def analyze_surveillance_frame(

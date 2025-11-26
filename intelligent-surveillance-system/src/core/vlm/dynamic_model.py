@@ -407,9 +407,6 @@ class DynamicVisionLanguageModel:
             # Parse de la réponse
             analysis_result = self.response_parser.parse_vlm_response(response_text)
             
-            # Ajout d'informations sur le modèle utilisé
-            analysis_result.description += f" | Modèle: {self.current_model_id}"
-            
             # Affichage détaillé des décisions VLM
             self._log_vlm_decision(response_text, analysis_result)
             

@@ -618,28 +618,22 @@ Réponds maintenant en utilisant ton intelligence VLM complète avec thinking/re
     ) -> Dict[str, Any]:
         """Structure la réponse finale pour l'interface chat."""
         
-        # Extraction données VLM
+        # Structure des données VLM (reasoning est du texte, pas du JSON)
         if vlm_response.reasoning:
-            try:
-                structured = json.loads(vlm_response.reasoning)
-                if isinstance(structured, dict):
-                    return {
-                        "type": "vlm_thinking",
-                        "question": question,
-                        "thinking": structured.get("thinking", ""),
-                        "analysis": structured.get("analysis", ""),
-                        "response": structured.get("response", vlm_response.description),
-                        "technical_details": structured.get("technical_details", ""),
-                        "recommendations": structured.get("recommendations", []),
-                        "confidence": structured.get("confidence", vlm_response.confidence),
-                        "data_quality": structured.get("data_quality", "medium"),
-                        "limitations": structured.get("limitations", []),
-                        "timestamp": datetime.now().isoformat(),
-                        "context_used": list(context.keys())
-                    }
-            except Exception as parse_error:
-                logger.warning(f"Parsing JSON VLM response failed: {parse_error}")
-                pass
+            return {
+                "type": "vlm_thinking",
+                "question": question,
+                "thinking": vlm_response.reasoning[:200] + "..." if len(vlm_response.reasoning) > 200 else vlm_response.reasoning,
+                "analysis": vlm_response.description,
+                "response": vlm_response.description,
+                "technical_details": f"Confiance: {vlm_response.confidence:.2f}, Action: {vlm_response.action_type.value}",
+                "recommendations": vlm_response.recommendations,
+                "confidence": vlm_response.confidence,
+                "data_quality": "high" if vlm_response.confidence > 0.8 else "medium" if vlm_response.confidence > 0.6 else "low",
+                "limitations": [],
+                "timestamp": datetime.now().isoformat(),
+                "context_used": list(context.keys())
+            }
         
         # Fallback structure
         return {

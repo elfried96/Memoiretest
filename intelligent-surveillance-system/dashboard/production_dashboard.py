@@ -326,15 +326,38 @@ def render_auto_descriptions():
         
         # Affichage
         for i, desc in enumerate(descriptions_to_show[:show_count]):
+            # Icône de confiance pour le titre
+            confidence = desc['confidence']
+            if confidence > 0.8:
+                confidence_icon = "🎯"
+            elif confidence > 0.6:
+                confidence_icon = "⚡"
+            else:
+                confidence_icon = "⚠️"
+                
             with st.expander(
-                f"{desc['timestamp'].strftime('%H:%M:%S')} - {desc['detection_trigger'][:50]}...", 
+                f"{confidence_icon} {desc['timestamp'].strftime('%H:%M:%S')} - {desc['detection_trigger'][:50]}...", 
                 expanded=(i == 0)  # Premier élément ouvert
             ):
-                st.markdown(desc['description'])
+                # Affichage structuré de la description
+                st.markdown(f"""
+### 📋 Description de l'Événement
+{desc['description']}
+
+### 🔍 Détails de l'Analyse
+**Déclencheur:** {desc['detection_trigger']}  
+**Horodatage:** {desc['timestamp'].strftime('%H:%M:%S - %d/%m/%Y')}
+""")
                 
                 col1, col2, col3 = st.columns(3)
                 with col1:
-                    st.metric("Confiance", f"{desc['confidence']:.1%}")
+                    confidence = desc['confidence']
+                    if confidence > 0.8:
+                        st.success(f"🟢 **Très fiable** {confidence:.0%}")
+                    elif confidence > 0.6:
+                        st.warning(f"🟡 **Correcte** {confidence:.0%}")
+                    else:
+                        st.error(f"🔴 **Incertaine** {confidence:.0%}")
                 with col2:
                     st.metric("Niveau", desc['suspicion_level'])
                 with col3:
@@ -2720,21 +2743,95 @@ async def generate_real_vlm_response(question: str, chat_type: str, context_data
         
         # Formatage pour interface chat Streamlit
         if response_data.get("type") == "vlm_thinking":
-            response_text = f"""**Analyse VLM avec Thinking:**
+            thinking = response_data.get('thinking', '').strip()
+            response = response_data.get('response', 'Réponse non disponible').strip()
+            recommendations = response_data.get('recommendations', [])
+            confidence = response_data.get('confidence', 0)
+            technical_details = response_data.get('technical_details', '')
+            
+            # Système feu tricolore pour la confiance
+            if confidence > 0.8:
+                confidence_display = "🟢 **Très fiable** - L'IA est certaine"
+                confidence_icon = "🎯"
+            elif confidence > 0.6:
+                confidence_display = "🟡 **Correcte** - Vérification suggérée"
+                confidence_icon = "⚡"
+            else:
+                confidence_display = "🔴 **Incertaine** - Révision nécessaire"
+                confidence_icon = "⚠️"
+            
+            # Formatage amélioré avec structure claire
+            response_text = f"""## 🧠 Analyse IA Complète
 
-**Processus de Raisonnement:**
-{response_data.get('thinking', 'Thinking non disponible')}
+### 📋 Résumé Exécutif
+**{response}**
 
-**Réponse:**
-{response_data.get('response', 'Réponse non disponible')}
+### {confidence_icon} Fiabilité
+{confidence_display}  
+📊 Niveau de confiance: **{confidence:.0%}**
 
-**Recommandations:**
-{' | '.join(response_data.get('recommendations', []))}
-"""
+### 🔍 Processus d'Analyse
+{thinking}"""
+
+            # Détails techniques en section distincte
+            if technical_details:
+                response_text += f"""
+
+### ⚙️ Détails Techniques
+{technical_details}"""
+            
+            if recommendations:
+                response_text += f"""
+
+### 💡 Recommandations
+{chr(10).join('🔸 ' + rec for rec in recommendations)}"""
+                
             return response_text
             
         else:
-            return response_data.get("response", "Réponse VLM générée.")
+            # Mode simplifié avec formatage amélioré
+            response = response_data.get("response", "Réponse VLM générée.").strip()
+            reasoning = response_data.get("reasoning", "").strip()
+            confidence = response_data.get("confidence", 0)
+            recommendations = response_data.get("recommendations", [])
+            
+            # Structure claire avec icônes
+            formatted_response = f"""## 🤖 Analyse IA
+
+### 📋 Conclusion
+**{response}**"""
+            
+            if reasoning:
+                formatted_response += f"""
+
+### 🧠 Raisonnement
+{reasoning}"""
+            
+            if confidence > 0:
+                # Système feu tricolore amélioré
+                if confidence > 0.8:
+                    confidence_display = "🟢 **Très fiable** - L'IA est certaine"
+                    confidence_icon = "🎯"
+                elif confidence > 0.6:
+                    confidence_display = "🟡 **Correcte** - Vérification suggérée"
+                    confidence_icon = "⚡"
+                else:
+                    confidence_display = "🔴 **Incertaine** - Révision nécessaire"
+                    confidence_icon = "⚠️"
+                
+                formatted_response += f"""
+
+### {confidence_icon} Fiabilité
+{confidence_display}  
+📊 Niveau: **{confidence:.0%}**"""
+            
+            if recommendations:
+                formatted_response += f"""
+
+### 💡 Actions Suggérées
+{chr(10).join('🔸 ' + rec for rec in recommendations)}"""
+            
+            return formatted_response
             
     except Exception as e:
         logger.error(f"Erreur chatbot VLM: {e}")
@@ -3380,18 +3477,129 @@ Cette description aidera le VLM à mieux contextualiser son analyse...""",
         if selected_video:
             results = st.session_state.video_analysis_results[selected_video]
             
-            # Résumé de l'analyse VLM
+            # Résumé de l'analyse VLM amélioré
+            overall_score = results['summary']['overall_performance_score']
+            if overall_score > 0.8:
+                score_display = f"🟢 **Excellente** ({overall_score:.1%})"
+                score_icon = "🎯"
+            elif overall_score > 0.6:
+                score_display = f"🟡 **Correcte** ({overall_score:.1%})"
+                score_icon = "⚡"
+            else:
+                score_display = f"🔴 **À améliorer** ({overall_score:.1%})"
+                score_icon = "⚠️"
+                
             st.markdown(f"""
-            <div class="real-analysis-result">
-                <h4> Analyse VLM - {results['video_name']}</h4>
-                <p><strong>Pipeline:</strong> {results['pipeline_used']}</p>
-                <p><strong>Mode:</strong> {results['analysis_mode']}</p>
-                <p><strong>Frames analysées:</strong> {results['frames_analyzed']}</p>
-                <p><strong>Score performance global:</strong> {results['summary']['overall_performance_score']:.2f}</p>
-                <p><strong>Détections totales:</strong> {results['summary']['total_detections']}</p>
-                <p><strong>Haute confiance:</strong> {results['summary']['high_confidence_detections']}</p>
-            </div>
-            """, unsafe_allow_html=True)
+## 🎬 Résultats d'Analyse Vidéo VLM
+
+### 📊 Résumé Exécutif
+**Vidéo:** {results['video_name']}  
+**Pipeline:** {results['pipeline_used']} | **Mode:** {results['analysis_mode']}
+
+### {score_icon} Performance Globale
+{score_display}
+
+### 📈 Métriques Clés
+- **Frames analysées:** {results['frames_analyzed']} frames
+- **Détections totales:** {results['summary']['total_detections']} événements
+- **Haute confiance:** {results['summary']['high_confidence_detections']} détections fiables
+""")
+            
+            # Métriques supplémentaires en colonnes
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.metric("Score Performance", f"{overall_score:.1%}", 
+                         delta=f"+{(overall_score-0.7)*100:.1f}%" if overall_score > 0.7 else None)
+            with col2:
+                confidence_rate = results['summary']['high_confidence_detections'] / max(1, results['summary']['total_detections'])
+                st.metric("Taux Fiabilité", f"{confidence_rate:.1%}")
+            with col3:
+                frames_per_detection = results['frames_analyzed'] / max(1, results['summary']['total_detections'])
+                st.metric("Efficacité", f"{frames_per_detection:.1f} f/détection")
+            
+            # Détails des frames analysées (si disponibles)
+            if 'detailed_frames' in results and results['detailed_frames']:
+                st.markdown("### 🎞️ Détails des Frames Analysées")
+                
+                # Sélection du nombre de frames à afficher
+                col_display1, col_display2 = st.columns(2)
+                with col_display1:
+                    frames_to_show = st.selectbox("Nombre de frames à afficher", [5, 10, 20, 50], index=1)
+                with col_display2:
+                    filter_confidence = st.selectbox("Filtrer par confiance", ["Toutes", "Haute (>80%)", "Moyenne (60-80%)", "Faible (<60%)"], index=0)
+                
+                # Filtrage
+                detailed_frames = results['detailed_frames']
+                if filter_confidence != "Toutes":
+                    if filter_confidence == "Haute (>80%)":
+                        detailed_frames = [f for f in detailed_frames if f.get('confidence', 0) > 0.8]
+                    elif filter_confidence == "Moyenne (60-80%)":
+                        detailed_frames = [f for f in detailed_frames if 0.6 <= f.get('confidence', 0) <= 0.8]
+                    elif filter_confidence == "Faible (<60%)":
+                        detailed_frames = [f for f in detailed_frames if f.get('confidence', 0) < 0.6]
+                
+                # Affichage des frames
+                for i, frame in enumerate(detailed_frames[:frames_to_show]):
+                    confidence = frame.get('confidence', 0)
+                    suspicion = frame.get('suspicion_level', 'LOW')
+                    
+                    # Icône selon la confiance
+                    if confidence > 0.8:
+                        frame_icon = "🎯"
+                    elif confidence > 0.6:
+                        frame_icon = "⚡"
+                    else:
+                        frame_icon = "⚠️"
+                    
+                    # Icône selon le niveau de suspicion
+                    suspicion_colors = {
+                        'CRITICAL': '🔴',
+                        'HIGH': '🟠',
+                        'MEDIUM': '🟡',
+                        'LOW': '🟢',
+                        'VERY_LOW': '🟢'
+                    }
+                    suspicion_icon = suspicion_colors.get(suspicion.upper(), '🟢')
+                    
+                    with st.expander(
+                        f"{frame_icon} Frame {frame.get('frame_index', i)} - {suspicion_icon} {suspicion} ({confidence:.0%})",
+                        expanded=(i < 3)  # 3 premiers ouverts
+                    ):
+                        st.markdown(f"""
+### 📝 Description
+{frame.get('description', 'Aucune description disponible')}
+
+### 📊 Détails d'Analyse
+**Confiance:** {confidence:.1%} | **Niveau de suspicion:** {suspicion}  
+**Timestamp:** {frame.get('timestamp', 'N/A')}s | **Outils utilisés:** {', '.join(frame.get('tools_used', []))}""")
+                        
+                        # Objets détectés
+                        objects = frame.get('objects_detected', [])
+                        if objects:
+                            st.markdown("**🔍 Objets détectés:**")
+                            for obj in objects:
+                                obj_type = obj.get('type', 'inconnu')
+                                obj_confidence = obj.get('confidence', 0)
+                                obj_count = obj.get('count', 1)
+                                st.write(f"- {obj_type} (x{obj_count}) - Confiance: {obj_confidence:.1%}")
+                        
+                        # Comportements
+                        behaviors = frame.get('behaviors', [])
+                        if behaviors:
+                            st.markdown("**🎭 Comportements observés:**")
+                            for behavior in behaviors:
+                                behavior_type = behavior.get('type', 'normal')
+                                behavior_confidence = behavior.get('confidence', 0)
+                                st.write(f"- {behavior_type} - Confiance: {behavior_confidence:.1%}")
+                        
+                        # Métriques rapides
+                        col_frame1, col_frame2, col_frame3 = st.columns(3)
+                        with col_frame1:
+                            st.metric("Objets", len(objects))
+                        with col_frame2:
+                            st.metric("Comportements", len(behaviors))
+                        with col_frame3:
+                            st.metric("Outils", len(frame.get('tools_used', [])))
             
             # Performance des outils VLM
             st.markdown("### [PERFORMANCE] Performance des Outils VLM")

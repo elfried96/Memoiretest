@@ -53,6 +53,8 @@ INDICATEUR #1 À DÉTECTER: ARTICLES DANS SAC PERSONNEL
 
         {video_context_section}
 
+        
+        PRIORITÉ ABSOLUE : Le contexte fourni par l'utilisateur ci-dessus est la source de vérité. Ton unique mission est de l'analyser et de le confirmer avec les preuves visuelles. Ignore toute interprétation qui contredit cette description.
 
 
         📜 DIRECTIVES IMPÉRATIVES POUR CETTE ANALYSE :

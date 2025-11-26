@@ -498,7 +498,7 @@ Réponds maintenant en utilisant ton intelligence VLM complète avec thinking/re
             # Injection prompt chatbot spécialisé
             if hasattr(self.pipeline.orchestrator, 'vlm_model'):
                 # Appel direct VLM avec prompt chatbot
-                response_text = await self._direct_vlm_call(chat_prompt, request_image)
+                response_text = await self._direct_vlm_call(chat_prompt, context_image)
                 
                 # Parse réponse JSON structurée
                 parsed_response = self._parse_vlm_chat_response(response_text)

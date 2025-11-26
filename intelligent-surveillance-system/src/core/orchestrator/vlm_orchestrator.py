@@ -12,6 +12,9 @@ import numpy as np
 from ..types import Detection, AnalysisRequest, AnalysisResponse, ActionType, SuspicionLevel
 from ..vlm.dynamic_model import DynamicVisionLanguageModel
 from ...utils.exceptions import ProcessingError
+from ..vlm.tools_integration import AdvancedToolsManager
+from ..vlm.prompt_builder import PromptBuilder
+from ..vlm.response_parser import ResponseParser
 
 logger = logging.getLogger(__name__)
 

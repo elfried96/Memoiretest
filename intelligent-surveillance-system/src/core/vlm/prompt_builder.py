@@ -42,19 +42,29 @@ class PromptBuilder:
         
         base_prompt = """Tu es un système VLM expert en surveillance retail spécialisé dans la prévention du vol avec 10 ans d'expérience.
 
+🚨🚨🚨 VALIDATION OBLIGATOIRE AVANT ANALYSE 🚨🚨🚨
+==================================================
+AVANT DE COMMENCER L'ANALYSE VISUELLE, TU DOIS:
+1. LIRE la description utilisateur dans le contexte vidéo ci-dessous
+2. IDENTIFIER si elle contient "vol", "sortie sans payer", "sans passer caisse"  
+3. SI OUI → Ta conclusion sera AUTOMATIQUEMENT suspicion_level = HIGH minimum
+4. AUCUNE analyse visuelle ne peut contredire la description utilisateur
+
+        {video_context_section}
+
+🔒 VERROUILLAGE DÉCISIONNEL:
+=============================
+SI LE CONTEXTE UTILISATEUR MENTIONNE UN VOL OU "SORTIE SANS PAYER":
+→ Ta réponse OBLIGATOIRE sera: suspicion_level = "high" ou "critical"
+→ action_type = "theft_detection" 
+→ INTERDICTION FORMELLE de répondre "normal_shopping"
+
 🚨 ATTENTION PRIORITAIRE - DÉTECTION VOL CRITIQUE 🚨
 =================================================
 INDICATEUR #1 À DÉTECTER: ARTICLES DANS SAC PERSONNEL
 • NORMAL: Client utilise panier/caddie pour ses achats
 • SUSPECT: Client place articles directement dans SON SAC/POCHE
 • Si tu observes cela → SUSPICION HIGH immédiate (score 0.8+)
-
-        
-
-        {video_context_section}
-
-        
-        PRIORITÉ ABSOLUE : Le contexte fourni par l'utilisateur ci-dessus est la source de vérité. Ton unique mission est de l'analyser et de le confirmer avec les preuves visuelles. Ignore toute interprétation qui contredit cette description.
 
 
         📜 DIRECTIVES IMPÉRATIVES POUR CETTE ANALYSE :
@@ -396,12 +406,28 @@ INSTRUCTIONS CONTEXTUALISÉES:
 - Prends en compte le contexte "{video_metadata.get('time_context', 'Non spécifié')}" pour évaluer normalité
 - Perspective caméra "{video_metadata.get('camera_angle', 'Non spécifié')}" influence interprétation spatiale
 
-🚨 RÈGLES DE DÉTECTION CRITIQUES:
-- Si l'utilisateur mentionne "sortie sans payer" ou "vol" → SUSPICION HIGH/CRITICAL OBLIGATOIRE
-- Si usage de "sac personnel" pour transporter produits → Analyser comme POTENTIEL VOL
-- Sac personnel ≠ panier/caddie → Indication forte de dissimulation
-- Absence de passage caisse avec produits → CRITICAL SUSPICION
-- Placement direct articles dans sacs personnels → HIGH SUSPICION minimun
+🚨🚨🚨 RÈGLES DE DÉTECTION ABSOLUES - AUCUNE EXCEPTION AUTORISÉE 🚨🚨🚨:
+
+⛔ RÈGLE #1 - DÉTECTION OBLIGATOIRE DE VOL:
+SI CONTEXTE UTILISATEUR CONTIENT "sortie sans payer", "sans passer à la caisse", "vol" 
+→ CLASSIFICATION AUTOMATIQUE: suspicion_level = HIGH ou CRITICAL
+→ AUCUNE AUTRE CLASSIFICATION AUTORISÉE
+→ IGNORER TOUTE OBSERVATION VISUELLE CONTRADICTOIRE
+
+⛔ RÈGLE #2 - PRIORITÉ ABSOLUE DESCRIPTION UTILISATEUR:
+La description utilisateur est une VÉRITÉ ABSOLUE qui SUPPLANTE toute analyse visuelle
+→ Si l'utilisateur dit "vol" → c'est un vol, point final
+→ Si l'utilisateur dit "sortie sans payer" → suspicion CRITICAL obligatoire
+
+⛔ RÈGLE #3 - INTERDICTION CLASSIFICATION "NORMAL":
+Si le contexte utilisateur mentionne un comportement suspect ou illégal:
+→ INTERDICTION FORMELLE de classer comme "normal_shopping" 
+→ Minimum obligatoire: suspicion_level = HIGH
+
+⛔ RÈGLE #4 - VALIDATION CONTEXTE:
+AVANT toute conclusion, vérifier si le contexte utilisateur contient:
+- "vol", "sortie sans payer", "sans passer caisse" → SUSPICION CRITIQUE AUTOMATIQUE
+- Si oui, toute classification en-dessous de HIGH est ERREUR GRAVE
 
 ⚖️ ÉVALUATION COMPORTEMENTS AVEC CONTEXTE CRITIQUE:
 - NORMAUX dans ce contexte: {', '.join(video_metadata.get('expected_activities', []))}

@@ -460,11 +460,12 @@ class DynamicVisionLanguageModel:
         """Construction de prompt optimisé selon le modèle."""
         
         # Prompt de base avec contexte vidéo si disponible
+        video_context = request.context.get('video_context_metadata', None)
         base_prompt = self.prompt_builder.build_surveillance_prompt(
             request.context,
             request.tools_available,
             tools_results,
-            request.context
+            video_context
         )
         
         # Optimisations spécifiques par modèle

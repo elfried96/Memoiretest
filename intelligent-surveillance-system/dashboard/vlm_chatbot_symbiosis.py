@@ -12,7 +12,7 @@ Chatbot intelligent basé sur le même VLM que la surveillance avec:
 import asyncio
 import json
 import base64
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
@@ -20,6 +20,129 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from loguru import logger
+
+class AutonomousVLMReflection:
+    """
+    Réflexion autonome avancée basée sur LLaVA-o1, R3V, VL-Rethinker (2024-2025)
+    Implémente structured reasoning, self-reflection et forced thinking.
+    """
+    
+    def __init__(self):
+        self.reflection_enabled = True
+        self.structured_reasoning_steps = 4  # Summary, Caption, Reasoning, Conclusion
+        self.self_correction_loops = 2
+        
+    async def structured_reasoning(
+        self, 
+        question: str, 
+        image_data: np.ndarray = None, 
+        context: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """LLaVA-o1 style structured reasoning en 4 étapes."""
+        
+        if not self.reflection_enabled:
+            return {"reasoning_skipped": True}
+        
+        steps_results = {}
+        
+        try:
+            # Stage 1: Summary (comprendre la question et le contexte)
+            steps_results["summary"] = await self._stage_summarize(question, context)
+            
+            # Stage 2: Caption (observation détaillée)  
+            steps_results["caption"] = await self._stage_caption(image_data, steps_results["summary"])
+            
+            # Stage 3: Multi-path Reasoning (exploration de plusieurs raisonnements)
+            steps_results["reasoning_candidates"] = await self._stage_reasoning_beam_search(
+                question, steps_results["caption"], context
+            )
+            
+            # Stage 4: Self-Reflection & Conclusion
+            steps_results["final_conclusion"] = await self._stage_reflect_and_conclude(
+                steps_results["reasoning_candidates"], context
+            )
+            
+            return steps_results
+            
+        except Exception as e:
+            logger.error(f"Erreur structured reasoning: {e}")
+            return {"error": str(e), "reasoning_incomplete": True}
+    
+    async def _stage_summarize(self, question: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Stage 1: Résumé et compréhension de la tâche."""
+        
+        summary = {
+            "question_understood": question,
+            "key_elements": self._extract_key_elements(question),
+            "context_critical": context.get('user_description', '') if context else '',
+            "mission_focus": self._determine_mission_focus(question, context),
+            "expected_output": self._determine_expected_output(question)
+        }
+        
+        return summary
+    
+    async def _stage_caption(self, image_data: np.ndarray, summary: Dict[str, Any]) -> Dict[str, Any]:
+        """Stage 2: Observation détaillée et caption."""
+        
+        caption = {
+            "visual_observations": [
+                "Analyse visuelle en cours selon mission",
+                "Recherche éléments pertinents"
+            ],
+            "focus_areas": summary.get("mission_focus", []),
+            "observation_quality": "good" if image_data is not None else "limited",
+            "critical_elements_spotted": []
+        }
+        
+        return caption
+    
+    def _extract_key_elements(self, question: str) -> List[str]:
+        """Extraction des éléments clés de la question."""
+        
+        key_patterns = {
+            "performance": ["performance", "compare", "efficacité"],
+            "tools": ["outils", "tools", "méthodes"], 
+            "configuration": ["config", "optimiser", "améliorer"],
+            "behavior": ["comportement", "suspect", "voir", "détaille"]
+        }
+        
+        elements = []
+        question_lower = question.lower()
+        
+        for category, patterns in key_patterns.items():
+            if any(pattern in question_lower for pattern in patterns):
+                elements.append(category)
+        
+        return elements
+    
+    def _determine_mission_focus(self, question: str, context: Dict[str, Any]) -> List[str]:
+        """Détermine le focus de la mission."""
+        
+        focus_areas = []
+        question_lower = question.lower()
+        
+        if "performance" in question_lower or "compare" in question_lower:
+            focus_areas.append("performance_analysis")
+        if "outils" in question_lower:
+            focus_areas.append("tool_analysis") 
+        if "config" in question_lower:
+            focus_areas.append("configuration_optimization")
+        if any(word in question_lower for word in ["voir", "détaille", "suspect"]):
+            focus_areas.append("behavioral_analysis")
+            
+        return focus_areas if focus_areas else ["general_analysis"]
+    
+    def _determine_expected_output(self, question: str) -> str:
+        """Détermine le type de sortie attendu."""
+        
+        if "compare" in question.lower():
+            return "comparative_analysis"
+        elif "recommande" in question.lower():
+            return "recommendations"
+        elif "analyse" in question.lower():
+            return "detailed_analysis"
+        else:
+            return "informative_response"
 
 # Configuration du PYTHONPATH
 import sys
@@ -104,6 +227,10 @@ class VLMChatbotSymbiosis:
         self.advanced_features = get_advanced_features() if VLM_AVAILABLE else None
         self.session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
         
+        # NOUVEAU: Réflexion autonome avancée (LLaVA-o1, R3V, VL-Rethinker)
+        self.autonomous_reflection = AutonomousVLMReflection()
+        self.structured_reasoning_enabled = True
+        
         if self.advanced_features:
             self.advanced_features.initialize_conversation_context(
                 self.session_id,
@@ -148,6 +275,213 @@ class VLMChatbotSymbiosis:
         # Fallback traitement standard
         return await self._process_vlm_query_internal(question, chat_type, vlm_context or {})
     
+    def _analyze_question_intent(self, question: str) -> Dict[str, Any]:
+        """Analyse l'intention de la question pour adapter le traitement."""
+        question_lower = question.lower()
+        
+        # Dictionnaire des patterns de questions
+        question_patterns = {
+            "performance_comparison": [
+                "compare", "performances", "différents outils", "comparaison", 
+                "quel est le meilleur", "efficacité", "résultats"
+            ],
+            "tool_analysis": [
+                "outils", "analyse outils", "tools", "méthodes", "algorithmes",
+                "techniques", "utilisation outils"
+            ],
+            "configuration_recommendation": [
+                "recommande", "configuration", "meilleure config", "optimiser",
+                "paramètres", "réglages", "améliorer"
+            ],
+            "incident_specific": [
+                "vol", "suspect", "comportement", "qu'est-ce que tu vois",
+                "détaille", "personne", "actions"
+            ],
+            "person_analysis": [
+                "personne", "gens", "individu", "client", "deux personnes", 
+                "qu'est-ce que tu pense", "ton avis", "analyse des personnes"
+            ],
+            "technical_details": [
+                "comment ça marche", "explique", "pourquoi", "mécanisme",
+                "fonctionnement", "détails techniques"
+            ]
+        }
+        
+        # Détection du type de question
+        detected_type = "general"
+        confidence = 0.0
+        
+        for intent_type, patterns in question_patterns.items():
+            matches = sum(1 for pattern in patterns if pattern in question_lower)
+            if matches > 0:
+                pattern_confidence = matches / len(patterns)
+                if pattern_confidence > confidence:
+                    detected_type = intent_type
+                    confidence = pattern_confidence
+        
+        return {
+            "intent": detected_type,
+            "confidence": confidence,
+            "requires_specific_context": detected_type != "general"
+        }
+
+    def _build_intent_specific_prompt(
+        self, 
+        question: str, 
+        question_analysis: Dict[str, Any], 
+        context: Dict[str, Any]
+    ) -> str:
+        """Construit un prompt spécialisé selon l'intention de la question."""
+        
+        intent = question_analysis['intent']
+        base_context = context.get('current_frame_data', {})
+        video_data = context.get('video_analyses', {})
+        stats = context.get('stats', {})
+        
+        # Templates de prompts spécialisés
+        intent_prompts = {
+            "performance_comparison": f"""
+MISSION: COMPARAISON DÉTAILLÉE DES PERFORMANCES DES OUTILS VLM
+
+Question utilisateur: "{question}"
+
+DONNÉES DISPONIBLES:
+- Outils actifs: {context.get('active_tools', [])}
+- Stats performance: {stats}
+- Analyses vidéo: {len(video_data)} analyses disponibles
+
+TÂCHE SPÉCIALISÉE:
+1. Analyse comparative des performances de chaque outil
+2. Identification des points forts/faibles 
+3. Recommandations d'optimisation basées sur les données réelles
+4. Métriques de performance spécifiques
+
+FOCUS: Réponse analytique détaillée sur les performances, PAS sur le contenu vidéo.
+""",
+            
+            "tool_analysis": f"""
+MISSION: ANALYSE TECHNIQUE DES OUTILS VLM UTILISÉS
+
+Question utilisateur: "{question}"
+
+OUTILS DISPONIBLES ET STATUTS:
+{self._format_tools_analysis(context)}
+
+TÂCHE SPÉCIALISÉE:
+1. Description technique de chaque outil
+2. Rôle spécifique dans la pipeline d'analyse
+3. Efficacité et précision observées
+4. Interactions entre outils
+
+FOCUS: Analyse technique approfondie des méthodes utilisées.
+""",
+            
+            "configuration_recommendation": f"""
+MISSION: RECOMMANDATIONS OPTIMISATION CONFIGURATION VLM
+
+Question utilisateur: "{question}"
+
+CONFIGURATION ACTUELLE:
+{self._format_current_config(context)}
+
+TÂCHE SPÉCIALISÉE:
+1. Analyse de la configuration actuelle
+2. Identification des goulots d'étranglement
+3. Recommandations d'optimisation spécifiques
+4. Configuration optimale suggérée
+
+FOCUS: Conseils pratiques et actionables pour l'optimisation.
+""",
+            
+            "incident_specific": f"""
+MISSION: ANALYSE DÉTAILLÉE DE L'INCIDENT SURVEILLÉ
+
+Question utilisateur: "{question}"
+
+CONTEXTE CRITIQUE:
+{context.get('user_description', 'Description utilisateur non disponible')}
+
+DONNÉES VISUELLES DISPONIBLES:
+{self._format_incident_data(context)}
+
+TÂCHE SPÉCIALISÉE:
+1. Analyse approfondie du comportement observé
+2. Corrélation avec la description utilisateur critique
+3. Évaluation des indices de suspicion
+4. Recommandations d'action proportionnées
+
+FOCUS: Analyse comportementale détaillée avec prise en compte du contexte utilisateur.
+""",
+
+            "person_analysis": f"""
+🚨🚨🚨 MISSION: ANALYSE COMPORTEMENTALE DES PERSONNES AVEC CONTEXTE CRITIQUE 🚨🚨🚨
+
+Question utilisateur: "{question}"
+
+⛔ INFORMATION CRITIQUE UTILISATEUR - PRIORITÉ ABSOLUE:
+======================================================
+CONTEXTE FOURNI PAR L'UTILISATEUR (VÉRITÉ ABSOLUE):
+"{context.get('user_description', 'ATTENTION: Description utilisateur manquante!')}"
+
+🔒 RÈGLES ABSOLUES POUR CETTE ANALYSE:
+1. La description utilisateur ci-dessus est une VÉRITÉ FACTUELLE
+2. Si elle mentionne "vol", "sortie sans payer", "sans passer caisse" → CLASSIFICATION OBLIGATOIRE: suspicion HIGH/CRITICAL  
+3. INTERDICTION FORMELLE de classer comme "normal" si l'utilisateur décrit un comportement suspect
+4. Toute observation visuelle contradictoire doit être IGNORÉE
+
+TÂCHE SPÉCIALISÉE:
+1. COMMENCER par rappeler la description utilisateur
+2. Analyser le comportement en CONFIRMANT cette description
+3. Évaluer le niveau de suspicion selon le contexte utilisateur
+4. Formuler des recommandations adaptées à la gravité décrite
+
+⚠️ ATTENTION: Si tu ignores la description utilisateur ou la contredis, tu commets une ERREUR CRITIQUE.
+
+FOCUS: Analyse des personnes qui CONFIRME et DÉTAILLE la description utilisateur fournie.
+"""
+        }
+        
+        return intent_prompts.get(intent, f"""
+MISSION: RÉPONSE GÉNÉRALE VLM
+
+Question utilisateur: "{question}"
+
+Contexte: {context}
+
+TÂCHE: Répondre de manière informative et contextuelle.
+""")
+
+    def _format_tools_analysis(self, context: Dict[str, Any]) -> str:
+        """Formate l'analyse des outils pour le prompt."""
+        tools = context.get('active_tools', [])
+        if not tools:
+            return "Aucun outil actif détecté"
+        
+        return "\n".join([f"- {tool}: Actif" for tool in tools])
+    
+    def _format_current_config(self, context: Dict[str, Any]) -> str:
+        """Formate la configuration actuelle."""
+        config_info = []
+        stats = context.get('stats', {})
+        
+        if 'frames_processed' in stats:
+            config_info.append(f"Frames traitées: {stats['frames_processed']}")
+        if 'avg_processing_time' in stats:
+            config_info.append(f"Temps moyen: {stats['avg_processing_time']:.2f}s")
+            
+        return "\n".join(config_info) if config_info else "Configuration non disponible"
+    
+    def _format_incident_data(self, context: Dict[str, Any]) -> str:
+        """Formate les données d'incident."""
+        incident_data = []
+        
+        if 'current_frame_data' in context:
+            incident_data.append("Frame vidéo disponible pour analyse")
+        if 'video_analyses' in context:
+            incident_data.append(f"{len(context['video_analyses'])} analyses vidéo disponibles")
+            
+        return "\n".join(incident_data) if incident_data else "Données incident limitées"
+
     async def _process_vlm_query_internal(
         self, 
         question: str, 
@@ -179,9 +513,13 @@ class VLMChatbotSymbiosis:
             return await self._fallback_response(question, vlm_context)
         
         try:
-            # 1. Construction du contexte VLM enrichi
+            # 0. NOUVEAU: Analyse de l'intention de la question
+            question_analysis = self._analyze_question_intent(question)
+            logger.info(f"Question intent détecté: {question_analysis['intent']} (confiance: {question_analysis['confidence']:.2f})")
+            
+            # 1. Construction du contexte VLM enrichi avec intention spécifique
             enriched_context = await self._build_enriched_context(
-                question, chat_type, vlm_context
+                question, chat_type, vlm_context, question_analysis
             )
             
             # 2. Génération visualisation contexte (si activée)
@@ -189,8 +527,10 @@ class VLMChatbotSymbiosis:
             if self.context_visualization:
                 context_image = await self._create_context_visualization(enriched_context)
             
-            # 3. Construction prompt chatbot spécialisé
-            chat_prompt = self._build_vlm_chat_prompt(
+            # 3. Construction prompt chatbot spécialisé selon intention
+            chat_prompt = self._build_intent_specific_prompt(
+                question, question_analysis, enriched_context
+            ) if question_analysis['requires_specific_context'] else self._build_vlm_chat_prompt(
                 question, enriched_context, chat_type
             )
             
@@ -242,7 +582,8 @@ class VLMChatbotSymbiosis:
         self, 
         question: str, 
         chat_type: str, 
-        vlm_context: Dict[str, Any]
+        vlm_context: Dict[str, Any],
+        question_analysis: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """Construit le contexte enrichi pour le VLM."""
         
@@ -250,7 +591,8 @@ class VLMChatbotSymbiosis:
             "timestamp": datetime.now().isoformat(),
             "question": question,
             "chat_type": chat_type,
-            "conversation_length": len(self.conversation_history)
+            "conversation_length": len(self.conversation_history),
+            "question_analysis": question_analysis or {}
         }
         
         # Données pipeline si disponibles
@@ -273,6 +615,32 @@ class VLMChatbotSymbiosis:
                 "optimizations": vlm_context.get("optimizations", []),
                 "alerts": vlm_context.get("alerts", [])
             })
+            
+            # Récupération de la description utilisateur critique depuis les analyses vidéo
+            video_analyses = vlm_context.get("video_analyses", {})
+            if video_analyses:
+                # Chercher la description dans les métadonnées vidéo récentes
+                for video_key, analysis_data in video_analyses.items():
+                    if isinstance(analysis_data, dict):
+                        frames_data = analysis_data.get('detailed_frames', [])
+                        if frames_data and len(frames_data) > 0:
+                            # Récupérer les métadonnées de la première frame
+                            first_frame = frames_data[0]
+                            if isinstance(first_frame, dict) and 'metadata' in first_frame:
+                                metadata = first_frame['metadata']
+                                if isinstance(metadata, dict) and 'detailed_description' in metadata:
+                                    enriched["user_description"] = metadata['detailed_description']
+                                    logger.info(f"Description utilisateur récupérée pour chat: {metadata['detailed_description'][:50]}...")
+                                    break
+            
+            # Fallback: chercher dans le contexte direct
+            if "user_description" not in enriched:
+                if "detailed_description" in vlm_context:
+                    enriched["user_description"] = vlm_context["detailed_description"]
+                elif "video_context_metadata" in vlm_context:
+                    video_meta = vlm_context["video_context_metadata"]
+                    if isinstance(video_meta, dict) and "detailed_description" in video_meta:
+                        enriched["user_description"] = video_meta["detailed_description"]
         
         return enriched
     

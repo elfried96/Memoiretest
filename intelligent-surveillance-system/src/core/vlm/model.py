@@ -141,10 +141,12 @@ class VisionLanguageModel:
                 logger.debug(f"Résultats outils: {list(tools_results.keys())}")
             
             # 3. Construction du prompt avec contexte enrichi
+            video_context = request.context.get('video_context_metadata', None)
             prompt = self.prompt_builder.build_surveillance_prompt(
                 request.context,
                 request.tools_available,
-                tools_results
+                tools_results,
+                video_context
             )
             
             # 4. Génération VLM

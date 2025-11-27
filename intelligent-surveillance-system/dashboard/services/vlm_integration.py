@@ -34,6 +34,14 @@ except ImportError:
     VIDEO_MEMORY_AVAILABLE = False
     get_video_memory_system = None
 
+# ✅ NOUVEAU: Import du service GPT intelligent
+try:
+    from .gpt_chat_service import get_gpt_chat_service
+    GPT_CHAT_AVAILABLE = True
+except ImportError:
+    GPT_CHAT_AVAILABLE = False
+    get_gpt_chat_service = None
+
 class StreamlitVLMService:
     """Service d'intégration VLM pour Streamlit."""
     
@@ -224,7 +232,30 @@ class StreamlitVLMService:
             return self._simulate_video_analysis(video_file, options)
     
     async def process_chat_query(self, question: str, context: Dict[str, Any]) -> Dict[str, Any]:
-        """Traite une requête de chat avec le VLM."""
+        """Traite une requête de chat avec GPT intelligent comme priorité."""
+        
+        # ✅ PRIORITÉ AU SERVICE GPT INTELLIGENT
+        if GPT_CHAT_AVAILABLE:
+            try:
+                gpt_service = get_gpt_chat_service()
+                if gpt_service.api_available:
+                    print("🧠 Utilisation GPT Chat intelligent pour analyse contextuelle")
+                    
+                    # Appel GPT avec tout le contexte
+                    gpt_response = await gpt_service.analyze_surveillance_question(question, context)
+                    
+                    # Ajouter metadata pour indiquer l'utilisation de GPT
+                    gpt_response['metadata']['provider'] = 'gpt-4-surveillance'
+                    gpt_response['metadata']['vlm_available'] = self.is_initialized
+                    
+                    return gpt_response
+                
+            except Exception as e:
+                print(f"GPT Chat temporairement indisponible: {e}")
+                st.info("🤖 GPT temporairement indisponible - utilisation du VLM de secours")
+        
+        # ✅ FALLBACK VERS VLM CLASSIQUE
+        print("🔄 Fallback vers VLM classique")
         
         if not self.is_initialized:
             return self._simulate_chat_response(question, context)
@@ -273,10 +304,12 @@ class StreamlitVLMService:
             return {
                 'content': response_content,
                 'metadata': {
+                    'provider': 'vlm-fallback',
                     'analysis_time': analysis_time,
                     'confidence': 0.85,
                     'tools_used': ['vlm', 'context_analysis'],
-                    'context_items': len(context)
+                    'context_items': len(context),
+                    'gpt_available': GPT_CHAT_AVAILABLE
                 }
             }
             

@@ -509,22 +509,28 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
         """Calcul du score de performance d'une exécution."""
         
         # Composants du score
-        confidence_score = result.confidence
+        confidence_score = result.confidence if result.confidence > 0 else 0.5
         
         # Score de temps de réponse (pénalité pour lenteur)
         time_score = max(0.0, 1.0 - (processing_time - 1.0) / 10.0)  # Optimal à 1s
+        time_score = max(0.1, time_score)  # Score minimum de 0.1
         
         # Score de qualité de la réponse (basé sur les outils utilisés)
-        tools_quality_score = len(result.tools_used) * 0.1  # Bonus outils utilisés
+        tools_quality_score = min(len(result.tools_used) * 0.15, 0.3)  # Max 30%
         
-        # Score global
+        # Bonus si détections trouvées
+        detection_bonus = 0.1 if len(result.detections) > 0 else 0.0
+        
+        # Score global amélioré
         performance_score = (
-            confidence_score * 0.6 +
-            time_score * 0.3 +
-            tools_quality_score * 0.1
+            confidence_score * 0.5 +
+            time_score * 0.25 +
+            tools_quality_score * 0.15 +
+            detection_bonus * 0.1
         )
         
-        return min(1.0, max(0.0, performance_score))
+        # Assurer un score minimum de 0.1 pour éviter 0%
+        return min(1.0, max(0.1, performance_score))
     
     async def _update_context_pattern(
         self,

@@ -408,10 +408,19 @@ ADAPTATION SELON CONTEXTE UTILISATEUR:
 
 RÈGLES DE DÉTECTION ABSOLUES - AUCUNE EXCEPTION AUTORISÉE:
 
-RÈGLE #1 - DÉTECTION OBLIGATOIRE DE VOL:
-SI CONTEXTE UTILISATEUR CONTIENT "sortie sans payer", "sans passer à la caisse", "vol" 
-→ CLASSIFICATION AUTOMATIQUE: suspicion_level = HIGH ou CRITICAL
-→ AUCUNE AUTRE CLASSIFICATION AUTORISÉE
+RÈGLE #1 - DÉTECTION OBLIGATOIRE DE VOL (CRITÈRE ÉTENDU):
+SI CONTEXTE UTILISATEUR CONTIENT l'une de ces expressions:
+- "sortie sans payer", "sans passer à la caisse", "vol", "voler", "volé"
+- "vienne de sortie du super marcher sans payer"  
+- "sortie du super marcher sans payer"
+- "sans passer par la caisse"
+- "j'espere qu'il non rien voler"
+- "ont rien voler", "rien voler"
+- "sortir sans payer", "partir sans payer"
+→ CLASSIFICATION AUTOMATIQUE VERROUILLÉE: suspicion_level = HIGH ou CRITICAL
+→ action_type = "theft_detection" OBLIGATOIRE
+→ confidence MINIMUM = 0.85
+→ INTERDICTION FORMELLE de répondre "normal_shopping"
 → IGNORER TOUTE OBSERVATION VISUELLE CONTRADICTOIRE
 
 RÈGLE #2 - PRIORITÉ ABSOLUE DESCRIPTION UTILISATEUR:

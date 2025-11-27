@@ -137,15 +137,39 @@ class StreamlitVLMService:
                 # Conversion frame en base64
                 frame_b64 = self._frame_to_base64(frame)
                 
-                # Création de la requête d'analyse
+                # ✅ CONSTRUCTION DU CONTEXTE COMPLET AVEC MÉTADONNÉES UTILISATEUR
+                context_dict = {
+                    "frame_info": f"Frame {i+1}/{len(frames)} de la vidéo {video_file.name}",
+                    "location": options.get('lieu', 'Non spécifié'),
+                    "timestamp": datetime.now().isoformat(),
+                    "previous_detections": []
+                }
+                
+                # ✅ CONSTRUCTION DES MÉTADONNÉES VIDÉO COMPLÈTES
+                video_context_metadata = {
+                    "title": video_file.name,
+                    "location_type": options.get('lieu', 'Magasin/Commerce'),
+                    "time_context": options.get('contexte_temporel', 'Heures ouverture'),
+                    "camera_angle": options.get('angle_camera', 'Vue standard'),
+                    "expected_activities": options.get('activites_attendues', 'Shopping normal').split('\n') if options.get('activites_attendues') else ['Shopping normal'],
+                    "suspicious_focus": options.get('focus_surveillance', 'Comportements suspects').split('\n') if options.get('focus_surveillance') else ['Comportements suspects'],
+                    "detailed_description": options.get('description_detaillee', ''),
+                    "analysis_priority": options.get('priorite', 'Standard'),
+                    "frame_sampling": options.get('echantillonnage', 'Standard')
+                }
+                
+                # Création de la requête d'analyse avec contexte enrichi
                 analysis_request = AnalysisRequest(
                     frame_data=frame_b64,
-                    context=f"Frame {i+1}/{len(frames)} de la vidéo {video_file.name}",
+                    context=context_dict,
+                    video_context_metadata=video_context_metadata,
                     tools_available=[
-                        "yolo_detector",
-                        "sam2_segmentator", 
+                        "sam2_segmentator",
+                        "dino_features", 
                         "pose_estimator",
-                        "trajectory_analyzer"
+                        "trajectory_analyzer",
+                        "multimodal_fusion",
+                        "adversarial_detector"
                     ] if options.get('use_advanced_tools', True) else []
                 )
                 
@@ -428,16 +452,32 @@ class StreamlitVLMService:
         return prompt
     
     def _generate_contextual_response(self, question: str, context: Dict[str, Any]) -> str:
-        """Génère une réponse contextuelle."""
+        """Génère une réponse contextuelle intelligente avec raisonnement."""
         
-        # Analyse simple des mots-clés
+        # Analyse multi-niveaux de la question
         question_lower = question.lower()
+        video_analyses = context.get('video_analyses', {})
         
+        # 🧠 ANALYSE INTELLIGENTE - Raisonnement contextuel
+        if video_analyses:
+            latest_analysis = list(video_analyses.values())[-1]
+            suspicion_level = latest_analysis.get('suspicion_level', 'LOW')
+            timeline = latest_analysis.get('timeline', [])
+            detected_objects = latest_analysis.get('detected_objects', [])
+            
+            # Raisonnement basé sur le contexte vidéo spécifique
+            if any(word in question_lower for word in ['vol', 'voler', 'volé', 'suspect', 'criminel']):
+                return self._analyze_theft_indicators(latest_analysis, question)
+            
+            elif any(word in question_lower for word in ['que', 'quoi', 'voir', 'observer', 'détecté']):
+                return self._detailed_scene_analysis(latest_analysis, question)
+            
+            elif any(word in question_lower for word in ['personne', 'gens', 'individu', 'combien']):
+                return self._intelligent_people_analysis(latest_analysis, question)
+            
+        # Analyse générale avec raisonnement
         if any(word in question_lower for word in ['risque', 'danger', 'menace', 'sécurité']):
             return self._analyze_security_status(context)
-        
-        elif any(word in question_lower for word in ['personnes', 'individus', 'gens']):
-            return self._analyze_people_detection(context)
         
         elif any(word in question_lower for word in ['alerte', 'alertes', 'notification']):
             return self._analyze_alerts_status(context)
@@ -446,7 +486,203 @@ class StreamlitVLMService:
             return self._analyze_system_status(context)
         
         else:
-            return f"J'ai analysé votre question: '{question}'. Basé sur le contexte actuel, je peux vous fournir des informations sur la sécurité, les détections de personnes, les alertes ou l'état du système. Pourriez-vous être plus spécifique ?"
+            # ✅ Réponse intelligente par défaut avec analyse contextuelle
+            return self._intelligent_fallback_response(question, context)
+    
+    def _analyze_theft_indicators(self, analysis: Dict[str, Any], question: str) -> str:
+        """Analyse intelligente des indicateurs de vol."""
+        
+        suspicion_level = analysis.get('suspicion_level', 'LOW')
+        timeline = analysis.get('timeline', [])
+        detected_objects = analysis.get('detected_objects', [])
+        video_name = analysis.get('video_name', 'vidéo')
+        
+        # 🔍 ANALYSE CONTEXTUELLE INTELLIGENTE
+        response = f"**ANALYSE DE SÉCURITÉ CONTEXTUELLE POUR {video_name.upper()}**\n\n"
+        
+        # Évaluation du niveau de suspicion
+        if suspicion_level in ['HIGH', 'CRITICAL']:
+            response += "🚨 **COMPORTEMENT SUSPECT DÉTECTÉ**\n\n"
+            response += "**Indicateurs préoccupants identifiés:**\n"
+            
+            # Analyse de la timeline pour identifier les comportements suspects
+            if any('arrêt' in event.get('event', '').lower() or 'loitering' in event.get('event', '').lower() for event in timeline):
+                response += "• Arrêts prolongés suspects détectés\n"
+            
+            if any('mouvement' in event.get('event', '').lower() and 'rapide' in event.get('event', '').lower() for event in timeline):
+                response += "• Mouvements rapides ou brusques observés\n"
+            
+            response += f"\n**Mon évaluation:** Niveau de suspicion {suspicion_level} - Surveillance renforcée recommandée."
+            
+        elif suspicion_level == 'MEDIUM':
+            response += "⚠️ **SURVEILLANCE PRÉVENTIVE RECOMMANDÉE**\n\n"
+            response += "**Observations:**\n"
+            response += "• Comportement atypique détecté mais pas alarmant\n"
+            response += "• Surveillance continue recommandée\n"
+            response += "\n**Mon évaluation:** Situation à surveiller sans intervention immédiate."
+            
+        else:
+            response += "✅ **COMPORTEMENT NORMAL IDENTIFIÉ**\n\n"
+            response += "**Analyse de sécurité:**\n"
+            response += "• Aucun indicateur de vol détecté\n"
+            response += "• Mouvements et comportements dans la norme\n"
+            response += "• Pas d'action particulière requise\n"
+            response += "\n**Mon évaluation:** Situation normale, pas de préoccupation de sécurité."
+        
+        # Recommandations personnalisées
+        response += f"\n\n**RECOMMANDATIONS PERSONNALISÉES:**\n"
+        if suspicion_level in ['HIGH', 'CRITICAL']:
+            response += "1. 🚨 Vérifier immédiatement l'inventaire\n"
+            response += "2. 📹 Sauvegarder cette séquence vidéo\n"
+            response += "3. 👤 Informer le personnel de sécurité\n"
+        elif suspicion_level == 'MEDIUM':
+            response += "1. 👀 Maintenir surveillance discrète\n"
+            response += "2. 📝 Noter l'heure et les détails\n"
+            response += "3. ⏰ Vérifier périodiquement\n"
+        else:
+            response += "1. ✅ Continuer surveillance normale\n"
+            response += "2. 📊 Enregistrer comme activité normale\n"
+        
+        return response
+    
+    def _detailed_scene_analysis(self, analysis: Dict[str, Any], question: str) -> str:
+        """Analyse détaillée de scène avec raisonnement."""
+        
+        timeline = analysis.get('timeline', [])
+        detected_objects = analysis.get('detected_objects', [])
+        behaviors = analysis.get('behaviors', [])
+        confidence = analysis.get('confidence', 0.0)
+        
+        response = "🔍 **ANALYSE DÉTAILLÉE DE LA SCÈNE**\n\n"
+        
+        # Séquence chronologique intelligente
+        if timeline:
+            response += "**SÉQUENCE D'ÉVÉNEMENTS OBSERVÉE:**\n"
+            for i, event in enumerate(timeline[:5], 1):
+                time_marker = event.get('time', f'{i*5}s')
+                event_desc = event.get('event', 'Événement non spécifié')
+                response += f"{i}. `{time_marker}` - {event_desc}\n"
+            response += "\n"
+        
+        # Objets et personnes détectés
+        if detected_objects:
+            response += "**DÉTECTIONS CONFIRMÉES:**\n"
+            for obj in detected_objects[:3]:
+                obj_type = obj.get('type', 'objet')
+                obj_count = obj.get('count', 1)
+                obj_confidence = obj.get('confidence', 0.0)
+                response += f"• {obj_count}x {obj_type} (confiance: {obj_confidence:.0%})\n"
+            response += "\n"
+        
+        # Analyse comportementale
+        if behaviors:
+            response += "**COMPORTEMENTS ANALYSÉS:**\n"
+            for behavior in behaviors[:3]:
+                behavior_type = behavior.get('type', 'comportement')
+                behavior_confidence = behavior.get('confidence', 0.0)
+                status = "✅ Normal" if behavior_confidence > 0.7 else "⚠️ À surveiller"
+                response += f"• {behavior_type}: {status} ({behavior_confidence:.0%})\n"
+            response += "\n"
+        
+        # Évaluation de confiance globale
+        response += f"**FIABILITÉ DE L'ANALYSE:**\n"
+        if confidence > 0.8:
+            response += f"🟢 Très fiable ({confidence:.0%}) - Je suis confiant dans cette analyse\n"
+        elif confidence > 0.6:
+            response += f"🟡 Fiable ({confidence:.0%}) - Analyse correcte avec quelques incertitudes\n"
+        else:
+            response += f"🔴 Incertain ({confidence:.0%}) - Vérification manuelle recommandée\n"
+        
+        return response
+    
+    def _intelligent_people_analysis(self, analysis: Dict[str, Any], question: str) -> str:
+        """Analyse intelligente des personnes détectées."""
+        
+        detected_objects = analysis.get('detected_objects', [])
+        timeline = analysis.get('timeline', [])
+        suspicion_level = analysis.get('suspicion_level', 'LOW')
+        
+        # Extraction du nombre de personnes
+        person_count = 0
+        person_confidence = 0.0
+        
+        for obj in detected_objects:
+            if obj.get('type') == 'person':
+                person_count = obj.get('count', 0)
+                person_confidence = obj.get('confidence', 0.0)
+                break
+        
+        response = f"👥 **ANALYSE DES PERSONNES PRÉSENTES**\n\n"
+        response += f"**DÉTECTION:** {person_count} personne(s) identifiée(s)\n"
+        response += f"**CONFIANCE:** {person_confidence:.0%}\n\n"
+        
+        # Analyse contextuelle du comportement
+        if person_count == 1:
+            response += "**OBSERVATION:** Une seule personne dans la zone\n"
+            if suspicion_level == 'LOW':
+                response += "• Comportement normal pour une personne seule\n"
+                response += "• Pas de signaux d'alarme détectés\n"
+            else:
+                response += "• Comportement atypique observé\n"
+                response += "• Surveillance renforcée pour personne isolée\n"
+        
+        elif person_count == 2:
+            response += "**OBSERVATION:** Deux personnes dans la zone\n"
+            response += "• Interaction normale entre les individus\n"
+            response += "• Pas d'indication de coordination suspecte\n"
+        
+        elif person_count > 2:
+            response += f"**OBSERVATION:** Groupe de {person_count} personnes\n"
+            response += "• Zone fréquentée - surveillance continue\n"
+            response += "• Comportements de groupe à surveiller\n"
+        
+        else:
+            response += "**OBSERVATION:** Aucune personne détectée actuellement\n"
+            response += "• Zone vide - situation normale\n"
+        
+        # Recommandations basées sur le contexte
+        response += f"\n**ÉVALUATION COMPORTEMENTALE:**\n"
+        if suspicion_level in ['HIGH', 'CRITICAL'] and person_count > 0:
+            response += "🚨 Comportement suspect détecté - intervention recommandée\n"
+        elif person_count > 3:
+            response += "👁️ Zone dense - surveillance accrue recommandée\n"
+        else:
+            response += "✅ Situation normale - surveillance de routine\n"
+        
+        return response
+    
+    def _intelligent_fallback_response(self, question: str, context: Dict[str, Any]) -> str:
+        """Réponse intelligente par défaut avec analyse contextuelle."""
+        
+        video_analyses = context.get('video_analyses', {})
+        alerts = context.get('active_alerts', [])
+        cameras = context.get('cameras_state', {})
+        
+        response = "🤖 **ANALYSE INTELLIGENTE DE VOTRE QUESTION**\n\n"
+        response += f"**Question analysée:** \"{question}\"\n\n"
+        
+        # Synthèse contextuelle intelligente
+        if video_analyses:
+            latest_analysis = list(video_analyses.values())[-1]
+            suspicion = latest_analysis.get('suspicion_level', 'LOW')
+            video_name = latest_analysis.get('video_name', 'vidéo récente')
+            
+            response += f"**CONTEXTE VIDÉO ACTUEL:** {video_name}\n"
+            response += f"• Niveau de suspicion: {suspicion}\n"
+            response += f"• Confiance d'analyse: {latest_analysis.get('confidence', 0):.0%}\n\n"
+        
+        if alerts:
+            response += f"**ALERTES SYSTÈME:** {len(alerts)} active(s)\n"
+            critical_alerts = [a for a in alerts if a.get('level') == 'CRITICAL']
+            if critical_alerts:
+                response += f"• ⚠️ {len(critical_alerts)} alertes critiques nécessitent votre attention\n"
+        
+        response += "**SUGGESTIONS POUR MIEUX VOUS AIDER:**\n"
+        response += "• Posez des questions spécifiques comme 'Y a-t-il eu vol ?' ou 'Combien de personnes ?'\n"
+        response += "• Demandez une analyse de sécurité: 'Quel est le niveau de risque ?'\n"
+        response += "• Interrogez-moi sur des détails: 'Que se passe-t-il à [moment précis] ?'\n"
+        
+        return response
     
     def _analyze_security_status(self, context: Dict[str, Any]) -> str:
         """Analyse le statut sécurité."""

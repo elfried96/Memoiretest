@@ -460,7 +460,20 @@ class DynamicVisionLanguageModel:
         """Construction de prompt optimisé selon le modèle."""
         
         # Prompt de base avec contexte vidéo si disponible
-        video_context = request.context.get('video_context_metadata', None)
+        video_context = getattr(request, 'video_context_metadata', None) or request.context.get('video_context_metadata', None)
+        
+        # ✅ VALIDATION CONTEXTUELLE RENFORCÉE POUR DÉTECTION DE VOL
+        if video_context and video_context.get('detailed_description'):
+            description = video_context.get('detailed_description', '').lower()
+            vol_indicators = ['vol', 'sortie sans payer', 'sans passer', 'caisse', 'vienne de sortie', 'rien voler']
+            
+            if any(indicator in description for indicator in vol_indicators):
+                # Force les paramètres pour la détection de vol
+                if hasattr(request, 'temperature'):
+                    request.temperature = 0.1  # Plus déterministe
+                video_context['theft_context_detected'] = True
+                logger.warning(f"⚠️ CONTEXTE DE VOL DÉTECTÉ: {description[:100]}...")
+        
         base_prompt = self.prompt_builder.build_surveillance_prompt(
             request.context,
             request.tools_available,

@@ -5,7 +5,7 @@ import numpy as np
 import time
 from loguru import logger
 
-from ...advanced_tools import (
+from src.advanced_tools import (
     SAM2Segmentator,
     DinoV2FeatureExtractor, 
     OpenPoseEstimator,
@@ -15,7 +15,7 @@ from ...advanced_tools import (
     AdversarialDetector,
     DomainAdapter
 )
-from ..types import ToolResult
+from src.core.types import ToolResult
 
 
 class AdvancedToolsManager:

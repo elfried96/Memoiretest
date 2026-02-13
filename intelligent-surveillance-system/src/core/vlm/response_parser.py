@@ -82,8 +82,6 @@ class ResponseParser:
         
         description = parsed_json.get("description", "")
         reasoning = parsed_json.get("reasoning", "")
-        if reasoning:
-            description += f" | Raisonnement: {reasoning}"
         
         tools_to_use = parsed_json.get("tools_to_use", [])
         if not isinstance(tools_to_use, list):

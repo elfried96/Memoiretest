@@ -132,7 +132,16 @@ class VLMChatInterface:
                     if metadata:
                         with st.expander("Détails de l'analyse", expanded=False):
                             if 'confidence' in metadata:
-                                st.progress(metadata['confidence'], "Confiance")
+                                confidence = metadata['confidence']
+                                # Système feu tricolore pour utilisateurs non-techniciens
+                                if confidence > 0.8:
+                                    st.success("🟢 **Analyse très fiable** - L'IA est sûre de son analyse")
+                                elif confidence > 0.6:
+                                    st.warning("🟡 **Analyse correcte** - Vérification recommandée")
+                                else:
+                                    st.error("🔴 **Analyse incertaine** - Vérification manuelle nécessaire")
+                                
+                                st.progress(confidence, f"Niveau de confiance: {confidence:.0%}")
                             
                             if 'analysis_time' in metadata:
                                 st.metric("Temps d'analyse", f"{metadata['analysis_time']:.2f}s")

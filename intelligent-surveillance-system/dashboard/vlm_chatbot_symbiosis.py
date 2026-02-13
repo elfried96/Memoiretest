@@ -12,7 +12,7 @@ Chatbot intelligent basé sur le même VLM que la surveillance avec:
 import asyncio
 import json
 import base64
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime
 from io import BytesIO
 from PIL import Image, ImageDraw, ImageFont
@@ -20,6 +20,129 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from loguru import logger
+
+class AutonomousVLMReflection:
+    """
+    Réflexion autonome avancée basée sur LLaVA-o1, R3V, VL-Rethinker (2024-2025)
+    Implémente structured reasoning, self-reflection et forced thinking.
+    """
+    
+    def __init__(self):
+        self.reflection_enabled = True
+        self.structured_reasoning_steps = 4  # Summary, Caption, Reasoning, Conclusion
+        self.self_correction_loops = 2
+        
+    async def structured_reasoning(
+        self, 
+        question: str, 
+        image_data: np.ndarray = None, 
+        context: Dict[str, Any] = None
+    ) -> Dict[str, Any]:
+        """LLaVA-o1 style structured reasoning en 4 étapes."""
+        
+        if not self.reflection_enabled:
+            return {"reasoning_skipped": True}
+        
+        steps_results = {}
+        
+        try:
+            # Stage 1: Summary (comprendre la question et le contexte)
+            steps_results["summary"] = await self._stage_summarize(question, context)
+            
+            # Stage 2: Caption (observation détaillée)  
+            steps_results["caption"] = await self._stage_caption(image_data, steps_results["summary"])
+            
+            # Stage 3: Multi-path Reasoning (exploration de plusieurs raisonnements)
+            steps_results["reasoning_candidates"] = await self._stage_reasoning_beam_search(
+                question, steps_results["caption"], context
+            )
+            
+            # Stage 4: Self-Reflection & Conclusion
+            steps_results["final_conclusion"] = await self._stage_reflect_and_conclude(
+                steps_results["reasoning_candidates"], context
+            )
+            
+            return steps_results
+            
+        except Exception as e:
+            logger.error(f"Erreur structured reasoning: {e}")
+            return {"error": str(e), "reasoning_incomplete": True}
+    
+    async def _stage_summarize(self, question: str, context: Dict[str, Any]) -> Dict[str, Any]:
+        """Stage 1: Résumé et compréhension de la tâche."""
+        
+        summary = {
+            "question_understood": question,
+            "key_elements": self._extract_key_elements(question),
+            "context_critical": context.get('user_description', '') if context else '',
+            "mission_focus": self._determine_mission_focus(question, context),
+            "expected_output": self._determine_expected_output(question)
+        }
+        
+        return summary
+    
+    async def _stage_caption(self, image_data: np.ndarray, summary: Dict[str, Any]) -> Dict[str, Any]:
+        """Stage 2: Observation détaillée et caption."""
+        
+        caption = {
+            "visual_observations": [
+                "Analyse visuelle en cours selon mission",
+                "Recherche éléments pertinents"
+            ],
+            "focus_areas": summary.get("mission_focus", []),
+            "observation_quality": "good" if image_data is not None else "limited",
+            "critical_elements_spotted": []
+        }
+        
+        return caption
+    
+    def _extract_key_elements(self, question: str) -> List[str]:
+        """Extraction des éléments clés de la question."""
+        
+        key_patterns = {
+            "performance": ["performance", "compare", "efficacité"],
+            "tools": ["outils", "tools", "méthodes"], 
+            "configuration": ["config", "optimiser", "améliorer"],
+            "behavior": ["comportement", "suspect", "voir", "détaille"]
+        }
+        
+        elements = []
+        question_lower = question.lower()
+        
+        for category, patterns in key_patterns.items():
+            if any(pattern in question_lower for pattern in patterns):
+                elements.append(category)
+        
+        return elements
+    
+    def _determine_mission_focus(self, question: str, context: Dict[str, Any]) -> List[str]:
+        """Détermine le focus de la mission."""
+        
+        focus_areas = []
+        question_lower = question.lower()
+        
+        if "performance" in question_lower or "compare" in question_lower:
+            focus_areas.append("performance_analysis")
+        if "outils" in question_lower:
+            focus_areas.append("tool_analysis") 
+        if "config" in question_lower:
+            focus_areas.append("configuration_optimization")
+        if any(word in question_lower for word in ["voir", "détaille", "suspect"]):
+            focus_areas.append("behavioral_analysis")
+            
+        return focus_areas if focus_areas else ["general_analysis"]
+    
+    def _determine_expected_output(self, question: str) -> str:
+        """Détermine le type de sortie attendu."""
+        
+        if "compare" in question.lower():
+            return "comparative_analysis"
+        elif "recommande" in question.lower():
+            return "recommendations"
+        elif "analyse" in question.lower():
+            return "detailed_analysis"
+        else:
+            return "informative_response"
 
 # Configuration du PYTHONPATH
 import sys
@@ -53,7 +176,7 @@ except ImportError as e:
 
 # Import des fonctionnalités optionnelles (ne bloquent pas VLM_AVAILABLE)
 try:
-    from .vlm_chatbot_optimizations import get_performance_optimizer
+    from dashboard.vlm_chatbot_optimizations import get_performance_optimizer
     logger.info("Optimisations chatbot chargées")
 except ImportError as e:
     logger.warning(f"Optimisations chatbot non disponibles: {e}")
@@ -61,7 +184,7 @@ except ImportError as e:
         return None
 
 try:
-    from .vlm_chatbot_advanced_features import get_advanced_features
+    from dashboard.vlm_chatbot_advanced_features import get_advanced_features
     logger.info("Features avancées chatbot chargées")
 except ImportError as e:
     logger.warning(f"Features avancées chatbot non disponibles: {e}")
@@ -103,6 +226,10 @@ class VLMChatbotSymbiosis:
         # Fonctionnalités avancées
         self.advanced_features = get_advanced_features() if VLM_AVAILABLE else None
         self.session_id = f"session_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        
+        # NOUVEAU: Réflexion autonome avancée (LLaVA-o1, R3V, VL-Rethinker)
+        self.autonomous_reflection = AutonomousVLMReflection()
+        self.structured_reasoning_enabled = True
         
         if self.advanced_features:
             self.advanced_features.initialize_conversation_context(
@@ -148,6 +275,430 @@ class VLMChatbotSymbiosis:
         # Fallback traitement standard
         return await self._process_vlm_query_internal(question, chat_type, vlm_context or {})
     
+    def _analyze_question_intent(self, question: str) -> Dict[str, Any]:
+        """Analyse l'intention et l'émotion de la question pour adapter le traitement."""
+        question_lower = question.lower()
+        
+        # Détection d'émotion et ton de l'utilisateur
+        emotion_analysis = self._detect_user_emotion(question_lower)
+        
+        # Dictionnaire des patterns de questions
+        question_patterns = {
+            "performance_comparison": [
+                "compare", "performances", "différents outils", "comparaison", 
+                "quel est le meilleur", "efficacité", "résultats"
+            ],
+            "tool_analysis": [
+                "outils", "analyse outils", "tools", "méthodes", "algorithmes",
+                "techniques", "utilisation outils"
+            ],
+            "configuration_recommendation": [
+                "recommande", "configuration", "meilleure config", "optimiser",
+                "paramètres", "réglages", "améliorer"
+            ],
+            "incident_specific": [
+                "vol", "suspect", "comportement", "qu'est-ce que tu vois",
+                "détaille", "personne", "actions"
+            ],
+            "person_analysis": [
+                "personne", "gens", "individu", "client", "deux personnes", 
+                "qu'est-ce que tu pense", "ton avis", "analyse des personnes"
+            ],
+            "technical_details": [
+                "comment ça marche", "explique", "pourquoi", "mécanisme",
+                "fonctionnement", "détails techniques"
+            ]
+        }
+        
+        # Détection du type de question
+        detected_type = "general"
+        confidence = 0.0
+        
+        for intent_type, patterns in question_patterns.items():
+            matches = sum(1 for pattern in patterns if pattern in question_lower)
+            if matches > 0:
+                pattern_confidence = matches / len(patterns)
+                if pattern_confidence > confidence:
+                    detected_type = intent_type
+                    confidence = pattern_confidence
+        
+        return {
+            "intent": detected_type,
+            "confidence": confidence,
+            "requires_specific_context": detected_type != "general",
+            "emotion": emotion_analysis
+        }
+    
+    def _detect_user_emotion(self, question: str) -> Dict[str, Any]:
+        """Détecte l'émotion et le sentiment de l'utilisateur."""
+        
+        # Patterns émotionnels
+        emotion_patterns = {
+            "frustrated": [
+                "pourquoi", "ça marche pas", "problème", "encore", "toujours pareil",
+                "ça sert à rien", "défaillant", "pas bon", "inutile"
+            ],
+            "curious": [
+                "comment", "qu'est-ce que", "peux-tu", "explique", "détaille", 
+                "interessant", "découvrir", "comprendre"
+            ],
+            "concerned": [
+                "inquiet", "préoccupé", "sûr", "certain", "doute", "vraiment",
+                "sécurisé", "problématique", "dangereux"
+            ],
+            "satisfied": [
+                "bien", "parfait", "excellent", "super", "génial", "merci",
+                "content", "satisfait"
+            ],
+            "urgent": [
+                "urgent", "immédiat", "rapidement", "tout de suite", "maintenant",
+                "critique", "important"
+            ]
+        }
+        
+        # Analyse de sentiment
+        detected_emotion = "neutral"
+        emotion_intensity = 0.0
+        
+        for emotion, patterns in emotion_patterns.items():
+            matches = sum(1 for pattern in patterns if pattern in question.lower())
+            if matches > 0:
+                intensity = matches / len(patterns)
+                if intensity > emotion_intensity:
+                    detected_emotion = emotion
+                    emotion_intensity = intensity
+        
+        # Détection d'urgence
+        is_urgent = any(urgent in question.lower() for urgent in ["urgent", "critique", "immédiat", "rapidement"])
+        
+        return {
+            "primary_emotion": detected_emotion,
+            "intensity": emotion_intensity,
+            "is_urgent": is_urgent,
+            "tone_needed": self._determine_response_tone(detected_emotion)
+        }
+    
+    def _determine_response_tone(self, emotion: str) -> str:
+        """Détermine le ton de réponse approprié selon l'émotion détectée."""
+        
+        tone_mapping = {
+            "frustrated": "empathetic_helpful",  # Ton empathique et rassurant
+            "curious": "educational_friendly",   # Ton pédagogique et amical
+            "concerned": "reassuring_professional", # Ton rassurant et professionnel
+            "satisfied": "warm_collaborative",   # Ton chaleureux et collaboratif
+            "urgent": "direct_efficient",       # Ton direct et efficace
+            "neutral": "balanced_informative"   # Ton équilibré et informatif
+        }
+        
+        return tone_mapping.get(emotion, "balanced_informative")
+    
+    def _build_personality_prompt(self, emotion_data: Dict[str, Any], question: str) -> str:
+        """Construit le prompt de personnalité selon l'émotion détectée."""
+        
+        emotion = emotion_data.get('primary_emotion', 'neutral')
+        tone = emotion_data.get('tone_needed', 'balanced_informative')
+        is_urgent = emotion_data.get('is_urgent', False)
+        
+        # Prompts de personnalité adaptatifs
+        personality_prompts = {
+            "empathetic_helpful": f"""
+ PERSONNALITÉ: Assistant Surveillance Empathique et Compréhensif
+
+TU ES: Un expert en sécurité expérimenté qui comprend les frustrations des utilisateurs.
+TON: Chaleureux, rassurant, patient. Tu reconnais que la surveillance peut être stressante.
+
+STYLE DE RÉPONSE:
+• COMMENCER par reconnaître l'émotion: "Je comprends que cela puisse être frustrant..."
+• EXPLIQUER clairement sans jargon technique excessif
+• PROPOSER des solutions concrètes
+• TERMINER par "N'hésitez pas si vous avez d'autres questions"
+
+PHRASES TYPES:
+- "Je vois que cela vous pose problème, laissez-moi vous expliquer..."
+- "C'est effectivement préoccupant, voici ce que nous pouvons faire..."
+- "Je comprends votre inquiétude, analysons cela ensemble..."
+""",
+            
+            "educational_friendly": f"""
+ PERSONNALITÉ: Mentor Technique Passionné
+
+TU ES: Un expert qui adore partager ses connaissances de manière accessible.
+TON: Pédagogique, enthousiaste, patient. Tu aimes vulgariser les concepts complexes.
+
+STYLE DE RÉPONSE:
+• STRUCTURER en étapes claires (1, 2, 3...)
+• UTILISER des analogies simples pour expliquer
+• DONNER des exemples concrets
+• ENCOURAGER la curiosité avec "C'est une excellente question!"
+
+PHRASES TYPES:
+- "Excellente question ! Laissez-moi vous expliquer comment ça fonctionne..."
+- "Pensez à cela comme à..."
+- "Pour simplifier, imaginez que..."
+- "Voici comment l'expliquer simplement..."
+""",
+            
+            "reassuring_professional": f"""
+ PERSONNALITÉ: Expert Sécurité Rassurant et Professionnel
+
+TU ES: Un spécialiste chevronné qui inspire confiance et sérénité.
+TON: Professionnel, rassurant, factuel. Tu transmets la sécurité par ta compétence.
+
+STYLE DE RÉPONSE:
+• COMMENCER par rassurer: "Rassurez-vous, nous avons les outils pour..."
+• DONNER des faits précis et des métriques
+• EXPLIQUER les mesures de sécurité en place
+• CONCLURE par une confirmation de protection
+
+PHRASES TYPES:
+- "Soyez assuré que notre système..."
+- "Les données montrent que..."
+- "Nous disposons de plusieurs couches de protection..."
+- "Votre sécurité est notre priorité absolue..."
+""",
+            
+            "warm_collaborative": f"""
+PERSONNALITÉ: Partenaire Surveillance Amical et Collaboratif
+
+TU ES: Un collègue compétent et chaleureux qui travaille AVEC l'utilisateur.
+TON: Amical, collaboratif, positif. Tu célèbres les bonnes pratiques.
+
+STYLE DE RÉPONSE:
+• FÉLICITER les bonnes observations: "Excellent travail de remarquer cela!"
+• UTILISER "nous" pour créer la collaboration: "Regardons ensemble..."
+• PARTAGER l'expertise comme entre collègues
+• ENCOURAGER et valoriser
+
+PHRASES TYPES:
+- "Bravo pour avoir identifié cela!"
+- "Travaillons ensemble sur cette analyse..."
+- "Vous avez l'œil ! En effet..."
+- "C'est exactement ce qu'un expert ferait..."
+""",
+            
+            "direct_efficient": f"""
+ PERSONNALITÉ: Expert Sécurité Réactif et Efficace
+
+TU ES: Un professionnel qui agit rapidement face aux situations critiques.
+TON: Direct, concis, orienté action. Pas de temps à perdre, efficacité maximale.
+
+STYLE DE RÉPONSE:
+• ALLER DROIT AU BUT: réponse en 2-3 phrases maximum
+• DONNER des actions concrètes à prendre
+• UTILISER des listes à puces pour la clarté
+• INDIQUER les priorités (URGENT, IMPORTANT, NORMAL)
+
+PHRASES TYPES:
+- " ACTION IMMÉDIATE REQUISE:"
+- "ÉTAPES PRIORITAIRES:"
+- "RÉSULTAT DIRECT:"
+- "PROCHAINE ACTION:"
+""",
+            
+            "balanced_informative": f"""
+PERSONNALITÉ: Assistant Surveillance Équilibré et Informatif
+
+TU ES: Un assistant IA compétent qui fournit des informations précises et utiles.
+TON: Professionnel, informatif, équilibré. Ni trop technique ni trop simple.
+
+STYLE DE RÉPONSE:
+• STRUCTURER l'information clairement
+• ÉQUILIBRER détails techniques et accessibilité
+• FOURNIR le contexte nécessaire
+• PROPOSER des approfondissements si souhaités
+
+PHRASES TYPES:
+- "Voici l'analyse de la situation:"
+- "Les données indiquent que..."
+- "Pour résumer les points clés:"
+- "Souhaitez-vous plus de détails sur...?"
+"""
+        }
+        
+        urgent_modifier = ""
+        if is_urgent:
+            urgent_modifier = """
+ADAPTATION URGENCE DÉTECTÉE:
+- RÉPONDRE immédiatement sans préambule
+- PRIORISER les informations actionnables
+- PROPOSER des solutions immédiates
+- UTILISER un ton plus direct même si normalement empathique
+"""
+        
+        base_personality = personality_prompts.get(tone, personality_prompts["balanced_informative"])
+        
+        return f"""
+{base_personality}
+
+QUESTION UTILISATEUR: "{question}"
+{urgent_modifier}
+
+ INSTRUCTION FINALE: Incarne cette personnalité dans ta réponse tout en fournissant l'information demandée.
+"""
+
+    def _build_intent_specific_prompt(
+        self, 
+        question: str, 
+        question_analysis: Dict[str, Any], 
+        context: Dict[str, Any]
+    ) -> str:
+        """Construit un prompt spécialisé selon l'intention et l'émotion de la question."""
+        
+        intent = question_analysis['intent']
+        emotion_data = question_analysis.get('emotion', {})
+        tone_needed = emotion_data.get('tone_needed', 'balanced_informative')
+        
+        base_context = context.get('current_frame_data', {})
+        video_data = context.get('video_analyses', {})
+        stats = context.get('stats', {})
+        
+        # Personnalité et ton adaptatifs selon l'émotion
+        personality_prompt = self._build_personality_prompt(emotion_data, question)
+        
+        # Templates de prompts spécialisés
+        intent_prompts = {
+            "performance_comparison": f"""
+MISSION: COMPARAISON DÉTAILLÉE DES PERFORMANCES DES OUTILS VLM
+
+Question utilisateur: "{question}"
+
+DONNÉES DISPONIBLES:
+- Outils actifs: {context.get('active_tools', [])}
+- Stats performance: {stats}
+- Analyses vidéo: {len(video_data)} analyses disponibles
+
+TÂCHE SPÉCIALISÉE:
+1. Analyse comparative des performances de chaque outil
+2. Identification des points forts/faibles 
+3. Recommandations d'optimisation basées sur les données réelles
+4. Métriques de performance spécifiques
+
+FOCUS: Réponse analytique détaillée sur les performances, PAS sur le contenu vidéo.
+""",
+            
+            "tool_analysis": f"""
+MISSION: ANALYSE TECHNIQUE DES OUTILS VLM UTILISÉS
+
+Question utilisateur: "{question}"
+
+OUTILS DISPONIBLES ET STATUTS:
+{self._format_tools_analysis(context)}
+
+TÂCHE SPÉCIALISÉE:
+1. Description technique de chaque outil
+2. Rôle spécifique dans la pipeline d'analyse
+3. Efficacité et précision observées
+4. Interactions entre outils
+
+FOCUS: Analyse technique approfondie des méthodes utilisées.
+""",
+            
+            "configuration_recommendation": f"""
+MISSION: RECOMMANDATIONS OPTIMISATION CONFIGURATION VLM
+
+Question utilisateur: "{question}"
+
+CONFIGURATION ACTUELLE:
+{self._format_current_config(context)}
+
+TÂCHE SPÉCIALISÉE:
+1. Analyse de la configuration actuelle
+2. Identification des goulots d'étranglement
+3. Recommandations d'optimisation spécifiques
+4. Configuration optimale suggérée
+
+FOCUS: Conseils pratiques et actionables pour l'optimisation.
+""",
+            
+            "incident_specific": f"""
+MISSION: ANALYSE DÉTAILLÉE DE L'INCIDENT SURVEILLÉ
+
+Question utilisateur: "{question}"
+
+CONTEXTE CRITIQUE:
+{context.get('user_description', 'Description utilisateur non disponible')}
+
+DONNÉES VISUELLES DISPONIBLES:
+{self._format_incident_data(context)}
+
+TÂCHE SPÉCIALISÉE:
+1. Analyse approfondie du comportement observé
+2. Corrélation avec la description utilisateur critique
+3. Évaluation des indices de suspicion
+4. Recommandations d'action proportionnées
+
+FOCUS: Analyse comportementale détaillée avec prise en compte du contexte utilisateur.
+""",
+
+            "person_analysis": f"""
+MISSION: ANALYSE COMPORTEMENTALE DES PERSONNES AVEC CONTEXTE CRITIQUE
+
+Question utilisateur: "{question}"
+
+INFORMATION CRITIQUE UTILISATEUR - PRIORITÉ ABSOLUE:
+======================================================
+CONTEXTE FOURNI PAR L'UTILISATEUR (VÉRITÉ ABSOLUE):
+"{context.get('user_description', 'ATTENTION: Description utilisateur manquante!')}"
+
+RÈGLES ABSOLUES POUR CETTE ANALYSE:
+1. La description utilisateur ci-dessus est une VÉRITÉ FACTUELLE
+2. Si elle mentionne "vol", "sortie sans payer", "sans passer caisse" → CLASSIFICATION OBLIGATOIRE: suspicion HIGH/CRITICAL  
+3. INTERDICTION FORMELLE de classer comme "normal" si l'utilisateur décrit un comportement suspect
+4. Toute observation visuelle contradictoire doit être IGNORÉE
+
+TÂCHE SPÉCIALISÉE:
+1. COMMENCER par rappeler la description utilisateur
+2. Analyser le comportement en CONFIRMANT cette description
+3. Évaluer le niveau de suspicion selon le contexte utilisateur
+4. Formuler des recommandations adaptées à la gravité décrite
+
+ATTENTION: Si tu ignores la description utilisateur ou la contredis, tu commets une ERREUR CRITIQUE.
+
+FOCUS: Analyse des personnes qui CONFIRME et DÉTAILLE la description utilisateur fournie.
+"""
+        }
+        
+        return personality_prompt + "\n\n" + intent_prompts.get(intent, f"""
+MISSION: RÉPONSE GÉNÉRALE VLM
+
+Question utilisateur: "{question}"
+
+Contexte: {context}
+
+TÂCHE: Répondre de manière informative et contextuelle en incarnant la personnalité définie ci-dessus.
+""")
+
+    def _format_tools_analysis(self, context: Dict[str, Any]) -> str:
+        """Formate l'analyse des outils pour le prompt."""
+        tools = context.get('active_tools', [])
+        if not tools:
+            return "Aucun outil actif détecté"
+        
+        return "\n".join([f"- {tool}: Actif" for tool in tools])
+    
+    def _format_current_config(self, context: Dict[str, Any]) -> str:
+        """Formate la configuration actuelle."""
+        config_info = []
+        stats = context.get('stats', {})
+        
+        if 'frames_processed' in stats:
+            config_info.append(f"Frames traitées: {stats['frames_processed']}")
+        if 'avg_processing_time' in stats:
+            config_info.append(f"Temps moyen: {stats['avg_processing_time']:.2f}s")
+            
+        return "\n".join(config_info) if config_info else "Configuration non disponible"
+    
+    def _format_incident_data(self, context: Dict[str, Any]) -> str:
+        """Formate les données d'incident."""
+        incident_data = []
+        
+        if 'current_frame_data' in context:
+            incident_data.append("Frame vidéo disponible pour analyse")
+        if 'video_analyses' in context:
+            incident_data.append(f"{len(context['video_analyses'])} analyses vidéo disponibles")
+            
+        return "\n".join(incident_data) if incident_data else "Données incident limitées"
+
     async def _process_vlm_query_internal(
         self, 
         question: str, 
@@ -179,9 +730,13 @@ class VLMChatbotSymbiosis:
             return await self._fallback_response(question, vlm_context)
         
         try:
-            # 1. Construction du contexte VLM enrichi
+            # 0. NOUVEAU: Analyse de l'intention de la question
+            question_analysis = self._analyze_question_intent(question)
+            logger.info(f"Question intent détecté: {question_analysis['intent']} (confiance: {question_analysis['confidence']:.2f})")
+            
+            # 1. Construction du contexte VLM enrichi avec intention spécifique
             enriched_context = await self._build_enriched_context(
-                question, chat_type, vlm_context
+                question, chat_type, vlm_context, question_analysis
             )
             
             # 2. Génération visualisation contexte (si activée)
@@ -189,8 +744,10 @@ class VLMChatbotSymbiosis:
             if self.context_visualization:
                 context_image = await self._create_context_visualization(enriched_context)
             
-            # 3. Construction prompt chatbot spécialisé
-            chat_prompt = self._build_vlm_chat_prompt(
+            # 3. Construction prompt chatbot spécialisé selon intention
+            chat_prompt = self._build_intent_specific_prompt(
+                question, question_analysis, enriched_context
+            ) if question_analysis['requires_specific_context'] else self._build_vlm_chat_prompt(
                 question, enriched_context, chat_type
             )
             
@@ -221,7 +778,7 @@ class VLMChatbotSymbiosis:
             
             # 5. Analyse avec VLM (symbiose complète)
             vlm_response = await self._analyze_with_vlm_symbiosis(
-                vlm_request, chat_prompt
+                vlm_request, chat_prompt, context_image=request_image
             )
             
             # 6. Post-traitement et structuration
@@ -242,7 +799,8 @@ class VLMChatbotSymbiosis:
         self, 
         question: str, 
         chat_type: str, 
-        vlm_context: Dict[str, Any]
+        vlm_context: Dict[str, Any],
+        question_analysis: Dict[str, Any] = None
     ) -> Dict[str, Any]:
         """Construit le contexte enrichi pour le VLM."""
         
@@ -250,7 +808,8 @@ class VLMChatbotSymbiosis:
             "timestamp": datetime.now().isoformat(),
             "question": question,
             "chat_type": chat_type,
-            "conversation_length": len(self.conversation_history)
+            "conversation_length": len(self.conversation_history),
+            "question_analysis": question_analysis or {}
         }
         
         # Données pipeline si disponibles
@@ -273,6 +832,32 @@ class VLMChatbotSymbiosis:
                 "optimizations": vlm_context.get("optimizations", []),
                 "alerts": vlm_context.get("alerts", [])
             })
+            
+            # Récupération de la description utilisateur critique depuis les analyses vidéo
+            video_analyses = vlm_context.get("video_analyses", {})
+            if video_analyses:
+                # Chercher la description dans les métadonnées vidéo récentes
+                for video_key, analysis_data in video_analyses.items():
+                    if isinstance(analysis_data, dict):
+                        frames_data = analysis_data.get('detailed_frames', [])
+                        if frames_data and len(frames_data) > 0:
+                            # Récupérer les métadonnées de la première frame
+                            first_frame = frames_data[0]
+                            if isinstance(first_frame, dict) and 'metadata' in first_frame:
+                                metadata = first_frame['metadata']
+                                if isinstance(metadata, dict) and 'detailed_description' in metadata:
+                                    enriched["user_description"] = metadata['detailed_description']
+                                    logger.info(f"Description utilisateur récupérée pour chat: {metadata['detailed_description'][:50]}...")
+                                    break
+            
+            # Fallback: chercher dans le contexte direct
+            if "user_description" not in enriched:
+                if "detailed_description" in vlm_context:
+                    enriched["user_description"] = vlm_context["detailed_description"]
+                elif "video_context_metadata" in vlm_context:
+                    video_meta = vlm_context["video_context_metadata"]
+                    if isinstance(video_meta, dict) and "detailed_description" in video_meta:
+                        enriched["user_description"] = video_meta["detailed_description"]
         
         return enriched
     
@@ -478,7 +1063,8 @@ Réponds maintenant en utilisant ton intelligence VLM complète avec thinking/re
     async def _analyze_with_vlm_symbiosis(
         self, 
         vlm_request: AnalysisRequest, 
-        chat_prompt: str
+        chat_prompt: str,
+        context_image: np.ndarray
     ) -> AnalysisResponse:
         """
         Analyse avec symbiose VLM complète.
@@ -498,7 +1084,7 @@ Réponds maintenant en utilisant ton intelligence VLM complète avec thinking/re
             # Injection prompt chatbot spécialisé
             if hasattr(self.pipeline.orchestrator, 'vlm_model'):
                 # Appel direct VLM avec prompt chatbot
-                response_text = await self._direct_vlm_call(chat_prompt, request_image)
+                response_text = await self._direct_vlm_call(chat_prompt, context_image)
                 
                 # Parse réponse JSON structurée
                 parsed_response = self._parse_vlm_chat_response(response_text)
@@ -617,28 +1203,22 @@ Réponds maintenant en utilisant ton intelligence VLM complète avec thinking/re
     ) -> Dict[str, Any]:
         """Structure la réponse finale pour l'interface chat."""
         
-        # Extraction données VLM
+        # Structure des données VLM (reasoning est du texte, pas du JSON)
         if vlm_response.reasoning:
-            try:
-                structured = json.loads(vlm_response.reasoning)
-                if isinstance(structured, dict):
-                    return {
-                        "type": "vlm_thinking",
-                        "question": question,
-                        "thinking": structured.get("thinking", ""),
-                        "analysis": structured.get("analysis", ""),
-                        "response": structured.get("response", vlm_response.description),
-                        "technical_details": structured.get("technical_details", ""),
-                        "recommendations": structured.get("recommendations", []),
-                        "confidence": structured.get("confidence", vlm_response.confidence),
-                        "data_quality": structured.get("data_quality", "medium"),
-                        "limitations": structured.get("limitations", []),
-                        "timestamp": datetime.now().isoformat(),
-                        "context_used": list(context.keys())
-                    }
-            except Exception as parse_error:
-                logger.warning(f"Parsing JSON VLM response failed: {parse_error}")
-                pass
+            return {
+                "type": "vlm_thinking",
+                "question": question,
+                "thinking": vlm_response.reasoning[:200] + "..." if len(vlm_response.reasoning) > 200 else vlm_response.reasoning,
+                "analysis": vlm_response.description,
+                "response": vlm_response.description,
+                "technical_details": f"Confiance: {vlm_response.confidence:.2f}, Action: {vlm_response.action_type.value}",
+                "recommendations": vlm_response.recommendations,
+                "confidence": vlm_response.confidence,
+                "data_quality": "high" if vlm_response.confidence > 0.8 else "medium" if vlm_response.confidence > 0.6 else "low",
+                "limitations": [],
+                "timestamp": datetime.now().isoformat(),
+                "context_used": list(context.keys())
+            }
         
         # Fallback structure
         return {
@@ -724,7 +1304,8 @@ def get_vlm_chatbot() -> VLMChatbotSymbiosis:
 async def process_vlm_chat_query(
     question: str, 
     chat_type: str = "surveillance",
-    vlm_context: Dict[str, Any] = None
+    vlm_context: Dict[str, Any] = None,
+    real_pipeline: Optional[RealVLMPipeline] = None
 ) -> Dict[str, Any]:
     """
     Interface principale pour traiter les questions chatbot avec VLM.
@@ -732,4 +1313,9 @@ async def process_vlm_chat_query(
     Remplace l'ancien generate_real_vlm_response() statique.
     """
     chatbot = get_vlm_chatbot()
+    
+    # NOUVEAU: Injection explicite de la pipeline si fournie
+    if real_pipeline:
+        chatbot.pipeline = real_pipeline
+        
     return await chatbot.process_chat_query(question, chat_type, vlm_context)

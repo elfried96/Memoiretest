@@ -73,7 +73,7 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
     
     def __init__(
         self,
-        vlm_model_name: str = "qwen2.5-vl-32b-instruct",
+        vlm_model_name: str = "qwen2.5-vl-7b-instruct",
         config: OrchestrationConfig = None,
         enable_adaptive_learning: bool = True,
         optimization_data_path: Optional[Path] = None
@@ -223,6 +223,10 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
         
         # 2. Sélection adaptative des outils
         selected_tools = await self._adaptive_tool_selection(context_signature)
+
+        # NOUVEAU: Si aucun outil n'est sélectionné, ne rien faire
+        if not selected_tools:
+            return self._create_default_response("Aucun outil pertinent pour ce contexte.")
         
         # 3. Override temporaire de la sélection d'outils
         original_select_tools = self._select_tools_for_mode
@@ -241,15 +245,24 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
                     context_signature, selected_tools, analysis_result, processing_time
                 )
             
-            # 6. Vérification si re-optimisation nécessaire (désactivé temporairement)
-            # if self._should_reoptimize():
-            #     asyncio.create_task(self._background_reoptimization())
-            
             return analysis_result
             
         finally:
             # Restauration de la méthode originale
             self._select_tools_for_mode = original_select_tools
+    
+    def _create_default_response(self, reason: str) -> AnalysisResponse:
+        """Crée une réponse par défaut pour les scènes non analysées."""
+        return AnalysisResponse(
+            suspicion_level=SuspicionLevel.LOW,
+            action_type=ActionType.NORMAL_SHOPPING,
+            confidence=0.95,
+            description=reason,
+            detections=[],
+            tools_used=[],
+            tool_results={},
+            optimization_score=0.0
+        )
     
     def _analyze_context(self, context: Dict[str, Any], detections: List) -> str:
         """Analyse du contexte pour génération de signature."""
@@ -496,22 +509,28 @@ class AdaptiveVLMOrchestrator(ModernVLMOrchestrator):
         """Calcul du score de performance d'une exécution."""
         
         # Composants du score
-        confidence_score = result.confidence
+        confidence_score = result.confidence if result.confidence > 0 else 0.5
         
         # Score de temps de réponse (pénalité pour lenteur)
         time_score = max(0.0, 1.0 - (processing_time - 1.0) / 10.0)  # Optimal à 1s
+        time_score = max(0.1, time_score)  # Score minimum de 0.1
         
         # Score de qualité de la réponse (basé sur les outils utilisés)
-        tools_quality_score = len(result.tools_used) * 0.1  # Bonus outils utilisés
+        tools_quality_score = min(len(result.tools_used) * 0.15, 0.3)  # Max 30%
         
-        # Score global
+        # Bonus si détections trouvées
+        detection_bonus = 0.1 if len(result.detections) > 0 else 0.0
+        
+        # Score global amélioré
         performance_score = (
-            confidence_score * 0.6 +
-            time_score * 0.3 +
-            tools_quality_score * 0.1
+            confidence_score * 0.5 +
+            time_score * 0.25 +
+            tools_quality_score * 0.15 +
+            detection_bonus * 0.1
         )
         
-        return min(1.0, max(0.0, performance_score))
+        # Assurer un score minimum de 0.1 pour éviter 0%
+        return min(1.0, max(0.1, performance_score))
     
     async def _update_context_pattern(
         self,

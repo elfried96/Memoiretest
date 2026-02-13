@@ -19,25 +19,35 @@ class VideoProcessor:
         source: str = 0,
         frame_skip: int = 1,
         max_frames: Optional[int] = None,
-        target_fps: Optional[int] = None
+        target_fps: Optional[int] = None,
+        target_fps_processing: Optional[int] = None,
+        enable_motion_detection: bool = False
     ):
         """
         Initialise le processeur vidéo.
         
         Args:
             source: Source vidéo (fichier ou webcam)
-            frame_skip: Nombre de frames à ignorer entre chaque analyse
+            frame_skip: (Obsolète) Nombre de frames à ignorer
             max_frames: Nombre maximum de frames à traiter
             target_fps: FPS cible pour la capture
+            target_fps_processing: FPS cible pour l'analyse VLM (échantillonnage)
+            enable_motion_detection: Active le filtrage par détection de mouvement
         """
         self.source = source
         self.frame_skip = frame_skip
         self.max_frames = max_frames
         self.target_fps = target_fps
+        self.target_fps_processing = target_fps_processing
+        self.enable_motion_detection = enable_motion_detection
         
         self.cap = None
         self.frame_count = 0
         self.processed_frames = 0
+        
+        # Pour la détection de mouvement
+        self.previous_frame = None
+        self.motion_threshold = 100000  # Seuil empirique, ajustable
         
         self._initialize_capture()
 
@@ -80,40 +90,76 @@ class VideoProcessor:
 
     def frames_generator(self) -> Generator[Tuple[int, np.ndarray], None, None]:
         """
-        Générateur de frames optimisé avec gestion des erreurs.
+        Générateur de frames optimisé avec échantillonnage basé sur le FPS cible.
         
         Yields:
             Tuple[frame_id, frame]: ID et array de la frame
         """
+        if not self.cap or not self.cap.isOpened():
+            logger.error("Capture vidéo non initialisée ou fermée.")
+            return
+
+        source_fps = self.cap.get(cv2.CAP_PROP_FPS)
+        if source_fps <= 0:
+            logger.warning("FPS source inconnu, analyse de chaque frame.")
+            step = 1
+        else:
+            # Nouveau paramètre pour contrôler le FPS de l'analyse
+            target_fps_processing = getattr(self, 'target_fps_processing', source_fps)
+            if target_fps_processing is None or target_fps_processing <= 0:
+                target_fps_processing = source_fps
+            step = int(source_fps / target_fps_processing) if target_fps_processing > 0 else 1
+            step = max(1, step) # Assurer qu'on avance d'au moins 1
+
+        logger.info(f"Échantillonnage: analyse de ~1 frame toutes les {step} frames (Source: {source_fps:.1f}fps -> Cible: {target_fps_processing:.1f}fps).")
+
         try:
             while True:
-                # Vérification limite max_frames
                 if self.max_frames and self.processed_frames >= self.max_frames:
-                    logger.info(f"🏁 Limite atteinte: {self.max_frames} frames")
+                    logger.info(f"Limite atteinte: {self.max_frames} frames traitées.")
                     break
                 
                 ret, frame = self.cap.read()
                 if not ret:
-                    logger.info("📹 Fin de vidéo")
+                    logger.info("Fin de vidéo.")
                     break
-                
+
                 self.frame_count += 1
-                
-                # Frame skipping
-                if (self.frame_count - 1) % (self.frame_skip + 1) != 0:
-                    continue
-                
                 self.processed_frames += 1
-                
-                # Validation de la frame
+
                 if frame is None or frame.size == 0:
-                    logger.warning(f"⚠️ Frame {self.frame_count} invalide, ignorée")
+                    logger.warning(f"Frame {self.frame_count} invalide, ignorée.")
                     continue
+
+                # NOUVEAU: Détection de mouvement pour ignorer les frames statiques
+                if self.enable_motion_detection:
+                    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    gray_frame = cv2.GaussianBlur(gray_frame, (21, 21), 0)
+
+                    if self.previous_frame is not None:
+                        frame_delta = cv2.absdiff(self.previous_frame, gray_frame)
+                        if np.sum(frame_delta) < self.motion_threshold:
+                            # Mouvement insuffisant, on saute cette frame mais on avance dans la vidéo
+                            if step > 1:
+                                for _ in range(step - 1):
+                                    if not self.cap.read()[0]: break
+                                    self.frame_count += 1
+                            self.previous_frame = gray_frame
+                            continue # Passe à l'itération suivante de la boucle while
+
+                    self.previous_frame = gray_frame
                 
                 yield self.processed_frames, frame
+
+                # Sauter les frames suivantes pour atteindre le FPS cible
+                if step > 1:
+                    for _ in range(step - 1):
+                        if not self.cap.read()[0]:
+                            break # Fin de la vidéo
+                        self.frame_count += 1
                 
         except Exception as e:
-            logger.error(f"❌ Erreur lecture frame: {e}")
+            logger.error(f"Erreur lecture frame {self.frame_count}: {e}", exc_info=True)
             raise
         finally:
             self.release()

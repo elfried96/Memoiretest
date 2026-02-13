@@ -102,9 +102,9 @@ class VLMModelRegistry:
             description="FALLBACK - Qwen2-VL 7B robuste si Kimi indisponible"
         )
         
-        # Qwen2.5-VL-32B-Instruct (NOUVELLE VERSION PUISSANTE)
-        models["qwen2.5-vl-32b-instruct"] = ModelConfig(
-            model_name="Qwen/Qwen2.5-VL-32B-Instruct",
+        # Qwen2.5-VL-7B-Instruct (NOUVELLE VERSION PUISSANTE)
+        models["qwen2.5-vl-7b-instruct"] = ModelConfig(
+            model_name="Qwen/Qwen2.5-VL-7B-Instruct",
             model_type=VLMModelType.QWEN,
             processor_class="AutoProcessor",
             model_class="Qwen2_5_VLForConditionalGeneration",
@@ -146,7 +146,7 @@ class VLMModelRegistry:
         
         # Architecture mise à jour: Qwen2.5-VL-32B comme modèle principal
         # Fallback automatique vers Qwen2-VL 7B si nécessaire
-        return "qwen2.5-vl-32b-instruct"
+        return "qwen2.5-vl-7b-instruct"
     
     def validate_model_availability(self, model_id: str) -> Tuple[bool, str]:
         """Valide la disponibilité d'un modèle."""
@@ -182,12 +182,12 @@ class VLMModelRegistry:
         """Retourne les recommandations - SIMPLIFIÉ: Architecture dual-VLM."""
         
         return {
-            "surveillance": "qwen2.5-vl-32b-instruct",    # Principal Qwen2.5 32B
-            "thinking": "qwen2.5-vl-32b-instruct",       # Principal Qwen2.5 32B
-            "high_performance": "qwen2.5-vl-32b-instruct", # Principal Qwen2.5 32B
-            "reasoning": "qwen2.5-vl-32b-instruct",      # Principal Qwen2.5 32B
+            "surveillance": "qwen2.5-vl-7b-instruct",    # Principal Qwen2.5 32B
+            "thinking": "qwen2.5-vl-7b-instruct",       # Principal Qwen2.5 32B
+            "high_performance": "qwen2.5-vl-7b-instruct", # Principal Qwen2.5 32B
+            "reasoning": "qwen2.5-vl-7b-instruct",      # Principal Qwen2.5 32B
             "fallback": "qwen2-vl-7b-instruct",          # Fallback Qwen 7B
-            "default": "qwen2.5-vl-32b-instruct"         # Principal par défaut
+            "default": "qwen2.5-vl-7b-instruct"         # Principal par défaut
         }
     
     def get_model_comparison(self) -> Dict[str, Any]:

@@ -44,7 +44,7 @@ class DynamicVisionLanguageModel:
     - Qwen/Qwen2.5-VL-7B-Instruct: Modèle principal pour surveillance
     - Qwen/Qwen2.5-VL-7B-Instruct-2506: Version améliorée
     - qwen2-vl-7b-instruct: Fallback robuste
-    - qwen2.5-vl-32b-instruct: Version haute performance
+    - qwen2.5-vl-7b-instruct: Version haute performance
     
     Attributes:
         device (torch.device): Device de computation (GPU/CPU)
@@ -64,8 +64,8 @@ class DynamicVisionLanguageModel:
     
     def __init__(
         self,
-        default_model: str = "qwen2.5-vl-32b-instruct",
-        device: str = "auto", 
+        default_model: str = "qwen2.5-vl-7b-instruct",
+        device: str = "cuda", 
         enable_fallback: bool = True
     ):
         """
@@ -407,9 +407,6 @@ class DynamicVisionLanguageModel:
             # Parse de la réponse
             analysis_result = self.response_parser.parse_vlm_response(response_text)
             
-            # Ajout d'informations sur le modèle utilisé
-            analysis_result.description += f" | Modèle: {self.current_model_id}"
-            
             # Affichage détaillé des décisions VLM
             self._log_vlm_decision(response_text, analysis_result)
             
@@ -463,11 +460,25 @@ class DynamicVisionLanguageModel:
         """Construction de prompt optimisé selon le modèle."""
         
         # Prompt de base avec contexte vidéo si disponible
+        video_context = getattr(request, 'video_context_metadata', None) or request.context.get('video_context_metadata', None)
+        
+        # ✅ VALIDATION CONTEXTUELLE RENFORCÉE POUR DÉTECTION DE VOL
+        if video_context and video_context.get('detailed_description'):
+            description = video_context.get('detailed_description', '').lower()
+            vol_indicators = ['vol', 'sortie sans payer', 'sans passer', 'caisse', 'vienne de sortie', 'rien voler']
+            
+            if any(indicator in description for indicator in vol_indicators):
+                # Force les paramètres pour la détection de vol
+                if hasattr(request, 'temperature'):
+                    request.temperature = 0.1  # Plus déterministe
+                video_context['theft_context_detected'] = True
+                logger.warning(f"⚠️ CONTEXTE DE VOL DÉTECTÉ: {description[:100]}...")
+        
         base_prompt = self.prompt_builder.build_surveillance_prompt(
             request.context,
             request.tools_available,
             tools_results,
-            request.context.get("video_context_metadata")
+            video_context
         )
         
         # Optimisations spécifiques par modèle
@@ -481,8 +492,7 @@ class DynamicVisionLanguageModel:
         
         # FORCAGE JSON STRICT RENFORCÉ pour Qwen2-VL (très strict)
         if self.current_config and self.current_config.model_type == VLMModelType.QWEN:
-            base_prompt += """\n\n🚨 RÉPONSE OBLIGATOIRE EN JSON UNIQUEMENT 🚨
-Tu DOIS répondre SEULEMENT avec ce JSON (aucun autre texte):
+            base_prompt += """\n\n Tu dois répondre seulement au format JSON comme ceci, sans aucun autre texte avant ou après le JSON :
 
 {
   "suspicion_level": "low",
@@ -493,7 +503,7 @@ Tu DOIS répondre SEULEMENT avec ce JSON (aucun autre texte):
   "recommendations": ["Action recommandée 1", "Action recommandée 2"]
 }
 
-STRICT: Commence directement par { et termine par }. Aucun texte avant/après."""
+ Commence directement par { et termine par }. Aucun texte avant/après."""
         else:
             # Pour autres modèles (Kimi-VL)
             base_prompt += """\n\n⚠️ IMPORTANT: Réponds UNIQUEMENT en JSON valide avec cette structure EXACTE:
@@ -582,7 +592,7 @@ STRICT: Commence directement par { et termine par }. Aucun texte avant/après.""
                     "temperature": 0.8,     # ✅ Doc officielle: 0.8 pour Thinking models  
                     "do_sample": True,      # ✅ Nécessaire avec temperature
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
-                    "use_cache": False,      # ❌ DÉSACTIVER cache pour éviter DynamicCache bug (transformers >= 4.55)
+                    "use_cache": True,      # ✅ RÉACTIVÉ pour performance vidéo
                     "return_dict_in_generate": False,
                     "output_attentions": False,
                     "output_hidden_states": False
@@ -594,7 +604,7 @@ STRICT: Commence directement par { et termine par }. Aucun texte avant/après.""
                     "temperature": 0.1,     # ✅ Stable pour Qwen2-VL
                     "do_sample": True,
                     "pad_token_id": self.processor.tokenizer.eos_token_id if hasattr(self.processor, 'tokenizer') else None,
-                    "use_cache": False,      # ❌ DÉSACTIVER cache pour éviter DynamicCache bug (transformers >= 4.55)
+                    "use_cache": True,      # ✅ RÉACTIVÉ pour performance vidéo cruciale
                     "return_dict_in_generate": False,  # Simplifier retour
                     "output_attentions": False,
                     "output_hidden_states": False
@@ -656,34 +666,49 @@ STRICT: Commence directement par { et termine par }. Aucun texte avant/après.""
             raise ProcessingError(f"Génération échouée: {e}")
     
     def _extract_json_from_qwen_response(self, response: str) -> str:
-        """Extrait le JSON de la réponse Qwen2-VL qui peut contenir du texte supplémentaire."""
+        """
+        Extrait le JSON de la réponse Qwen2-VL qui peut contenir du texte supplémentaire.
+        Priorise les blocs JSON marqués avec ```json.
+        """
         import re
         import json
         
+        logger.debug(f"Réponse brute Qwen à parser: {response}")
+
         try:
-            # Chercher un JSON valide dans la réponse
-            # Pattern pour trouver du JSON entre accolades
+            # 1. Chercher un bloc JSON démarqué par ```json
+            markdown_match = re.search(r"```json\s*(\{.*?\})\s*```", response, re.DOTALL)
+            if markdown_match:
+                json_str = markdown_match.group(1)
+                try:
+                    # Tester si c'est un JSON valide
+                    parsed = json.loads(json_str)
+                    if 'suspicion_level' in parsed and 'action_type' in parsed:
+                        logger.debug("JSON extrait avec succès depuis un bloc markdown ```json")
+                        return json_str
+                except json.JSONDecodeError:
+                    logger.warning("Bloc markdown ```json trouvé mais invalide, tentative suivante.")
+
+            # 2. Si pas de bloc markdown, chercher le premier JSON valide dans la réponse
             json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
             matches = re.findall(json_pattern, response, re.DOTALL)
             
             for match in matches:
                 try:
-                    # Tester si c'est un JSON valide
                     parsed = json.loads(match)
-                    # Vérifier qu'il contient les champs requis
                     if 'suspicion_level' in parsed and 'action_type' in parsed:
-                        logger.debug(f"JSON extrait avec succès de la réponse Qwen2-VL")
+                        logger.debug(f"JSON générique extrait avec succès de la réponse Qwen2-VL")
                         return match
                 except json.JSONDecodeError:
                     continue
             
-            # Si aucun JSON valide trouvé, essayer d'en construire un à partir du texte
-            logger.warning("Aucun JSON valide trouvé, construction depuis texte")
+            # 3. Si aucun JSON valide trouvé, construire un JSON à partir du texte
+            logger.warning("Aucun JSON valide trouvé, construction depuis le texte brut.")
             return self._construct_json_from_text(response)
             
         except Exception as e:
-            logger.error(f"Erreur extraction JSON: {e}")
-            return response  # Retourner la réponse originale
+            logger.error(f"Erreur majeure lors de l'extraction JSON: {e}")
+            return response  # Retourner la réponse originale en dernier recours
     
     def _construct_json_from_text(self, text: str) -> str:
         """Construit un JSON valide à partir du texte libre de Qwen2-VL."""

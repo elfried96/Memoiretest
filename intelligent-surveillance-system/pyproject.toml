@@ -58,6 +58,7 @@ dependencies = [
     "qwen-vl-utils>=0.0.11",
     "streamlit",
     "hf-transfer>=0.1.9",
+    "openai>=2.8.1",
 ]
 
 [project.optional-dependencies]
@@ -147,7 +148,8 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "integration: marks tests as integration tests", 
     "unit: marks tests as unit tests",
-    "gpu: marks tests that require GPU"
+    "gpu: marks tests that require GPU",
+    "asyncio: marks tests as asyncio tests"
 ]
 
 [tool.coverage.run]

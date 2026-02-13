@@ -154,6 +154,7 @@ class AnalysisRequest(BaseModel):
     max_tokens: int = Field(512, description="Nombre max de tokens")
     temperature: float = Field(0.1, description="Température pour génération")
     preferred_model: Optional[str] = Field(None, description="Modèle préféré pour l'analyse")
+    video_context_metadata: Optional[Dict[str, Any]] = Field(None, description="Métadonnées contextuelles de la vidéo avec description utilisateur")
 
 
 class AnalysisResponse(BaseModel):

@@ -10,6 +10,12 @@ Usage:
     python vlm_scenario_simulator.py
 """
 
+# Configuration GPU optimale pour Qwen2.5-VL-7B-Instruct
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'  # Utiliser GPU 0
+os.environ['TORCH_USE_CUDA_DSA'] = '1'   # Activer optimisations CUDA  
+os.environ['HF_HUB_ENABLE_HF_TRANSFER'] = '1'  # Activer téléchargement rapide
+
 import json
 import sys
 import time
@@ -364,19 +370,24 @@ class VLMScenarioSimulator:
                 return None
         
         try:
-            # Construction du prompt pour simulation
-            vlm_prompt = f"""
-Analysez ce scenario de surveillance et fournissez un raisonnement Chain-of-Thought structure:
-
-SCENARIO: {scenario_text}
-
-Fournissez une analyse structuree avec:
-1. Observation systematique et tout en faisant attention à tout les détails 
-2. Analyse comportementale  
-3. Correlation données outils
-4. Evaluation suspicion
-5. Decision finale avec niveau (LOW/MEDIUM/HIGH/CRITICAL) tout en donnant des explication claire sur la situation en donnant des recommandations d'action à mener 
-"""
+            # NOUVEAU: Utilisation du PromptBuilder renforcé
+            from src.core.vlm.prompt_builder import PromptBuilder
+            prompt_builder = PromptBuilder()
+            
+            # Simuler le contexte vidéo comme s'il venait du dashboard
+            mock_video_context = {
+                'title': "Simulation de Scénario",
+                'location_type': "Magasin/Commerce",
+                'time_context': "Heures ouverture",
+                'suspicious_focus': ["Vol à l'étalage", "Mouvements suspects"],
+                'detailed_description': scenario_text # Le texte du scénario est la description de l'opérateur
+            }
+            
+            vlm_prompt = prompt_builder.build_surveillance_prompt(
+                context=mock_context,
+                available_tools=self.available_tools,
+                video_context_metadata=mock_video_context
+            )
             
             # Simulation du contexte surveillance
             mock_context = {
@@ -385,25 +396,59 @@ Fournissez une analyse structuree avec:
                 'timestamp': datetime.now()
             }
             
-            # Appel VLM reel (asynchrone)
+            # Appel VLM reel directement (évite les optimisations chatbot qui causent l'erreur datetime)
             import asyncio
+            from src.core.types import AnalysisRequest
+            
             loop = asyncio.new_event_loop()
             asyncio.set_event_loop(loop)
             
-            response = loop.run_until_complete(
-                process_vlm_chat_query(
-                    question=vlm_prompt,
-                    chat_type='surveillance',
-                    vlm_context=mock_context
+            # Créer une image factice pour AnalysisRequest
+            import numpy as np
+            import cv2
+            import base64
+            fake_image = np.zeros((480, 640, 3), dtype=np.uint8)
+            _, buffer = cv2.imencode('.jpg', fake_image)
+            frame_data_b64 = base64.b64encode(buffer).decode('utf-8')
+            
+            # Utiliser directement l'orchestrateur VLM sans les optimisations chatbot
+            if self.vlm_pipeline and hasattr(self.vlm_pipeline, 'orchestrator'):
+                vlm_request = AnalysisRequest(
+                    frame_data=frame_data_b64,
+                    context={"surveillance_prompt": vlm_prompt, **mock_context}
                 )
-            )
+                
+                response = loop.run_until_complete(
+                    self.vlm_pipeline.orchestrator.analyze(vlm_request)
+                )
+                
+                # Convertir AnalysisResponse en format attendu
+                response = {
+                    'response': response.description,
+                    'reasoning': response.reasoning,
+                    'confidence': response.confidence,
+                    'suspicion_level': response.suspicion_level.value,
+                    'action_type': response.action_type.value
+                }
+            else:
+                # Fallback vers chatbot si orchestrateur non disponible
+                response = loop.run_until_complete(
+                    process_vlm_chat_query(
+                        question=vlm_prompt,
+                        chat_type='surveillance',
+                        vlm_context=mock_context
+                    )
+                )
             
             loop.close()
             
+            # Nettoyer les datetime de la réponse pour éviter les erreurs JSON
+            clean_response = self._clean_datetime_from_response(response)
+            
             return {
-                'vlm_response': response.get('response', ''),
-                'thinking': response.get('thinking', ''),
-                'confidence': response.get('confidence', 0.0),
+                'vlm_response': clean_response.get('response', ''),
+                'thinking': clean_response.get('thinking', ''),
+                'confidence': clean_response.get('confidence', 0.0),
                 'source': 'real_vlm'
             }
             
@@ -411,10 +456,23 @@ Fournissez une analyse structuree avec:
             print(f"Erreur VLM reel: {e}")
             return None
     
+    def _clean_datetime_from_response(self, obj):
+        """Nettoie récursivement les datetime des réponses VLM."""
+        from datetime import datetime
+        
+        if isinstance(obj, dict):
+            return {key: self._clean_datetime_from_response(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [self._clean_datetime_from_response(item) for item in obj]
+        elif isinstance(obj, datetime):
+            return obj.isoformat()
+        else:
+            return obj
+    
     def run_simulation(self, scenario_text: str, scenario_name: str = None) -> Dict:
         """Execute une simulation complete."""
         print("\nAnalyse en cours avec votre pipeline VLM...")
-        time.sleep(200)  # Simulation du temps de traitement
+        time.sleep(2)  # Simulation du temps de traitement (2 secondes)
         
         # Tente d'abord avec le VLM reel
         real_vlm_result = self.simulate_with_real_vlm(scenario_text)
@@ -462,10 +520,30 @@ Fournissez une analyse structuree avec:
         if result.get('source') == 'real_vlm':
             # Affichage pour VLM reel
             print(" PIPELINE VLM RÉELLE UTILISÉE")
-            print(result.get('vlm_response', ''))
+            
+            # Extraire le texte de la réponse VLM
+            vlm_response = result.get('vlm_response', {})
+            
+            # Si c'est un dictionnaire, extraire le texte de réponse
+            if isinstance(vlm_response, dict):
+                response_text = vlm_response.get('response', vlm_response.get('description', ''))
+                reasoning_text = vlm_response.get('reasoning', '')
+                confidence = vlm_response.get('confidence', 0.0)
+                
+                if response_text:
+                    print(f"📊 ANALYSE: {response_text}")
+                if reasoning_text and reasoning_text != response_text:
+                    print(f"🤔 RAISONNEMENT: {reasoning_text}")
+            else:
+                # Si c'est déjà du texte, l'afficher directement
+                print(f"📊 RÉPONSE VLM: {vlm_response}")
+                confidence = result.get('confidence', 0.0)
+            
+            # Thinking si disponible
             if result.get('thinking'):
-                print(f"\nThinking VLM: {result['thinking']}")
-            print(f"\nConfiance VLM: {result.get('confidence', 0):.2%}")
+                print(f"💭 THINKING: {result['thinking']}")
+            
+            print(f"\n✅ Confiance VLM: {confidence:.2%}")
         
         else:
             # Affichage pour simulation locale

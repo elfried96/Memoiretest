@@ -1,0 +1,77 @@
+# === Python ===
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# === Virtual Environments ===
+.env
+.venv
+env/
+venv/
+ENV/
+
+# === IDE ===
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# === Logs ===
+logs/
+*.log
+
+# === Models (trop gros pour git) ===
+*.pt
+*.pth
+*.onnx
+*.bin
+*.safetensors
+models/weights/
+
+# === Data ===
+data/
+uploads/
+outputs/
+frames/
+clips/
+
+# === Cache ===
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.pyc
+
+# === Jupyter ===
+.ipynb_checkpoints/
+*.ipynb
+
+# === OS ===
+.DS_Store
+Thumbs.db
+
+# === Secrets ===
+.env
+.env.local
+.env.production
+secrets/
+*.pem
+*.key
